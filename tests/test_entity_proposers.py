@@ -1,0 +1,171 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from io import StringIO
+from contextlib import redirect_stdout
+
+from bio_annotation.cli import main
+from bio_annotation.entity_proposal import flatten_annotations, run_all_annotators
+from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
+from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
+from bio_annotation.entity_proposal.pubtator_proposer import annotate_with_pubtator
+from bio_annotation.schemas.document import Document
+
+
+def sample_document() -> Document:
+    return Document(
+        document_id="PMID:12345678",
+        pmid="12345678",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN and miR-21 are biomarkers in glioblastoma.",
+        source="pubmed",
+    )
+
+
+def test_bern2_adapter_normalizes_records() -> None:
+    document = sample_document()
+    response = {
+        "annotations": [
+            {
+                "mention": "PTEN",
+                "span": {"begin": 0, "end": 4},
+                "type": "Gene",
+                "id": "NCBIGene:5728",
+                "normalizedName": "PTEN",
+                "probability": 0.98,
+            },
+            {
+                "mention": "glioblastoma",
+                "span": {"begin": 15, "end": 27},
+                "type": "Disease",
+                "id": "MESH:D005909",
+            },
+        ]
+    }
+
+    annotations = annotate_with_bern2(document, response=response)
+
+    assert len(annotations) == 2
+    assert annotations[0].source == "bern2"
+    assert annotations[0].entity_type == "gene"
+    assert annotations[0].canonical_id == "NCBIGene:5728"
+    assert annotations[1].entity_type == "disease"
+
+
+@dataclass
+class FakeLabel:
+    value: str
+    score: float
+
+
+@dataclass
+class FakeSpan:
+    text: str
+    start_position: int
+    end_position: int
+    labels: list[FakeLabel]
+
+
+def test_flair_adapter_normalizes_spans() -> None:
+    document = sample_document()
+    spans = [
+        FakeSpan(
+            text="miR-21",
+            start_position=37,
+            end_position=43,
+            labels=[FakeLabel(value="micro_rna", score=0.87)],
+        )
+    ]
+
+    annotations = annotate_with_flair(document, spans=spans)
+
+    assert len(annotations) == 1
+    assert annotations[0].source == "flair"
+    assert annotations[0].entity_type == "mirna"
+    assert annotations[0].confidence == 0.87
+
+
+def test_pubtator_adapter_parses_bioc_json() -> None:
+    document = sample_document()
+    response = {
+        "documents": [
+            {
+                "passages": [
+                    {
+                        "offset": 0,
+                        "annotations": [
+                            {
+                                "text": "PTEN",
+                                "infons": {"type": "Gene", "identifier": "5728"},
+                                "locations": [{"offset": 0, "length": 4}],
+                            },
+                            {
+                                "text": "glioblastoma",
+                                "infons": {"type": "Disease", "identifier": "D005909"},
+                                "locations": [{"offset": 15, "length": 12}],
+                            },
+                        ],
+                    }
+                ]
+            }
+        ]
+    }
+
+    annotations = annotate_with_pubtator(document, response=response)
+
+    assert len(annotations) == 2
+    assert annotations[0].source == "pubtator"
+    assert annotations[0].canonical_id == "5728"
+    assert annotations[1].entity_type == "disease"
+
+
+def test_run_all_annotators_returns_consistent_result_map() -> None:
+    document = sample_document()
+    results = run_all_annotators(
+        document,
+        bern2_response={
+            "annotations": [
+                {"mention": "PTEN", "span": {"begin": 0, "end": 4}, "type": "Gene"}
+            ]
+        },
+        flair_spans=[
+            FakeSpan(
+                text="miR-21",
+                start_position=37,
+                end_position=43,
+                labels=[FakeLabel(value="micro_rna", score=0.87)],
+            )
+        ],
+        pubtator_response={
+            "documents": [
+                {
+                    "passages": [
+                        {
+                            "annotations": [
+                                {
+                                    "text": "glioblastoma",
+                                    "infons": {"type": "Disease", "identifier": "D005909"},
+                                    "locations": [{"offset": 15, "length": 12}],
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+
+    assert set(results) == {"bern2", "flair", "pubtator"}
+    assert all(isinstance(items, list) for items in results.values())
+    assert len(flatten_annotations(results)) == 3
+
+
+def test_cli_demo_runs() -> None:
+    stream = StringIO()
+    with redirect_stdout(stream):
+        exit_code = main(["demo"])
+
+    output = stream.getvalue()
+    assert exit_code == 0
+    assert "PMID:12345678" in output
+    assert '"sources"' in output

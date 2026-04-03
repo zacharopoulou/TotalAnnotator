@@ -7,7 +7,19 @@ name = "bio-annotation"
 version = "0.1.0"
 description = "Biomedical and clinical annotation pipeline"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+totalannotator = "bio_annotation.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

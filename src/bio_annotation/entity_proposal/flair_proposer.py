@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from typing import Any, Callable, Iterable
+
+from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.schemas.document import Document
+from bio_annotation.schemas.entity import Annotation
+
+
+def _extract_flair_label(span: Any) -> tuple[Any, Any]:
+    if hasattr(span, "get_label"):
+        label = span.get_label("ner")
+        return getattr(label, "value", None), getattr(label, "score", None)
+
+    labels = getattr(span, "labels", None)
+    if labels:
+        first = labels[0]
+        return getattr(first, "value", None), getattr(first, "score", None)
+
+    return getattr(span, "tag", None), getattr(span, "score", None)
+
+
+def parse_flair_spans(document: Document, spans: Iterable[Any]) -> list[Annotation]:
+    annotations: list[Annotation] = []
+    for span in spans:
+        label, score = _extract_flair_label(span)
+        text = getattr(span, "text", None)
+        if text is None and hasattr(span, "to_original_text"):
+            text = span.to_original_text()
+        if not text:
+            continue
+
+        annotations.append(
+            make_annotation(
+                document=document,
+                source="flair",
+                span_text=text,
+                entity_type=label,
+                start=getattr(span, "start_position", None),
+                end=getattr(span, "end_position", None),
+                confidence=score,
+            )
+        )
+
+    return annotations
+
+
+def annotate_with_flair(
+    document: Document,
+    *,
+    spans: Iterable[Any] | None = None,
+    tagger: Any = None,
+    sentence_factory: Callable[[str], Any] | None = None,
+) -> list[Annotation]:
+    predictions = spans
+
+    if predictions is None and tagger is not None:
+        if sentence_factory is None:
+            try:
+                from flair.data import Sentence
+            except ImportError:
+                return []
+            sentence = Sentence(document.text)
+        else:
+            sentence = sentence_factory(document.text)
+
+        tagger.predict(sentence)
+        predictions = sentence.get_spans("ner")
+
+    if predictions is None:
+        return []
+
+    return parse_flair_spans(document, predictions)
