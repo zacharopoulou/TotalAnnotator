@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from io import StringIO
 from contextlib import redirect_stdout
 
@@ -169,3 +170,25 @@ def test_cli_demo_runs() -> None:
     assert exit_code == 0
     assert "PMID:12345678" in output
     assert '"sources"' in output
+
+
+def test_cli_inspect_config_runs() -> None:
+    stream = StringIO()
+    with redirect_stdout(stream):
+        exit_code = main(["inspect-config"])
+
+    output = json.loads(stream.getvalue())
+    assert exit_code == 0
+    assert output["input_mode"] == "corpus"
+    assert output["corpus_path"] == "data/corpora/example_documents.json"
+
+
+def test_cli_load_documents_runs() -> None:
+    stream = StringIO()
+    with redirect_stdout(stream):
+        exit_code = main(["load-documents"])
+
+    output = json.loads(stream.getvalue())
+    assert exit_code == 0
+    assert output["input_mode"] == "corpus"
+    assert output["document_count"] == 1

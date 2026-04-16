@@ -1,5 +1,5 @@
 [input]
-pmids = []
+mode = "corpus"
 corpus_path = "data/corpora/example_documents.json"
 
 [annotators]

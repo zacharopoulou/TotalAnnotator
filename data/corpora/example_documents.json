@@ -1,0 +1,14 @@
+{
+  "documents": [
+    {
+      "document_id": "CORPUS:demo-1",
+      "pmid": "12345678",
+      "title": "PTEN regulates glioblastoma",
+      "abstract": "PTEN and miR-21 are biomarkers in glioblastoma.",
+      "source": "corpus",
+      "metadata": {
+        "example": true
+      }
+    }
+  ]
+}

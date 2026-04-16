@@ -30,6 +30,18 @@ Run the local mocked demo:
 uv run totalannotator demo
 ```
 
+Inspect the example pipeline config:
+
+```bash
+uv run totalannotator inspect-config
+```
+
+Preview documents loaded from the pipeline config:
+
+```bash
+uv run totalannotator load-documents
+```
+
 Run the test suite:
 
 ```bash
@@ -56,10 +68,14 @@ The intended near-term execution flow is:
 
 - `src/bio_annotation/schemas/`
   Shared `Document` and `Annotation` objects used across the pipeline.
+- `src/bio_annotation/io/`
+  PubMed record readers for PMID-based ingestion.
+- `src/bio_annotation/preprocessing/`
+  Config-driven document loading from PMIDs, PMID files, and text tables.
 - `src/bio_annotation/entity_proposal/`
   Annotator adapters and a `run_all_annotators()` entry point.
 - `src/bio_annotation/cli.py`
-  A minimal runnable CLI for fresh clones.
+  A runnable CLI with demo, config inspection, and document-loading preview commands.
 - `tests/`
   Offline tests for adapter normalization and unified outputs.
 
@@ -73,10 +89,38 @@ The intended near-term execution flow is:
 
 ## Near-Term Goals
 
-- implement PMID ingestion and document loading
 - connect live annotator backends where practical
 - compare annotator outputs before building merging and normalization
 - define a stable workflow and config contract for users and collaborators
+
+## Input Modes
+
+The current config loader supports these input modes:
+
+- `pmids`
+- `pmid_file`
+- `text_table`
+- `corpus`
+
+Example PMID file config:
+
+```toml
+[input]
+mode = "pmid_file"
+pmid_file = "data/inputs/pmids.txt"
+```
+
+Example text table config:
+
+```toml
+[input]
+mode = "text_table"
+text_file = "data/inputs/documents.csv"
+format = "csv"
+document_id_column = "document_id"
+title_column = "title"
+abstract_column = "abstract"
+```
 
 ## Development Note
 

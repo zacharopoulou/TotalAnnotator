@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from typing import Any, Callable
 
@@ -149,10 +150,25 @@ def load_documents_from_config(
     if mode == "corpus":
         if config.corpus_path is None:
             raise ValueError("input.corpus_path must be set when input.mode = 'corpus'.")
-        from bio_annotation.document_sources import load_corpus_documents
-
         return load_corpus_documents(config.corpus_path)
     raise ValueError(f"Unsupported input mode: {mode}")
+
+
+def load_corpus_documents(path: Path) -> list[Document]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        records = payload.get("documents", [])
+    elif isinstance(payload, list):
+        records = payload
+    else:
+        raise ValueError(f"{path} must contain a list of documents or a top-level documents list.")
+
+    documents: list[Document] = []
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise ValueError(f"{path} contains a non-object record at index {index}.")
+        documents.append(_build_document_from_record(record, index=index))
+    return documents
 
 
 def _delimiter_for_format(fmt: str) -> str:
@@ -190,3 +206,24 @@ def _clean_optional_text(value: object) -> str | None:
         return None
     cleaned = str(value).strip()
     return cleaned or None
+
+
+def _build_document_from_record(record: dict[str, Any], *, index: int) -> Document:
+    metadata = record.get("metadata")
+    if metadata is None:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        raise ValueError(f"Corpus record at index {index} has non-object metadata.")
+
+    pmid = _clean_optional_text(record.get("pmid"))
+    document_id = _clean_optional_text(record.get("document_id")) or (f"PMID:{pmid}" if pmid else f"CORPUS:{index}")
+    return Document(
+        document_id=document_id,
+        pmid=pmid,
+        title=_clean_optional_text(record.get("title")) or "",
+        abstract=_clean_optional_text(record.get("abstract")) or "",
+        full_text=_clean_optional_text(record.get("full_text")),
+        source=_clean_optional_text(record.get("source")) or "corpus",
+        year=_clean_optional_text(record.get("year")),
+        metadata=metadata,
+    )
