@@ -57,6 +57,9 @@ uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output 
 If no annotators are enabled yet, `run-config` still works as an ingestion step
 and returns the loaded documents with zero annotations.
 
+For PMID-based ingestion, PubMed link and external metadata enrichment is
+configurable through `[enrichment]`.
+
 Run the test suite:
 
 ```bash
@@ -165,6 +168,9 @@ Example single PMID config:
 [input]
 mode = "pmids"
 pmids = ["38123456"]
+
+[enrichment]
+sources = ["elinks", "crossref", "europe_pmc", "semantic_scholar", "unpaywall", "biorxiv"]
 
 [annotators]
 enabled = []

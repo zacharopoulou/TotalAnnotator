@@ -5,6 +5,16 @@ from pathlib import Path
 import tomllib
 
 
+DEFAULT_ENRICHMENT_SOURCES = [
+    "elinks",
+    "crossref",
+    "europe_pmc",
+    "semantic_scholar",
+    "unpaywall",
+    "biorxiv",
+]
+
+
 @dataclass(frozen=True)
 class PipelineConfig:
     input_mode: str
@@ -16,6 +26,7 @@ class PipelineConfig:
     title_column: str
     abstract_column: str
     corpus_path: Path | None
+    enrichment_sources: list[str]
     annotators: list[str]
     entity_types: list[str]
     output_path: Path | None
@@ -25,12 +36,15 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
 
     input_config = raw.get("input", {})
+    enrichment_config = raw.get("enrichment", {})
     annotator_config = raw.get("annotators", {})
     filter_config = raw.get("filters", {})
     output_config = raw.get("output", {})
 
     if not isinstance(input_config, dict):
         raise ValueError(f"{path} is missing a valid [input] table.")
+    if not isinstance(enrichment_config, dict):
+        raise ValueError(f"{path} has an invalid [enrichment] table.")
     if not isinstance(annotator_config, dict):
         raise ValueError(f"{path} is missing a valid [annotators] table.")
     if not isinstance(filter_config, dict):
@@ -48,6 +62,7 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
     abstract_column = _read_optional_string(input_config.get("abstract_column")) or "abstract"
     corpus_path_value = input_config.get("corpus_path")
     corpus_path = Path(corpus_path_value) if isinstance(corpus_path_value, str) and corpus_path_value.strip() else None
+    enrichment_sources = _read_enrichment_sources(enrichment_config.get("sources"))
     annotators = _read_string_list(
         annotator_config.get("enabled"),
         field_name="annotators.enabled",
@@ -75,6 +90,7 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         title_column=title_column,
         abstract_column=abstract_column,
         corpus_path=corpus_path,
+        enrichment_sources=enrichment_sources,
         annotators=annotators,
         entity_types=entity_types,
         output_path=output_path,
@@ -114,6 +130,19 @@ def _read_optional_string(value: object) -> str | None:
         raise ValueError(f"Expected a string value, got {value!r}.")
     cleaned = value.strip()
     return cleaned or None
+
+
+def _read_enrichment_sources(value: object) -> list[str]:
+    if value is None:
+        return list(DEFAULT_ENRICHMENT_SOURCES)
+    sources = _read_string_list(value, field_name="enrichment.sources", allow_empty=True)
+    invalid = [source for source in sources if source not in DEFAULT_ENRICHMENT_SOURCES]
+    if invalid:
+        raise ValueError(
+            "enrichment.sources contains unsupported values: "
+            + ", ".join(invalid)
+        )
+    return sources
 
 
 def _read_input_mode(input_config: dict[str, object]) -> str:

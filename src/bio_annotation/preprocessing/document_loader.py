@@ -18,8 +18,12 @@ def load_document_from_pmid(
     *,
     extra_metadata: dict[str, Any] | None = None,
     fetcher: PubMedFetcher | None = None,
+    enrichment_sources: list[str] | None = None,
 ) -> Document:
-    record = (fetcher or fetch_pubmed_record)(pmid)
+    if fetcher is None:
+        record = fetch_pubmed_record(pmid, enrichments=enrichment_sources)
+    else:
+        record = fetcher(pmid)
     normalized_pmid = str(record.get("pmid") or pmid).strip()
     metadata = extra_metadata.copy() if extra_metadata else {}
     metadata["pubmed_record"] = dict(record)
@@ -63,10 +67,17 @@ def load_documents_from_pmids(
     pmids: list[str],
     *,
     fetcher: PubMedFetcher | None = None,
+    enrichment_sources: list[str] | None = None,
 ) -> list[Document]:
     documents: list[Document] = []
     for pmid in _dedupe_pmids(pmids):
-        documents.append(load_document_from_pmid(pmid, fetcher=fetcher))
+        documents.append(
+            load_document_from_pmid(
+                pmid,
+                fetcher=fetcher,
+                enrichment_sources=enrichment_sources,
+            )
+        )
     return documents
 
 
@@ -74,13 +85,18 @@ def load_documents_from_pmid_file(
     path: Path,
     *,
     fetcher: PubMedFetcher | None = None,
+    enrichment_sources: list[str] | None = None,
 ) -> list[Document]:
     pmids = [
         line.strip()
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    return load_documents_from_pmids(pmids, fetcher=fetcher)
+    return load_documents_from_pmids(
+        pmids,
+        fetcher=fetcher,
+        enrichment_sources=enrichment_sources,
+    )
 
 
 def load_documents_from_text_table(
@@ -133,11 +149,19 @@ def load_documents_from_config(
 ) -> list[Document]:
     mode = config.input_mode
     if mode == "pmids":
-        return load_documents_from_pmids(config.pmids, fetcher=pmid_fetcher)
+        return load_documents_from_pmids(
+            config.pmids,
+            fetcher=pmid_fetcher,
+            enrichment_sources=config.enrichment_sources,
+        )
     if mode == "pmid_file":
         if config.pmid_file is None:
             raise ValueError("input.pmid_file must be set when input.mode = 'pmid_file'.")
-        return load_documents_from_pmid_file(config.pmid_file, fetcher=pmid_fetcher)
+        return load_documents_from_pmid_file(
+            config.pmid_file,
+            fetcher=pmid_fetcher,
+            enrichment_sources=config.enrichment_sources,
+        )
     if mode == "text_table":
         if config.text_file is None:
             raise ValueError("input.text_file must be set when input.mode = 'text_table'.")

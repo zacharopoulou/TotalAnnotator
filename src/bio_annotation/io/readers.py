@@ -45,7 +45,12 @@ _SEMANTIC_SCHOLAR_FIELDS = ",".join(
 _SEMANTIC_SCHOLAR_LINK_FIELDS = "title,year,authors,externalIds,citationCount,venue"
 
 
-def fetch_pubmed_record(pmid: str, *, timeout: int = 15) -> dict[str, Any]:
+def fetch_pubmed_record(
+    pmid: str,
+    *,
+    timeout: int = 15,
+    enrichments: list[str] | None = None,
+) -> dict[str, Any]:
     """Fetch a richer PubMed record for one PMID."""
 
     url = _EFETCH_URL.format(pmid=_normalize_pmid(pmid))
@@ -71,7 +76,11 @@ def fetch_pubmed_record(pmid: str, *, timeout: int = 15) -> dict[str, Any]:
 
     parsed = _parse_medline_article(medline, pubmed_data)
     parsed["pmid"] = _normalize_pmid(pmid)
-    parsed["elinks"] = _build_enrichment_bundle(parsed, timeout=timeout)
+    parsed["elinks"] = _build_enrichment_bundle(
+        parsed,
+        timeout=timeout,
+        enrichments=enrichments,
+    )
 
     return parsed
 
@@ -417,13 +426,26 @@ def _extract_version(node: ET.Element | None) -> str:
     return (node.get("Version") or "").strip()
 
 
-def _build_enrichment_bundle(record: dict[str, Any], *, timeout: int) -> dict[str, Any]:
-    bundle = _fetch_elinks(record.get("pmid"), timeout=timeout)
-    _merge_dict(bundle, _fetch_crossref(record.get("doi"), timeout=timeout))
-    _merge_dict(bundle, _fetch_europe_pmc(record.get("pmid"), timeout=timeout))
-    _merge_dict(bundle, _fetch_semantic_scholar(record.get("pmid"), timeout=timeout))
-    _merge_dict(bundle, _fetch_unpaywall(record.get("doi"), timeout=timeout))
-    _merge_dict(bundle, _fetch_biorxiv(record.get("doi"), timeout=timeout))
+def _build_enrichment_bundle(
+    record: dict[str, Any],
+    *,
+    timeout: int,
+    enrichments: list[str] | None,
+) -> dict[str, Any]:
+    requested = set(enrichments or ["elinks", "crossref", "europe_pmc", "semantic_scholar", "unpaywall", "biorxiv"])
+    bundle: dict[str, Any] = {}
+    if "elinks" in requested:
+        _merge_dict(bundle, _fetch_elinks(record.get("pmid"), timeout=timeout))
+    if "crossref" in requested:
+        _merge_dict(bundle, _fetch_crossref(record.get("doi"), timeout=timeout))
+    if "europe_pmc" in requested:
+        _merge_dict(bundle, _fetch_europe_pmc(record.get("pmid"), timeout=timeout))
+    if "semantic_scholar" in requested:
+        _merge_dict(bundle, _fetch_semantic_scholar(record.get("pmid"), timeout=timeout))
+    if "unpaywall" in requested:
+        _merge_dict(bundle, _fetch_unpaywall(record.get("doi"), timeout=timeout))
+    if "biorxiv" in requested:
+        _merge_dict(bundle, _fetch_biorxiv(record.get("doi"), timeout=timeout))
     return bundle
 
 
