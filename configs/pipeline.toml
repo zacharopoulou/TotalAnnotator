@@ -1,0 +1,15 @@
+[input]
+mode = "pmids"
+pmids = ["38123456"]
+
+[enrichment]
+sources = ["elinks", "crossref", "europe_pmc", "semantic_scholar", "unpaywall", "biorxiv"]
+
+[annotators]
+enabled = []
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/pmid_pipeline_output.json"

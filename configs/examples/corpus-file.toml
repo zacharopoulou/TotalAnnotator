@@ -1,0 +1,12 @@
+[input]
+mode = "corpus"
+corpus_path = "data/corpora/example_documents.json"
+
+[annotators]
+enabled = []
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/examples/corpus-file.json"

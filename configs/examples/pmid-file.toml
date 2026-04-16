@@ -1,0 +1,15 @@
+[input]
+mode = "pmid_file"
+pmid_file = "data/inputs/example_pmids.txt"
+
+[enrichment]
+sources = ["elinks", "crossref", "europe_pmc", "semantic_scholar", "unpaywall", "biorxiv"]
+
+[annotators]
+enabled = []
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/examples/pmid-file.json"
