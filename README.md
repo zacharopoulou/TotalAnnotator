@@ -2,7 +2,9 @@
 
 TotalAnnotator is a biomedical and clinical literature annotation project focused on turning article text into structured entity and relation outputs.
 
-The long-term pipeline is documented in [Workflow.md](Workflow.md) and follows this general path:
+The near-term product workflow target is documented in [docs/workflow-spec.md](docs/workflow-spec.md).
+
+The long-term pipeline vision is documented in [Workflow_longterm.md](Workflow_longterm.md) and follows this general path:
 
 `document -> entity proposals -> candidate merging -> normalization -> adjudication -> validation -> final JSON`
 
@@ -46,6 +48,10 @@ This first milestone is centered on:
 
 `PMID/document input -> annotator outputs -> unified annotations`
 
+The intended near-term execution flow is:
+
+`config -> validation -> document loading -> selected annotators -> harmonized per-annotator annotations -> overlap-based agreement summaries`
+
 ## What Exists Right Now
 
 - `src/bio_annotation/schemas/`
@@ -70,6 +76,7 @@ This first milestone is centered on:
 - implement PMID ingestion and document loading
 - connect live annotator backends where practical
 - compare annotator outputs before building merging and normalization
+- define a stable workflow and config contract for users and collaborators
 
 ## Development Note
 
