@@ -1,0 +1,12 @@
+[input]
+pmids = []
+corpus_path = "data/corpora/example_documents.json"
+
+[annotators]
+enabled = ["bern2"]
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/pipeline_output.json"
