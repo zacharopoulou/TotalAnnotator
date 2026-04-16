@@ -49,6 +49,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
         config_path,
         pmid_fetcher=lambda pmid: {
             "pmid": pmid,
+            "pmcid": "PMC1234567",
             "title": "PTEN regulates glioblastoma",
             "abstract": "PTEN is important in glioblastoma.",
             "year": "2024",
@@ -80,7 +81,10 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert payload["document_count"] == 1
     assert payload["stage"] == "corpus"
     assert payload["input"]["mode"] == "pmids"
-    assert payload["documents"][0]["annotation_count"] == 2
+    assert payload["pipeline"]["mode"] == "ingestion_and_annotation"
+    assert payload["documents"][0]["metadata"]["pubmed_record"]["pmcid"] == "PMC1234567"
+    assert payload["annotation_summary"]["annotation_count"] == 2
+    assert len(payload["annotations"]) == 2
 
 
 def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
@@ -118,9 +122,12 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
         "bio_annotation.pipeline_runner.run_pipeline_from_config",
         lambda path: {
             "document_count": 1,
-            "annotators": ["flair"],
+            "pipeline": {"mode": "ingestion_and_annotation", "annotators_enabled": ["flair"]},
             "entity_types": ["gene"],
             "documents": [],
+            "annotation_summary": {"annotators_enabled": ["flair"], "document_count": 1, "annotation_count": 0},
+            "document_annotations": [],
+            "annotations": [],
         },
     )
 
@@ -131,7 +138,7 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
     output = json.loads(stream.getvalue())
     assert exit_code == 0
     assert output["stage"] == "corpus"
-    assert output["annotators"] == ["flair"]
+    assert output["pipeline"]["annotators_enabled"] == ["flair"]
 
 
 def test_cli_run_config_ingestion_only(tmp_path) -> None:
@@ -168,5 +175,5 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     assert exit_code == 0
     assert output["stage"] == "corpus"
     assert output["input"]["mode"] == "corpus"
-    assert output["annotators"] == []
-    assert output["documents"][0]["annotation_count"] == 0
+    assert output["pipeline"]["annotators_enabled"] == []
+    assert output["annotation_summary"]["annotation_count"] == 0

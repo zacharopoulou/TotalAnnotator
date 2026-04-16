@@ -44,9 +44,11 @@ def fetch_pubmed_record(pmid: str, *, timeout: int = 15) -> dict[str, Any]:
     year: str | None = None
     if pub_date is not None:
         year = _clean_optional_text(pub_date.findtext("Year")) or _clean_optional_text(pub_date.findtext("MedlineDate"))
+    pmcid = _extract_pmcid(article)
 
     return {
         "pmid": _normalize_pmid(pmid),
+        "pmcid": pmcid,
         "title": title,
         "abstract": " ".join(abstract_parts).strip(),
         "year": year,
@@ -73,3 +75,14 @@ def _clean_optional_text(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def _extract_pmcid(article: ET.Element) -> str | None:
+    for article_id in article.findall(".//ArticleId"):
+        id_type = (article_id.get("IdType") or article_id.get("idtype") or "").strip().lower()
+        if id_type == "pmc":
+            value = _node_text(article_id)
+            if not value:
+                continue
+            return value if value.upper().startswith("PMC") else f"PMC{value}"
+    return None

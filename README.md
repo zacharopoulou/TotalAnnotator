@@ -133,6 +133,24 @@ Plain corpus file:
 uv run totalannotator run-config --config configs/examples/corpus-file.toml
 ```
 
+## Current Output Shape
+
+The current pipeline output is corpus-first.
+
+Top-level sections include:
+
+- `stage`
+- `input`
+- `pipeline`
+- `corpus_summary`
+- `documents`
+- `annotation_summary`
+- `document_annotations`
+- `annotations`
+
+In ingestion-only mode, `documents` is the main deliverable and the annotation
+sections stay empty.
+
 ## Example Config Shapes
 
 Example single PMID config:

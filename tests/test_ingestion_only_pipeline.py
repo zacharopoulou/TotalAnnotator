@@ -29,6 +29,7 @@ def test_run_pipeline_from_config_without_annotators(tmp_path) -> None:
         config_path,
         pmid_fetcher=lambda pmid: {
             "pmid": pmid,
+            "pmcid": "PMC1234567",
             "title": "PTEN regulates glioblastoma",
             "abstract": "PTEN is important in glioblastoma.",
             "year": "2024",
@@ -38,10 +39,14 @@ def test_run_pipeline_from_config_without_annotators(tmp_path) -> None:
     assert payload["document_count"] == 1
     assert payload["stage"] == "corpus"
     assert payload["input"]["mode"] == "pmids"
-    assert payload["annotators"] == []
-    assert payload["documents"][0]["annotation_count"] == 0
-    assert payload["documents"][0]["annotations"] == []
-    assert payload["documents"][0]["document"]["metadata"]["pubmed_record"]["pmid"] == "12345678"
+    assert payload["pipeline"]["mode"] == "ingestion_only"
+    assert payload["pipeline"]["annotators_enabled"] == []
+    assert payload["documents"][0]["metadata"]["pubmed_record"]["pmid"] == "12345678"
+    assert payload["documents"][0]["metadata"]["pubmed_record"]["pmcid"] == "PMC1234567"
+    assert payload["corpus_summary"]["documents_with_pmcid"] == 1
+    assert payload["annotation_summary"]["annotation_count"] == 0
+    assert payload["document_annotations"] == []
+    assert payload["annotations"] == []
 
 
 def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:

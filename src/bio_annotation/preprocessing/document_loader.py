@@ -189,6 +189,21 @@ def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
     }
 
 
+def summarize_ingestion(documents: list[Document]) -> dict[str, Any]:
+    pmid_documents = sum(1 for document in documents if document.pmid)
+    documents_with_pmcid = sum(
+        1
+        for document in documents
+        if isinstance(document.metadata.get("pubmed_record"), dict)
+        and document.metadata["pubmed_record"].get("pmcid")
+    )
+    return {
+        "document_count": len(documents),
+        "pmid_documents": pmid_documents,
+        "documents_with_pmcid": documents_with_pmcid,
+    }
+
+
 def load_corpus_documents(path: Path) -> list[Document]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):

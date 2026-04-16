@@ -8,7 +8,11 @@ from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
 from bio_annotation.entity_proposal.pubtator_proposer import annotate_with_pubtator
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
-from bio_annotation.preprocessing.document_loader import load_documents_from_config, resolve_input_description
+from bio_annotation.preprocessing.document_loader import (
+    load_documents_from_config,
+    resolve_input_description,
+    summarize_ingestion,
+)
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -48,8 +52,15 @@ def build_pipeline_output(
 ) -> dict[str, Any]:
     _validate_annotators(config.annotators)
     input_description = resolve_input_description(config)
+    corpus_documents = [document_to_dict(document) for document in documents]
 
-    output_documents: list[dict[str, Any]] = []
+    document_annotations: list[dict[str, Any]] = []
+    annotations_output: list[dict[str, Any]] = []
+    annotation_summary = {
+        "annotators_enabled": config.annotators,
+        "document_count": len(documents),
+        "annotation_count": 0,
+    }
     for document in documents:
         results = run_selected_annotators(
             document,
@@ -64,22 +75,38 @@ def build_pipeline_output(
         )
         annotations = flatten_annotations(results)
         annotations = filter_annotations_by_type(annotations, config.entity_types)
-        output_documents.append(
+        annotation_summary["annotation_count"] += len(annotations)
+        if config.annotators:
+            document_annotations.append(
+                {
+                    "document_id": document.document_id,
+                    "sources": sorted(results),
+                    "annotation_count": len(annotations),
+                    "annotations": [annotation.to_dict() for annotation in annotations],
+                }
+            )
+        annotations_output.extend(
             {
-                "document": document_to_dict(document),
-                "sources": sorted(results),
-                "annotation_count": len(annotations),
-                "annotations": [annotation.to_dict() for annotation in annotations],
+                "document_id": document.document_id,
+                **annotation.to_dict(),
             }
+            for annotation in annotations
         )
 
     return {
         "stage": "corpus",
         "input": input_description,
-        "document_count": len(output_documents),
-        "annotators": config.annotators,
+        "pipeline": {
+            "mode": "ingestion_only" if not config.annotators else "ingestion_and_annotation",
+            "annotators_enabled": config.annotators,
+        },
+        "document_count": len(corpus_documents),
+        "corpus_summary": summarize_ingestion(documents),
         "entity_types": config.entity_types,
-        "documents": output_documents,
+        "documents": corpus_documents,
+        "annotation_summary": annotation_summary,
+        "document_annotations": document_annotations,
+        "annotations": annotations_output,
     }
 
 

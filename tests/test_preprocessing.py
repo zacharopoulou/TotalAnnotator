@@ -31,6 +31,12 @@ PUBMED_XML = """\
         </Journal>
       </Article>
     </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">38123456</ArticleId>
+        <ArticleId IdType="pmc">PMC1234567</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
   </PubmedArticle>
 </PubmedArticleSet>
 """
@@ -57,6 +63,7 @@ def test_fetch_pubmed_record_parses_nested_xml_text(monkeypatch) -> None:
     assert "BACKGROUND: TP53 is important." in record["abstract"]
     assert "U87-MG cells were evaluated." in record["abstract"]
     assert record["year"] == "2024"
+    assert record["pmcid"] == "PMC1234567"
 
 
 def test_load_document_from_pmid_builds_document() -> None:
@@ -64,6 +71,7 @@ def test_load_document_from_pmid_builds_document() -> None:
         "38123456",
         fetcher=lambda pmid: {
             "pmid": pmid,
+            "pmcid": "PMC1234567",
             "title": "TP53 regulates glioblastoma",
             "abstract": "U87-MG cells were evaluated.",
             "year": "2024",
@@ -77,6 +85,7 @@ def test_load_document_from_pmid_builds_document() -> None:
     assert doc.source == "pubmed"
     assert doc.full_text is None
     assert doc.metadata["batch"] == "run-1"
+    assert doc.metadata["pubmed_record"]["pmcid"] == "PMC1234567"
 
 
 def test_load_documents_from_pmid_file_deduplicates(tmp_path: Path) -> None:
