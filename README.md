@@ -48,6 +48,12 @@ Run the selected annotators from the pipeline config:
 uv run totalannotator run-config
 ```
 
+Search PubMed and write a PMID file:
+
+```bash
+uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
+```
+
 If no annotators are enabled yet, `run-config` still works as an ingestion step
 and returns the loaded documents with zero annotations.
 

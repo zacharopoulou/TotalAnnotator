@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from bio_annotation.entity_proposal import flatten_annotations, run_all_annotators
+from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
 from bio_annotation.preprocessing.document_loader import load_documents_from_config
@@ -96,6 +97,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("configs/pipeline.toml"),
         help="Pipeline config path.",
     )
+    search_parser = subparsers.add_parser("search-pmids", help="Search PubMed and write matching PMIDs to a file.")
+    search_parser.add_argument("--query", required=True, help="PubMed query string.")
+    search_parser.add_argument("--max-results", type=int, default=100, help="Maximum number of PMIDs to return.")
+    search_parser.add_argument("--date-from", help="Optional publication start date.")
+    search_parser.add_argument("--date-to", help="Optional publication end date.")
+    search_parser.add_argument("--sort-by", default="relevance", help="PubMed sort order.")
+    search_parser.add_argument(
+        "--filter",
+        action="append",
+        default=[],
+        help="Additional raw PubMed filter clause. Can be repeated.",
+    )
+    search_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Output path for the PMID file.",
+    )
 
     return parser
 
@@ -111,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Inspect config: uv run totalannotator inspect-config")
         print("Preview documents: uv run totalannotator load-documents")
         print("Run config: uv run totalannotator run-config")
+        print("Search PMIDs: uv run totalannotator search-pmids --query '...' --output data/inputs/query_pmids.txt")
         return 0
 
     if args.command == "demo":
@@ -179,6 +199,33 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc), file=sys.stderr)
             return 1
         print(json.dumps(payload, indent=2))
+        return 0
+
+    if args.command == "search-pmids":
+        try:
+            pmids = search_pubmed_pmids(
+                args.query,
+                max_results=args.max_results,
+                date_from=args.date_from,
+                date_to=args.date_to,
+                sort_by=args.sort_by,
+                filters=args.filter,
+            )
+            write_pmids(args.output, pmids)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(
+            json.dumps(
+                {
+                    "query": args.query,
+                    "pmid_count": len(pmids),
+                    "output": str(args.output),
+                    "pmids": pmids,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     parser.print_help()
