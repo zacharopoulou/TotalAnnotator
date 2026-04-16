@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bio_annotation.entity_proposal import flatten_annotations, run_all_annotators
 from bio_annotation.pipeline_config import load_pipeline_config
+from bio_annotation.pipeline_runner import run_pipeline_from_config
 from bio_annotation.preprocessing.document_loader import load_documents_from_config
 from bio_annotation.schemas.document import Document
 
@@ -88,6 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("configs/pipeline.toml"),
         help="Pipeline config path.",
     )
+    run_parser = subparsers.add_parser("run-config", help="Load documents from config and run selected annotators.")
+    run_parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("configs/pipeline.toml"),
+        help="Pipeline config path.",
+    )
 
     return parser
 
@@ -102,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Quickstart: uv sync && uv run totalannotator demo")
         print("Inspect config: uv run totalannotator inspect-config")
         print("Preview documents: uv run totalannotator load-documents")
+        print("Run config: uv run totalannotator run-config")
         return 0
 
     if args.command == "demo":
@@ -161,6 +170,15 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             )
         )
+        return 0
+
+    if args.command == "run-config":
+        try:
+            payload = run_pipeline_from_config(args.config)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(json.dumps(payload, indent=2))
         return 0
 
     parser.print_help()

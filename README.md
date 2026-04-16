@@ -42,6 +42,15 @@ Preview documents loaded from the pipeline config:
 uv run totalannotator load-documents
 ```
 
+Run the selected annotators from the pipeline config:
+
+```bash
+uv run totalannotator run-config
+```
+
+If no annotators are enabled yet, `run-config` still works as an ingestion step
+and returns the loaded documents with zero annotations.
+
 Run the test suite:
 
 ```bash
@@ -72,6 +81,8 @@ The intended near-term execution flow is:
   PubMed record readers for PMID-based ingestion.
 - `src/bio_annotation/preprocessing/`
   Config-driven document loading from PMIDs, PMID files, and text tables.
+- `src/bio_annotation/pipeline_runner.py`
+  Minimal config-driven runner for loading documents and executing selected annotators.
 - `src/bio_annotation/entity_proposal/`
   Annotator adapters and a `run_all_annotators()` entry point.
 - `src/bio_annotation/cli.py`
@@ -102,24 +113,59 @@ The current config loader supports these input modes:
 - `text_table`
 - `corpus`
 
+## Runnable Examples
+
+Single PMID:
+
+```bash
+uv run totalannotator run-config --config configs/examples/pmid-single.toml
+```
+
+PMID file:
+
+```bash
+uv run totalannotator run-config --config configs/examples/pmid-file.toml
+```
+
+Plain corpus file:
+
+```bash
+uv run totalannotator run-config --config configs/examples/corpus-file.toml
+```
+
+## Example Config Shapes
+
+Example single PMID config:
+
+```toml
+[input]
+mode = "pmids"
+pmids = ["38123456"]
+
+[annotators]
+enabled = []
+```
+
 Example PMID file config:
 
 ```toml
 [input]
 mode = "pmid_file"
-pmid_file = "data/inputs/pmids.txt"
+pmid_file = "data/inputs/example_pmids.txt"
+
+[annotators]
+enabled = []
 ```
 
-Example text table config:
+Example plain corpus config:
 
 ```toml
 [input]
-mode = "text_table"
-text_file = "data/inputs/documents.csv"
-format = "csv"
-document_id_column = "document_id"
-title_column = "title"
-abstract_column = "abstract"
+mode = "corpus"
+corpus_path = "data/corpora/example_documents.json"
+
+[annotators]
+enabled = []
 ```
 
 ## Development Note

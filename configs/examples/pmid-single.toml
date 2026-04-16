@@ -9,4 +9,4 @@ enabled = []
 entity_types = []
 
 [output]
-path = "outputs/pmid_pipeline_output.json"
+path = "outputs/examples/pmid-single.json"

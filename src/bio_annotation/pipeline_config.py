@@ -48,7 +48,11 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
     abstract_column = _read_optional_string(input_config.get("abstract_column")) or "abstract"
     corpus_path_value = input_config.get("corpus_path")
     corpus_path = Path(corpus_path_value) if isinstance(corpus_path_value, str) and corpus_path_value.strip() else None
-    annotators = _read_string_list(annotator_config.get("enabled"), field_name="annotators.enabled")
+    annotators = _read_string_list(
+        annotator_config.get("enabled"),
+        field_name="annotators.enabled",
+        allow_empty=True,
+    )
     entity_types = _read_string_list(filter_config.get("entity_types"), field_name="filters.entity_types", allow_empty=True)
     output_path_value = output_config.get("path")
     output_path = Path(output_path_value) if isinstance(output_path_value, str) and output_path_value.strip() else None
@@ -61,9 +65,6 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         text_file=text_file,
         corpus_path=corpus_path,
     )
-    if not annotators:
-        raise ValueError(f"{path} must define annotators.enabled.")
-
     return PipelineConfig(
         input_mode=input_mode,
         pmids=pmids,

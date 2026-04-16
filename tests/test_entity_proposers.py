@@ -179,8 +179,8 @@ def test_cli_inspect_config_runs() -> None:
 
     output = json.loads(stream.getvalue())
     assert exit_code == 0
-    assert output["input_mode"] == "corpus"
-    assert output["corpus_path"] == "data/corpora/example_documents.json"
+    assert output["input_mode"] == "pmids"
+    assert output["pmids"] == ["38123456"]
 
 
 def test_cli_load_documents_runs() -> None:
@@ -190,5 +190,5 @@ def test_cli_load_documents_runs() -> None:
 
     output = json.loads(stream.getvalue())
     assert exit_code == 0
-    assert output["input_mode"] == "corpus"
+    assert output["input_mode"] == "pmids"
     assert output["document_count"] == 1

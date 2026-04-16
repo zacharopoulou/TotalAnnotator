@@ -22,6 +22,7 @@ def load_document_from_pmid(
     record = (fetcher or fetch_pubmed_record)(pmid)
     normalized_pmid = str(record.get("pmid") or pmid).strip()
     metadata = extra_metadata.copy() if extra_metadata else {}
+    metadata["pubmed_record"] = dict(record)
 
     return Document(
         document_id=f"PMID:{normalized_pmid}",
@@ -152,6 +153,40 @@ def load_documents_from_config(
             raise ValueError("input.corpus_path must be set when input.mode = 'corpus'.")
         return load_corpus_documents(config.corpus_path)
     raise ValueError(f"Unsupported input mode: {mode}")
+
+
+def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
+    if config.input_mode == "pmids":
+        return {
+            "mode": "pmids",
+            "pmid_count": len(_dedupe_pmids(config.pmids)),
+            "pmid_file": None,
+            "text_file": None,
+            "corpus_path": None,
+        }
+    if config.input_mode == "pmid_file":
+        return {
+            "mode": "pmid_file",
+            "pmid_count": None,
+            "pmid_file": str(config.pmid_file) if config.pmid_file is not None else None,
+            "text_file": None,
+            "corpus_path": None,
+        }
+    if config.input_mode == "text_table":
+        return {
+            "mode": "text_table",
+            "pmid_count": None,
+            "pmid_file": None,
+            "text_file": str(config.text_file) if config.text_file is not None else None,
+            "corpus_path": None,
+        }
+    return {
+        "mode": "corpus",
+        "pmid_count": None,
+        "pmid_file": None,
+        "text_file": None,
+        "corpus_path": str(config.corpus_path) if config.corpus_path is not None else None,
+    }
 
 
 def load_corpus_documents(path: Path) -> list[Document]:
