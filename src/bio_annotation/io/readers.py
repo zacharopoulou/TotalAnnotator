@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import json
 import os
+import socket
 from urllib.parse import urlencode
 import urllib.error
 import urllib.request
@@ -465,7 +466,7 @@ def _fetch_elinks(pmid: Any, *, timeout: int) -> dict[str, Any]:
             },
             timeout=timeout,
         )
-    except ValueError:
+    except Exception:
         return {}
 
     related_pmids: list[dict[str, Any]] = []
@@ -505,7 +506,7 @@ def _fetch_crossref(doi: Any, *, timeout: int) -> dict[str, Any]:
         return {}
     try:
         payload = _fetch_json(_CROSSREF_URL.format(doi=normalized_doi), timeout=timeout)
-    except ValueError:
+    except Exception:
         return {}
     message = payload.get("message")
     if not isinstance(message, dict):
@@ -540,7 +541,7 @@ def _fetch_europe_pmc(pmid: Any, *, timeout: int) -> dict[str, Any]:
             params={"format": "json"},
             timeout=timeout,
         )
-    except ValueError:
+    except Exception:
         return {}
 
     meta_results = meta_payload.get("resultList", {}).get("result", [])
@@ -575,7 +576,7 @@ def _fetch_semantic_scholar(pmid: Any, *, timeout: int) -> dict[str, Any]:
             timeout=timeout,
             headers={"Accept": "application/json"},
         )
-    except ValueError:
+    except Exception:
         return {}
 
     return {
@@ -596,7 +597,7 @@ def _fetch_unpaywall(doi: Any, *, timeout: int) -> dict[str, Any]:
             params={"email": contact_email},
             timeout=timeout,
         )
-    except ValueError:
+    except Exception:
         return {}
 
     best_location = payload.get("best_oa_location") or {}
@@ -618,7 +619,7 @@ def _fetch_biorxiv(doi: Any, *, timeout: int) -> dict[str, Any]:
     for server in ("biorxiv", "medrxiv"):
         try:
             payload = _fetch_json(_BIORXIV_URL.format(server=server, doi=normalized_doi), timeout=timeout)
-        except ValueError:
+        except Exception:
             continue
         collection = payload.get("collection", [])
         if not collection:
@@ -654,7 +655,7 @@ def _fetch_json(
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = response.read().decode("utf-8")
-    except urllib.error.URLError as exc:
+    except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
         raise ValueError(f"Network error fetching {request_url}: {exc}") from exc
 
     try:
