@@ -1,11 +1,20 @@
 # Configurations
 
-This folder stores project configuration files.
+This folder stores runnable pipeline configuration files and small examples.
 
-## Files
+## Current configs
 
-- `default.yaml`: shared defaults
-- `entities.yaml`: entity label inventory and thresholds
-- `relations.yaml`: relation labels and type constraints
-- `ontologies.yaml`: ontology sources and normalization settings
-- `prompts.yaml`: LLM prompts and output schema instructions
+- `pipeline.toml`: default local pipeline config
+- `examples/`: small runnable example configs for PMID and corpus inputs
+
+## Direction
+
+Configs in this repo should stay focused on:
+
+- corpus/query input definition
+- optional metadata enrichment
+- annotator selection
+- entity-type filtering
+- output paths
+
+Broader research-stage configuration ideas belong in planning docs, not here.

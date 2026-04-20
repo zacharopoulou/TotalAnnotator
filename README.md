@@ -1,12 +1,10 @@
 # TotalAnnotator
 
-TotalAnnotator is a biomedical and clinical literature annotation project focused on turning article text into structured entity and relation outputs.
+TotalAnnotator is a config-first biomedical literature pipeline for building corpora, running annotators, and preparing benchmark-style evaluation.
 
 The near-term product workflow target is documented in [docs/workflow-spec.md](docs/workflow-spec.md).
 
-The long-term pipeline vision is documented in [Workflow_longterm.md](Workflow_longterm.md) and follows this general path:
-
-`document -> entity proposals -> candidate merging -> normalization -> adjudication -> validation -> final JSON`
+The separate long-term research vision is kept in [Workflow_longterm.md](Workflow_longterm.md).
 
 ## Getting Started
 
@@ -57,8 +55,7 @@ uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output 
 If no annotators are enabled yet, `run-config` still works as an ingestion step
 and returns the loaded documents with zero annotations.
 
-For PMID-based ingestion, PubMed link and external metadata enrichment is
-configurable through `[enrichment]`.
+For PMID-based ingestion, external enrichment is opt-in through `[enrichment]`.
 
 Run the test suite:
 
@@ -66,36 +63,40 @@ Run the test suite:
 uv run pytest
 ```
 
-## Current Focus
+## Current Direction
 
-The repository is in the first implementation stage:
+The repository is currently centered on three connected workflows:
 
-- shared `Document` and `Annotation` schemas
-- annotator adapters for BERN2, Flair, and PubTator
-- a unified output format so different annotators can be compared easily
+- corpus creation from PubMed PMIDs, query-generated PMID lists, and local corpora
+- annotator execution on canonical documents
+- benchmark-oriented evaluation scaffolding for comparing annotators consistently
 
-This first milestone is centered on:
+The current implemented milestone is:
 
 `PMID/document input -> annotator outputs -> unified annotations`
 
-The intended near-term execution flow is:
+The repo direction now is:
 
-`config -> validation -> document loading -> selected annotators -> harmonized per-annotator annotations -> overlap-based agreement summaries`
+`query or corpus -> canonical documents -> selected annotators -> harmonized outputs -> evaluation`
 
 ## What Exists Right Now
 
 - `src/bio_annotation/schemas/`
   Shared `Document` and `Annotation` objects used across the pipeline.
 - `src/bio_annotation/io/`
-  PubMed record readers for PMID-based ingestion.
+  PubMed search and metadata readers for PMID-based ingestion.
 - `src/bio_annotation/preprocessing/`
   Config-driven document loading from PMIDs, PMID files, and text tables.
+- `src/bio_annotation/annotators/`
+  Primary home for annotator adapters and shared annotator runner utilities.
 - `src/bio_annotation/pipeline_runner.py`
   Minimal config-driven runner for loading documents and executing selected annotators.
 - `src/bio_annotation/entity_proposal/`
-  Annotator adapters and a `run_all_annotators()` entry point.
+  Compatibility layer for the older annotator package path.
 - `src/bio_annotation/cli.py`
-  A runnable CLI with demo, config inspection, and document-loading preview commands.
+  A runnable CLI with query search, config inspection, and document-loading preview commands.
+- `data/`
+  Example corpora, input files, and benchmark scaffolding.
 - `tests/`
   Offline tests for adapter normalization and unified outputs.
 
@@ -109,9 +110,9 @@ The intended near-term execution flow is:
 
 ## Near-Term Goals
 
-- connect live annotator backends where practical
-- compare annotator outputs before building merging and normalization
-- define a stable workflow and config contract for users and collaborators
+- keep corpus construction reliable and reproducible
+- make annotator backends pluggable across PMIDs, local corpora, and benchmark datasets
+- add evaluation workflows that make annotator comparison first-class
 
 ## Input Modes
 
@@ -121,6 +122,9 @@ The current config loader supports these input modes:
 - `pmid_file`
 - `text_table`
 - `corpus`
+
+The CLI also supports upstream PMID search with `search-pmids`. Benchmark input
+support is the next planned first-class mode.
 
 ## Runnable Examples
 
@@ -170,7 +174,7 @@ mode = "pmids"
 pmids = ["38123456"]
 
 [enrichment]
-sources = ["elinks", "crossref", "europe_pmc", "semantic_scholar", "unpaywall", "biorxiv"]
+sources = []
 
 [annotators]
 enabled = []
@@ -183,6 +187,9 @@ Example PMID file config:
 mode = "pmid_file"
 pmid_file = "data/inputs/example_pmids.txt"
 
+[enrichment]
+sources = []
+
 [annotators]
 enabled = []
 ```
@@ -193,6 +200,9 @@ Example plain corpus config:
 [input]
 mode = "corpus"
 corpus_path = "data/corpora/example_documents.json"
+
+[enrichment]
+sources = []
 
 [annotators]
 enabled = []

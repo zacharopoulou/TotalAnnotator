@@ -1,17 +1,22 @@
 # Source Package
 
-This package contains the main implementation of the annotation system.
+This package contains the current implementation of the TotalAnnotator pipeline.
 
-## Main areas
+## Implemented areas
 
-- `preprocessing/`: document loading, sentence splitting, offsets
-- `entity_proposal/`: candidate generation from tools, dictionaries, regex, optional LLM
-- `candidate_merging/`: merge overlapping or duplicate candidates
-- `ontology/`: alias databases, candidate retrieval, normalization
-- `adjudication/`: LLM adjudication for entities and relations
-- `validation/`: schema and rule-based validation
-- `relations/`: relation pair generation and constraints
-- `scoring/`: confidence aggregation
-- `pipelines/`: orchestration of end-to-end flows
-- `evaluation/`: metrics and case-study evaluation
-- `io/`: readers and exporters
+- `schemas/`: shared `Document` and `Annotation` contracts
+- `io/`: PubMed search plus PMID metadata readers and enrichments
+- `preprocessing/`: canonical document loading from PMIDs, files, and corpora
+- `annotators/`: primary annotator adapter API
+- `entity_proposal/`: compatibility layer for the older annotator package name
+- `pipeline_config.py`: config parsing and validation
+- `pipeline_runner.py`: end-to-end corpus and annotation orchestration
+- `cli.py`: repo-facing command-line entry points
+
+## Direction
+
+The next repo-level additions should support:
+
+- benchmark dataset ingestion
+- evaluation and comparison outputs
+- richer annotator runtime integration

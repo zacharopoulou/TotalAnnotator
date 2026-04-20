@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bio-annotation"
+name = "totalannotator"
 version = "0.1.0"
-description = "Biomedical and clinical annotation pipeline"
+description = "Config-first biomedical literature pipeline for corpora, annotators, and evaluation"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
