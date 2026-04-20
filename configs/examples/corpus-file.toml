@@ -2,6 +2,9 @@
 mode = "corpus"
 corpus_path = "data/corpora/example_documents.json"
 
+[enrichment]
+sources = []
+
 [annotators]
 enabled = []
 

@@ -4,30 +4,30 @@
 
 ## Purpose
 
-The goal is to give users a reliable way to submit biomedical literature inputs,
-run one or more annotators in managed local environments, and receive harmonized,
-comparable outputs.
+The goal is to give users a reliable way to build biomedical corpora, run one
+or more annotators in managed local environments, and prepare comparable outputs
+for downstream evaluation.
 
 ## Near-Term Goal
 
-Given one PMID, a file containing PMIDs, or a table of title and abstract text,
-TotalAnnotator should:
+Given a PubMed query, one PMID, a file containing PMIDs, a local corpus, or a
+benchmark dataset, TotalAnnotator should:
 
-1. load the documents into one internal document format
+1. resolve or load the documents into one internal document format
 2. run only the annotators chosen by the user
 3. harmonize each annotator result into a shared per-annotation schema
 4. preserve each annotator's original labels, offsets, and normalization IDs
 5. compute overlap-based agreement summaries across annotators
-6. strengthen agreement when lexicons show that different database IDs refer to the same concept
-7. export both per-annotator results and unified project outputs
+6. export both per-annotator results and unified project outputs
+7. support benchmark-oriented evaluation on the same core document and annotation contracts
 
 In short:
 
-`input documents -> selected annotators -> harmonized annotations -> agreement summaries`
+`query or corpus -> selected annotators -> harmonized annotations -> agreement summaries`
 
 ## Supported Inputs
 
-The workflow should support three user-facing input modes.
+The workflow should support these user-facing input modes.
 
 ### 1. Single PMID
 
@@ -81,6 +81,22 @@ doc1,Autophagy maintains tumour growth...,We evaluated glioblastoma cell growth.
 doc2,EGFR signaling in glioma...,Targeted inhibition altered downstream transcription...
 ```
 
+### 4. Query to PMID file
+
+For PubMed-based discovery, users should be able to search PubMed first and
+save a PMID file for later reproducible ingestion.
+
+Example:
+
+```bash
+uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
+```
+
+### 5. Benchmark dataset
+
+Benchmark datasets should become a first-class input path so annotators can be
+evaluated with the same pipeline abstractions used for PMIDs and local corpora.
+
 ## User Experience
 
 The primary interface should be config-first.
@@ -88,25 +104,21 @@ The primary interface should be config-first.
 Users should normally run:
 
 ```bash
-uv run totalannotator run --config configs/pipeline.toml
+uv run totalannotator run-config --config configs/pipeline.toml
 ```
 
-CLI flags can override the config for quick tests.
-
-Example:
-
-```bash
-uv run totalannotator run --config configs/pipeline.toml --annotators bern2,pubtator3
-```
+The current repo interface is config-driven. CLI override flags for specific
+pipeline fields are a possible future extension, but the main workflow should
+stay centered on explicit config files.
 
 ## Config Design
 
-The pipeline config should define at least these five areas:
+The pipeline config should define at least these areas:
 
 - `input`
+- `enrichment`
 - `annotators`
-- `entities`
-- `runtime`
+- `filters`
 - `output`
 
 Illustrative shape:
@@ -115,21 +127,17 @@ Illustrative shape:
 [input]
 pmid_file = "data/inputs/pmids.txt"
 
+[enrichment]
+sources = []
+
 [annotators]
-enabled = ["bern2", "pubtator3", "flair"]
+enabled = ["bern2", "pubtator", "flair"]
 
-[entities]
-requested = ["gene", "drug", "mutation"]
-
-[runtime]
-fail_on_missing_annotator = true
-allow_partial_entity_coverage = true
+[filters]
+entity_types = ["gene", "drug", "mutation"]
 
 [output]
-directory = "outputs/current_run"
-formats = ["json", "tsv"]
-include_raw = true
-include_consensus = true
+path = "outputs/current_run.json"
 ```
 
 The config should stay readable for collaborators who are not focused on code.
@@ -150,7 +158,7 @@ That means the workflow should support:
 
 From the user's perspective, the question should be:
 
-`Which annotators do I want to compare on these documents?`
+`Which annotators do I want to compare on these documents or benchmarks?`
 
 ## Entity-Type Harmonization
 
@@ -193,8 +201,8 @@ Users should be able to request the entity types they care about in the config.
 Example:
 
 ```toml
-[entities]
-requested = ["gene", "drug", "mutation"]
+[filters]
+entity_types = ["gene", "drug", "mutation"]
 ```
 
 Before running the workflow, TotalAnnotator should validate whether the selected
@@ -203,9 +211,9 @@ annotators can satisfy those requests.
 The system should report compatibility in three levels:
 
 - `Info`
-  Example: `pubtator3 label "Chemical" will be reported as project type "drug"`
+  Example: `pubtator label "Chemical" will be reported as project type "drug"`
 - `Warning`
-  Example: `flair does not provide "mutation"; this type will only be collected from bern2 and pubtator3`
+  Example: `flair does not provide "mutation"; this type will only be collected from bern2 and pubtator`
 - `Error`
   Example: `selected annotators do not provide the requested entity type "cell_line"`
 
@@ -432,13 +440,12 @@ The near-term implementation should do these things well:
 - overlap-based consensus summaries
 - lexicon-backed identifier reconciliation
 
-The following belong to later phases:
+The following belong to later phases and should stay outside the current repo
+scope unless we explicitly revisit them:
 
 - cross-annotator mention deduplication as the main source of truth
-- full ontology-wide normalization and ranking
-- entity adjudication with LLMs
-- relation extraction and validation
-- final publication-grade annotation assembly
+- heavier downstream harmonization and interpretation workflows
+- broader research-stage automation described separately in `Workflow_longterm.md`
 
 ## Summary Statement
 

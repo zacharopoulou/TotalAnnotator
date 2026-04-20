@@ -260,7 +260,16 @@ def test_fetch_pubmed_record_parses_nested_xml_text(monkeypatch) -> None:
     monkeypatch.setenv("NCBI_EMAIL", "annotator@example.org")
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
 
-    record = fetch_pubmed_record("38123456")
+    record = fetch_pubmed_record(
+        "38123456",
+        enrichments=[
+            "elinks",
+            "crossref",
+            "europe_pmc",
+            "semantic_scholar",
+            "unpaywall",
+        ],
+    )
 
     assert record["pmid"] == "38123456"
     assert record["title"] == "TP53 regulates glioblastoma"
@@ -313,6 +322,14 @@ def test_fetch_pubmed_record_parses_nested_xml_text(monkeypatch) -> None:
     assert record["elinks"]["s2_references"][0]["paperId"] == "s2-ref"
     assert record["elinks"]["s2_citations"][0]["paperId"] == "s2-cite"
     assert record["elinks"]["unpaywall"]["pdf_url"] == "https://example.org/test.pdf"
+
+
+def test_fetch_pubmed_record_defaults_to_no_enrichments(monkeypatch) -> None:
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+
+    record = fetch_pubmed_record("38123456")
+
+    assert record["elinks"] == {}
 
 
 def test_load_document_from_pmid_builds_document() -> None:

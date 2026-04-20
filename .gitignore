@@ -14,3 +14,5 @@ venv/
 outputs/
 data/interim/
 data/processed/
+data/inputs/query_*.txt
+data/corpora/query_*.json

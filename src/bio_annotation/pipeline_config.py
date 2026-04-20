@@ -5,7 +5,7 @@ from pathlib import Path
 import tomllib
 
 
-DEFAULT_ENRICHMENT_SOURCES = [
+SUPPORTED_ENRICHMENT_SOURCES = [
     "elinks",
     "crossref",
     "europe_pmc",
@@ -13,6 +13,7 @@ DEFAULT_ENRICHMENT_SOURCES = [
     "unpaywall",
     "biorxiv",
 ]
+DEFAULT_ENRICHMENT_SOURCES: list[str] = []
 
 
 @dataclass(frozen=True)
@@ -136,7 +137,7 @@ def _read_enrichment_sources(value: object) -> list[str]:
     if value is None:
         return list(DEFAULT_ENRICHMENT_SOURCES)
     sources = _read_string_list(value, field_name="enrichment.sources", allow_empty=True)
-    invalid = [source for source in sources if source not in DEFAULT_ENRICHMENT_SOURCES]
+    invalid = [source for source in sources if source not in SUPPORTED_ENRICHMENT_SOURCES]
     if invalid:
         raise ValueError(
             "enrichment.sources contains unsupported values: "

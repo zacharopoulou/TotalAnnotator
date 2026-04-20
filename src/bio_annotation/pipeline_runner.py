@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
-from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
-from bio_annotation.entity_proposal.pubtator_proposer import annotate_with_pubtator
+from bio_annotation.annotators.bern2 import annotate_with_bern2
+from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.pubtator import annotate_with_pubtator
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,

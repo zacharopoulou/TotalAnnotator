@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from bio_annotation.entity_proposal import flatten_annotations, run_all_annotators
+from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in (None, "info"):
         print("TotalAnnotator")
-        print("Workflow: document -> annotators -> unified annotations")
+        print("Workflow: corpus -> annotators -> comparable outputs")
         print("Quickstart: uv sync && uv run totalannotator demo")
         print("Inspect config: uv run totalannotator inspect-config")
         print("Preview documents: uv run totalannotator load-documents")

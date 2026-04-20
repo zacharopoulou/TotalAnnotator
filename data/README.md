@@ -1,10 +1,14 @@
 # Data
 
-This folder stores local working data.
+This folder stores small local data used by the pipeline and examples.
 
-## Subfolders
+## Current layout
 
-- `raw/`: untouched source inputs
-- `interim/`: temporary intermediate files
-- `processed/`: normalized outputs ready for analysis
-- `examples/`: tiny sample files for local testing
+- `inputs/`: PMID files and query-generated PMID lists
+- `corpora/`: small local corpora for pipeline examples
+- `benchmarks/`: benchmark dataset scaffolding and notes
+
+## Notes
+
+- generated query outputs such as `query_pmids.txt` are local working files and are ignored by Git
+- large corpora or benchmark payloads should stay out of Git unless they are tiny examples

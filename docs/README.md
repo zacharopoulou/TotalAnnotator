@@ -7,11 +7,11 @@ Its purpose is to explain the codebase and pipeline decisions in a way that is e
 ## Current Notes
 
 - `workflow-spec.md`
-  Near-term product workflow for PMID/text input, annotator selection, harmonized outputs, and overlap-based agreement summaries.
+  Near-term workflow for corpus creation, annotator execution, and harmonized outputs.
 
 ## Planned Notes
 
+- benchmark dataset conventions and evaluation flow
 - standardized schema details
-- PMID ingestion implementation details
+- PMID/query ingestion implementation details
 - annotator integration details
-- future candidate merging policy

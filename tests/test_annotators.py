@@ -6,10 +6,10 @@ from io import StringIO
 from contextlib import redirect_stdout
 
 from bio_annotation.cli import main
-from bio_annotation.entity_proposal import flatten_annotations, run_all_annotators
-from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
-from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
-from bio_annotation.entity_proposal.pubtator_proposer import annotate_with_pubtator
+from bio_annotation.annotators import flatten_annotations, run_all_annotators
+from bio_annotation.annotators.bern2 import annotate_with_bern2
+from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.pubtator import annotate_with_pubtator
 from bio_annotation.schemas.document import Document
 
 
@@ -181,14 +181,7 @@ def test_cli_inspect_config_runs() -> None:
     assert exit_code == 0
     assert output["input_mode"] == "pmids"
     assert output["pmids"] == ["38123456"]
-    assert output["enrichment_sources"] == [
-        "elinks",
-        "crossref",
-        "europe_pmc",
-        "semantic_scholar",
-        "unpaywall",
-        "biorxiv",
-    ]
+    assert output["enrichment_sources"] == []
 
 
 def test_cli_load_documents_runs(monkeypatch) -> None:
