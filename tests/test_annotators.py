@@ -187,7 +187,7 @@ def test_run_all_annotators_returns_consistent_result_map() -> None:
                 labels=[FakeLabel(value="micro_rna", score=0.87)],
             )
         ],
-        pubtator_response={
+        pubtator3_response={
             "documents": [
                 {
                     "passages": [

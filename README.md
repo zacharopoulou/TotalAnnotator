@@ -104,16 +104,34 @@ Single PMID with `pubtator3`:
 uv run totalannotator run-config --config configs/examples/pmid-single.toml
 ```
 
-PMID file:
+This runs one PMID through PubMed ingestion and `pubtator3`, and writes:
+
+```bash
+outputs/examples/pubtator3-pmid-single.json
+```
+
+PMID file batch with `pubtator3`:
 
 ```bash
 uv run totalannotator run-config --config configs/examples/pmid-file.toml
+```
+
+This runs a batch of PMIDs from `data/inputs/example_pmids.txt` and writes:
+
+```bash
+outputs/examples/pubtator3-pmid-file.json
 ```
 
 Plain corpus file:
 
 ```bash
 uv run totalannotator run-config --config configs/examples/corpus-file.toml
+```
+
+This currently demonstrates ingestion-only corpus loading and writes:
+
+```bash
+outputs/examples/corpus-file-output.json
 ```
 
 ## Configuration Model

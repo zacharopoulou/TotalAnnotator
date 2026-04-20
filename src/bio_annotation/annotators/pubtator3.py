@@ -145,7 +145,7 @@ def call_pubtator3(
     format: str = DEFAULT_EXPORT_FORMAT,
 ) -> Any:
     active_client = client or PubTator3Client(
-        base_url=endpoint or os.getenv("PUBTATOR_API_URL", PUBTATOR3_API_BASE_URL),
+        base_url=endpoint or os.getenv("PUBTATOR3_API_URL", PUBTATOR3_API_BASE_URL),
         timeout=timeout,
     )
     if document.pmid:
@@ -176,30 +176,9 @@ def annotate_with_pubtator3(
     return parse_pubtator3_response(document, payload)
 
 
-def parse_pubtator_response(document: Document, payload: Any) -> list[Annotation]:
-    return parse_pubtator3_response(document, payload)
-
-
-def call_pubtator(document: Document, endpoint: str | None = None, timeout: int = 30) -> Any:
-    return call_pubtator3(document, endpoint=endpoint, timeout=timeout)
-
-
-def annotate_with_pubtator(
-    document: Document,
-    *,
-    response: Any = None,
-    request_fn: Callable[[Document], Any] | None = None,
-    endpoint: str | None = None,
-) -> list[Annotation]:
-    return annotate_with_pubtator3(document, response=response, request_fn=request_fn, endpoint=endpoint)
-
-
 __all__ = [
     "annotate_with_pubtator3",
-    "annotate_with_pubtator",
     "build_pubtator3_text_payload",
     "call_pubtator3",
-    "call_pubtator",
     "parse_pubtator3_response",
-    "parse_pubtator_response",
 ]

@@ -40,7 +40,7 @@ def demo_payload() -> dict[str, object]:
             ]
         },
         flair_spans=[],
-        pubtator_response={
+        pubtator3_response={
             "documents": [
                 {
                     "passages": [

@@ -6,7 +6,7 @@ from typing import Any
 
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
-from bio_annotation.annotators.pubtator3 import annotate_with_pubtator, annotate_with_pubtator3
+from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -22,9 +22,7 @@ def run_all_annotators(
     flair_sentence_factory: Any = None,
     pubtator3_response: Any = None,
     pubtator3_request_fn: Any = None,
-    pubtator_response: Any = None,
-    pubtator_request_fn: Any = None,
-    pubtator_endpoint: str | None = None,
+    pubtator3_endpoint: str | None = None,
 ) -> dict[str, list[Annotation]]:
     return {
         "bern2": annotate_with_bern2(
@@ -41,9 +39,9 @@ def run_all_annotators(
         ),
         "pubtator3": annotate_with_pubtator3(
             document,
-            response=pubtator3_response if pubtator3_response is not None else pubtator_response,
-            request_fn=pubtator3_request_fn if pubtator3_request_fn is not None else pubtator_request_fn,
-            endpoint=pubtator_endpoint,
+            response=pubtator3_response,
+            request_fn=pubtator3_request_fn,
+            endpoint=pubtator3_endpoint,
         ),
     }
 
@@ -58,7 +56,6 @@ __all__ = [
     "annotate_with_bern2",
     "annotate_with_flair",
     "annotate_with_pubtator3",
-    "annotate_with_pubtator",
     "flatten_annotations",
     "run_all_annotators",
 ]

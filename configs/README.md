@@ -43,6 +43,6 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 - `examples/pmid-single.toml`
   Single PMID example with `pubtator3`.
 - `examples/pmid-file.toml`
-  PMID file ingestion example.
+  PMID batch example with `pubtator3`.
 - `examples/corpus-file.toml`
-  Local corpus ingestion example.
+  Local corpus ingestion-only example.

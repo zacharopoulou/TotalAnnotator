@@ -6,7 +6,7 @@ pmid_file = "data/inputs/example_pmids.txt"
 sources = []
 
 [annotators]
-enabled = []
+enabled = ["pubtator3"]
 
 [annotators.bern2]
 runtime = "docker"
@@ -25,4 +25,4 @@ timeout = 60
 entity_types = []
 
 [output]
-path = "outputs/examples/pmid-file.json"
+path = "outputs/examples/pubtator3-pmid-file.json"

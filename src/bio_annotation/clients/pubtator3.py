@@ -78,7 +78,7 @@ class PubTator3Client:
         format: str = DEFAULT_EXPORT_FORMAT,
         concepts: Iterable[str] | None = None,
     ) -> Any:
-        if format == "pubtator":
+        if format not in {"biocxml", "biocjson"}:
             raise ValueError("PubTator3 PMCID export only supports biocxml or biocjson formats.")
         return self._fetch_publications("pmcids", pmcids, format=format, concepts=concepts)
 
