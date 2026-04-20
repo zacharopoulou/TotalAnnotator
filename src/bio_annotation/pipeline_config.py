@@ -29,6 +29,7 @@ class PipelineConfig:
     corpus_path: Path | None
     enrichment_sources: list[str]
     annotators: list[str]
+    annotator_settings: dict[str, dict[str, object]]
     entity_types: list[str]
     output_path: Path | None
 
@@ -69,6 +70,7 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         field_name="annotators.enabled",
         allow_empty=True,
     )
+    annotator_settings = _read_annotator_settings(annotator_config)
     entity_types = _read_string_list(filter_config.get("entity_types"), field_name="filters.entity_types", allow_empty=True)
     output_path_value = output_config.get("path")
     output_path = Path(output_path_value) if isinstance(output_path_value, str) and output_path_value.strip() else None
@@ -93,6 +95,7 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         corpus_path=corpus_path,
         enrichment_sources=enrichment_sources,
         annotators=annotators,
+        annotator_settings=annotator_settings,
         entity_types=entity_types,
         output_path=output_path,
     )
@@ -144,6 +147,43 @@ def _read_enrichment_sources(value: object) -> list[str]:
             + ", ".join(invalid)
         )
     return sources
+
+
+def _read_annotator_settings(annotator_config: dict[str, object]) -> dict[str, dict[str, object]]:
+    settings: dict[str, dict[str, object]] = {}
+    for name, value in annotator_config.items():
+        if name == "enabled":
+            continue
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("annotators contains an invalid annotator key.")
+        if not isinstance(value, dict):
+            raise ValueError(f"annotators.{name} must be a table.")
+        settings[name.strip().lower()] = _sanitize_annotator_table(name.strip(), value)
+    return settings
+
+
+def _sanitize_annotator_table(name: str, value: dict[str, object]) -> dict[str, object]:
+    cleaned: dict[str, object] = {}
+    for field, field_value in value.items():
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(f"annotators.{name} contains an invalid key.")
+        cleaned[field.strip()] = _sanitize_annotator_value(name, field.strip(), field_value)
+    return cleaned
+
+
+def _sanitize_annotator_value(name: str, field: str, value: object) -> object:
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        cleaned_list: list[object] = []
+        for item in value:
+            if not isinstance(item, (str, int, float, bool)):
+                raise ValueError(f"annotators.{name}.{field} contains an unsupported value: {item!r}")
+            cleaned_list.append(item)
+        return cleaned_list
+    raise ValueError(f"annotators.{name}.{field} contains an unsupported value: {value!r}")
 
 
 def _read_input_mode(input_config: dict[str, object]) -> str:

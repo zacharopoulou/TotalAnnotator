@@ -1,15 +1,28 @@
 [input]
 mode = "pmids"
-pmids = ["38123456"]
+pmids = ["36403686"]
 
 [enrichment]
 sources = []
 
 [annotators]
-enabled = []
+enabled = ["pubtator3"]
+
+[annotators.bern2]
+runtime = "docker"
+base_url = "http://127.0.0.1:8888"
+
+[annotators.flair]
+runtime = "python_local"
+
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
 
 [filters]
 entity_types = []
 
 [output]
-path = "outputs/examples/pmid-single.json"
+path = "outputs/examples/pubtator3-pmid.json"

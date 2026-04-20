@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
-from bio_annotation.annotators.pubtator import annotate_with_pubtator
+from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
@@ -17,7 +17,8 @@ from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator"}
+SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator", "pubtator3"}
+ANNOTATOR_ALIASES = {"pubtator": "pubtator3"}
 
 
 def run_pipeline_from_config(
@@ -25,6 +26,7 @@ def run_pipeline_from_config(
     *,
     pmid_fetcher: Callable[[str], dict[str, Any]] | None = None,
     bern2_request_fn: Callable[[Document], Any] | None = None,
+    pubtator3_request_fn: Callable[[Document], Any] | None = None,
     pubtator_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
@@ -34,6 +36,7 @@ def run_pipeline_from_config(
         documents,
         config,
         bern2_request_fn=bern2_request_fn,
+        pubtator3_request_fn=pubtator3_request_fn,
         pubtator_request_fn=pubtator_request_fn,
         flair_spans_by_document=flair_spans_by_document,
     )
@@ -47,26 +50,32 @@ def build_pipeline_output(
     config: PipelineConfig,
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
+    pubtator3_request_fn: Callable[[Document], Any] | None = None,
     pubtator_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
-    _validate_annotators(config.annotators)
+    enabled_annotators = _canonicalize_annotators(config.annotators)
+    annotator_settings = _canonicalize_annotator_settings(config.annotator_settings)
+    _validate_annotators(enabled_annotators)
     input_description = resolve_input_description(config)
     corpus_documents = [document_to_dict(document) for document in documents]
+    pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
 
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
     annotation_summary = {
-        "annotators_enabled": config.annotators,
+        "annotators_enabled": enabled_annotators,
         "document_count": len(documents),
         "annotation_count": 0,
     }
     for document in documents:
         results = run_selected_annotators(
             document,
-            config.annotators,
+            enabled_annotators,
             bern2_request_fn=bern2_request_fn,
+            pubtator3_request_fn=pubtator3_request_fn,
             pubtator_request_fn=pubtator_request_fn,
+            pubtator3_options=pubtator3_options,
             flair_spans=(
                 flair_spans_by_document.get(document.document_id)
                 if flair_spans_by_document is not None
@@ -76,7 +85,7 @@ def build_pipeline_output(
         annotations = flatten_annotations(results)
         annotations = filter_annotations_by_type(annotations, config.entity_types)
         annotation_summary["annotation_count"] += len(annotations)
-        if config.annotators:
+        if enabled_annotators:
             document_annotations.append(
                 {
                     "document_id": document.document_id,
@@ -97,8 +106,9 @@ def build_pipeline_output(
         "stage": "corpus",
         "input": input_description,
         "pipeline": {
-            "mode": "ingestion_only" if not config.annotators else "ingestion_and_annotation",
-            "annotators_enabled": config.annotators,
+            "mode": "ingestion_only" if not enabled_annotators else "ingestion_and_annotation",
+            "annotators_enabled": enabled_annotators,
+            "annotator_settings": {name: annotator_settings.get(name, {}) for name in enabled_annotators},
         },
         "document_count": len(corpus_documents),
         "corpus_summary": summarize_ingestion(documents),
@@ -120,7 +130,9 @@ def run_selected_annotators(
     annotators: list[str],
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
+    pubtator3_request_fn: Callable[[Document], Any] | None = None,
     pubtator_request_fn: Callable[[Document], Any] | None = None,
+    pubtator3_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
 ) -> dict[str, list[Annotation]]:
     results: dict[str, list[Annotation]] = {}
@@ -130,8 +142,14 @@ def run_selected_annotators(
             results[annotator] = annotate_with_bern2(document, request_fn=bern2_request_fn)
         elif annotator == "flair":
             results[annotator] = annotate_with_flair(document, spans=flair_spans)
-        elif annotator == "pubtator":
-            results[annotator] = annotate_with_pubtator(document, request_fn=pubtator_request_fn)
+        elif annotator == "pubtator3":
+            results[annotator] = annotate_with_pubtator3(
+                document,
+                request_fn=pubtator3_request_fn if pubtator3_request_fn is not None else pubtator_request_fn,
+                endpoint=pubtator3_options.get("endpoint") if pubtator3_options else None,
+                timeout=pubtator3_options.get("timeout", 60) if pubtator3_options else 60,
+                format=pubtator3_options.get("format", "biocjson") if pubtator3_options else "biocjson",
+            )
         else:
             raise ValueError(f"Unsupported annotator: {annotator}")
 
@@ -140,7 +158,7 @@ def run_selected_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator"):
+    for source in ("bern2", "flair", "pubtator3"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -169,3 +187,33 @@ def _validate_annotators(annotators: list[str]) -> None:
     unsupported = [annotator for annotator in annotators if annotator not in SUPPORTED_ANNOTATORS]
     if unsupported:
         raise ValueError(f"Unsupported annotators requested: {', '.join(unsupported)}")
+
+
+def _canonicalize_annotators(annotators: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for annotator in annotators:
+        canonical = ANNOTATOR_ALIASES.get(annotator, annotator)
+        if canonical not in seen:
+            seen.add(canonical)
+            normalized.append(canonical)
+    return normalized
+
+
+def _canonicalize_annotator_settings(settings: dict[str, dict[str, object]]) -> dict[str, dict[str, object]]:
+    normalized: dict[str, dict[str, object]] = {}
+    for annotator, values in settings.items():
+        canonical = ANNOTATOR_ALIASES.get(annotator, annotator)
+        normalized[canonical] = dict(values)
+    return normalized
+
+
+def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
+    endpoint = settings.get("endpoint")
+    timeout = settings.get("timeout")
+    export_format = settings.get("format")
+    return {
+        "endpoint": endpoint if isinstance(endpoint, str) and endpoint.strip() else None,
+        "timeout": timeout if isinstance(timeout, int) and timeout > 0 else 60,
+        "format": export_format if isinstance(export_format, str) and export_format.strip() else "biocjson",
+    }

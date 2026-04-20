@@ -1,20 +1,48 @@
-# Configurations
+# Configuration Guide
 
-This folder stores runnable pipeline configuration files and small examples.
+This directory contains runnable pipeline configurations for TotalAnnotator.
 
-## Current configs
+## Files
 
-- `pipeline.toml`: default local pipeline config
-- `examples/`: small runnable example configs for PMID and corpus inputs
+- `pipeline.toml`
+  Default config, set up for a first live `pubtator3` PMID run.
+- `examples/`
+  Small example configs for single PMID, PMID file, and corpus inputs.
 
-## Direction
+## Main Sections
 
-Configs in this repo should stay focused on:
+Each pipeline config is organized around:
 
-- corpus/query input definition
-- optional metadata enrichment
-- annotator selection
-- entity-type filtering
-- output paths
+- `[input]`
+- `[enrichment]`
+- `[annotators]`
+- `[filters]`
+- `[output]`
 
-Broader research-stage configuration ideas belong in planning docs, not here.
+## Annotator Tables
+
+Annotator runtime metadata is defined under nested annotator tables.
+
+Example:
+
+```toml
+[annotators]
+enabled = ["pubtator3"]
+
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
+```
+
+The pipeline reads these settings and uses them at runtime for the matching annotator.
+
+## Current Examples
+
+- `examples/pmid-single.toml`
+  Single PMID example with `pubtator3`.
+- `examples/pmid-file.toml`
+  PMID file ingestion example.
+- `examples/corpus-file.toml`
+  Local corpus ingestion example.

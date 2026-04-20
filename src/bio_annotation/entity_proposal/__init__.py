@@ -6,7 +6,7 @@ from typing import Any
 
 from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
-from bio_annotation.entity_proposal.pubtator_proposer import annotate_with_pubtator
+from bio_annotation.entity_proposal.pubtator_proposer import annotate_with_pubtator, annotate_with_pubtator3
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -20,6 +20,8 @@ def run_all_annotators(
     flair_spans: Any = None,
     flair_tagger: Any = None,
     flair_sentence_factory: Any = None,
+    pubtator3_response: Any = None,
+    pubtator3_request_fn: Any = None,
     pubtator_response: Any = None,
     pubtator_request_fn: Any = None,
     pubtator_endpoint: str | None = None,
@@ -39,10 +41,10 @@ def run_all_annotators(
             tagger=flair_tagger,
             sentence_factory=flair_sentence_factory,
         ),
-        "pubtator": annotate_with_pubtator(
+        "pubtator3": annotate_with_pubtator3(
             document,
-            response=pubtator_response,
-            request_fn=pubtator_request_fn,
+            response=pubtator3_response if pubtator3_response is not None else pubtator_response,
+            request_fn=pubtator3_request_fn if pubtator3_request_fn is not None else pubtator_request_fn,
             endpoint=pubtator_endpoint,
         ),
     }
@@ -50,7 +52,7 @@ def run_all_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator"):
+    for source in ("bern2", "flair", "pubtator3"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -58,6 +60,7 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
 __all__ = [
     "annotate_with_bern2",
     "annotate_with_flair",
+    "annotate_with_pubtator3",
     "annotate_with_pubtator",
     "flatten_annotations",
     "run_all_annotators",

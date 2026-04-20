@@ -9,7 +9,7 @@ from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
-from bio_annotation.annotators.pubtator import annotate_with_pubtator
+from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.schemas.document import Document
 
 
@@ -86,14 +86,14 @@ def test_flair_adapter_normalizes_spans() -> None:
     assert annotations[0].confidence == 0.87
 
 
-def test_pubtator_adapter_parses_bioc_json() -> None:
+def test_pubtator3_adapter_parses_bioc_json_with_absolute_offsets() -> None:
     document = sample_document()
     response = {
         "documents": [
             {
                 "passages": [
                     {
-                        "offset": 0,
+                        "offset": 10,
                         "annotations": [
                             {
                                 "text": "PTEN",
@@ -112,12 +112,62 @@ def test_pubtator_adapter_parses_bioc_json() -> None:
         ]
     }
 
-    annotations = annotate_with_pubtator(document, response=response)
+    annotations = annotate_with_pubtator3(document, response=response)
 
     assert len(annotations) == 2
-    assert annotations[0].source == "pubtator"
+    assert annotations[0].source == "pubtator3"
+    assert annotations[0].start == 0
     assert annotations[0].canonical_id == "5728"
+    assert annotations[1].start == 15
     assert annotations[1].entity_type == "disease"
+
+
+def test_pubtator3_adapter_parses_pubtator3_wrapped_bioc_json() -> None:
+    document = sample_document()
+    response = {
+        "PubTator3": [
+            {
+                "passages": [
+                    {
+                        "offset": 0,
+                        "annotations": [
+                            {
+                                "text": "PTEN",
+                                "infons": {"type": "Gene", "identifier": "5728"},
+                                "locations": [{"offset": 0, "length": 4}],
+                            }
+                        ],
+                    }
+                ]
+            }
+        ]
+    }
+
+    annotations = annotate_with_pubtator3(document, response=response)
+
+    assert len(annotations) == 1
+    assert annotations[0].source == "pubtator3"
+    assert annotations[0].canonical_id == "5728"
+
+
+def test_pubtator3_adapter_parses_pubannotation_json() -> None:
+    document = sample_document()
+    response = {
+        "text": document.text,
+        "sourcedb": "PubMed",
+        "sourceid": document.document_id,
+        "denotations": [
+            {"obj": "Gene:5728", "span": {"begin": 0, "end": 4}},
+            {"obj": "Disease:D005909", "span": {"begin": 15, "end": 27}},
+        ],
+    }
+
+    annotations = annotate_with_pubtator3(document, response=response)
+
+    assert len(annotations) == 2
+    assert annotations[0].source == "pubtator3"
+    assert annotations[0].entity_type == "gene"
+    assert annotations[1].canonical_id == "D005909"
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
@@ -156,7 +206,7 @@ def test_run_all_annotators_returns_consistent_result_map() -> None:
         },
     )
 
-    assert set(results) == {"bern2", "flair", "pubtator"}
+    assert set(results) == {"bern2", "flair", "pubtator3"}
     assert all(isinstance(items, list) for items in results.values())
     assert len(flatten_annotations(results)) == 3
 
@@ -180,8 +230,12 @@ def test_cli_inspect_config_runs() -> None:
     output = json.loads(stream.getvalue())
     assert exit_code == 0
     assert output["input_mode"] == "pmids"
-    assert output["pmids"] == ["38123456"]
+    assert output["pmids"] == ["36403686"]
     assert output["enrichment_sources"] == []
+    assert output["annotators"] == ["pubtator3"]
+    assert output["annotator_settings"]["pubtator3"]["runtime"] == "remote_api"
+    assert output["annotator_settings"]["pubtator3"]["format"] == "biocjson"
+    assert output["annotator_settings"]["pubtator3"]["endpoint"] == "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 
 
 def test_cli_load_documents_runs(monkeypatch) -> None:

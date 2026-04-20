@@ -36,7 +36,13 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
                 'sources = ["elinks", "crossref"]',
                 "",
                 "[annotators]",
-                'enabled = ["bern2", "pubtator"]',
+                'enabled = ["bern2", "pubtator3"]',
+                "",
+                "[annotators.pubtator3]",
+                'runtime = "remote_api"',
+                'endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"',
+                'format = "biocjson"',
+                "timeout = 45",
                 "",
                 "[filters]",
                 'entity_types = ["gene", "disease"]',
@@ -62,7 +68,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
                 {"mention": "PTEN", "span": {"begin": 0, "end": 4}, "type": "Gene", "id": "NCBIGene:5728"}
             ]
         },
-        pubtator_request_fn=lambda document: {
+        pubtator3_request_fn=lambda document: {
             "documents": [
                 {
                     "passages": [
@@ -85,6 +91,8 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert payload["stage"] == "corpus"
     assert payload["input"]["mode"] == "pmids"
     assert payload["pipeline"]["mode"] == "ingestion_and_annotation"
+    assert payload["pipeline"]["annotators_enabled"] == ["bern2", "pubtator3"]
+    assert payload["pipeline"]["annotator_settings"]["pubtator3"]["timeout"] == 45
     assert payload["documents"][0]["metadata"]["pubmed_record"]["pmcid"] == "PMC1234567"
     assert payload["annotation_summary"]["annotation_count"] == 2
     assert len(payload["annotations"]) == 2
@@ -128,7 +136,11 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
         "bio_annotation.pipeline_runner.run_pipeline_from_config",
         lambda path: {
             "document_count": 1,
-            "pipeline": {"mode": "ingestion_and_annotation", "annotators_enabled": ["flair"]},
+            "pipeline": {
+                "mode": "ingestion_and_annotation",
+                "annotators_enabled": ["flair"],
+                "annotator_settings": {"flair": {}},
+            },
             "entity_types": ["gene"],
             "documents": [],
             "annotation_summary": {"annotators_enabled": ["flair"], "document_count": 1, "annotation_count": 0},
