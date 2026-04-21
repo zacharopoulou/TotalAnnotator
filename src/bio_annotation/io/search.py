@@ -1,46 +1,81 @@
 from __future__ import annotations
 
 import json
+import time
+from datetime import date, timedelta
 from pathlib import Path
+from typing import Any, Callable
 from urllib import error, parse, request
 
 
 _ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+_CAP = 10_000
+_MIN_INTERVAL = 0.34  # 3 req/sec NCBI limit (unauthenticated)
+
+_last_request = 0.0
+
+
+def _esearch(term: str, *, sort_by: str = "relevance", timeout: int = 30) -> dict[str, Any]:
+    global _last_request
+    wait = _MIN_INTERVAL - (time.monotonic() - _last_request)
+    if wait > 0:
+        time.sleep(wait)
+    params = parse.urlencode(
+        {"db": "pubmed", "term": term, "retmax": _CAP, "retmode": "json", "sort": sort_by}
+    )
+    req = request.Request(f"{_ESEARCH_URL}?{params}", headers={"Accept": "application/json"})
+    try:
+        with request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (error.URLError, json.JSONDecodeError) as exc:
+        raise ValueError(f"PubMed search failed for {term!r}: {exc}") from exc
+    _last_request = time.monotonic()
+    result = payload.get("esearchresult") or {}
+    pmids = [str(x).strip() for x in result.get("idlist") or [] if str(x).strip()]
+    return {"count": int(result.get("count") or len(pmids)), "pmids": pmids}
 
 
 def search_pubmed_pmids(
     query: str,
     *,
-    max_results: int = 100,
+    max_results: int | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     sort_by: str = "relevance",
     filters: list[str] | None = None,
     timeout: int = 30,
+    esearch_fn: Callable[[str], dict[str, Any]] | None = None,
 ) -> list[str]:
-    term = _build_query(query, date_from=date_from, date_to=date_to, filters=filters)
-    params = parse.urlencode(
-        {
-            "db": "pubmed",
-            "term": term,
-            "retmax": min(max_results, 10_000),
-            "retmode": "json",
-            "sort": sort_by,
-        }
-    )
-    target = f"{_ESEARCH_URL}?{params}"
-    http_request = request.Request(target, headers={"Accept": "application/json"}, method="GET")
+    term = query.strip()
+    if not term:
+        raise ValueError("Query must not be empty.")
+    for clause in filters or []:
+        if clause.strip():
+            term += f" AND {clause.strip()}"
+    fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
-    try:
-        with request.urlopen(http_request, timeout=timeout) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (error.URLError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Failed to search PubMed for query {query!r}: {exc}") from exc
+    lo = _parse_date(date_from) if date_from else date(1800, 1, 1)
+    hi = _parse_date(date_to) if date_to else date(2100, 12, 31)
 
-    id_list = payload.get("esearchresult", {}).get("idlist", [])
-    if not isinstance(id_list, list):
-        return []
-    return [str(value).strip() for value in id_list if str(value).strip()]
+    pmids: dict[str, None] = {}
+    stack = [(lo, hi)]
+    while stack:
+        start, end = stack.pop()
+        window = f'{term} AND ("{start:%Y/%m/%d}"[Date - Publication] : "{end:%Y/%m/%d}"[Date - Publication])'
+        result = fn(window)
+        if result["count"] <= _CAP:
+            for pmid in result["pmids"]:
+                if pmid not in pmids:
+                    pmids[pmid] = None
+                    if max_results is not None and len(pmids) >= max_results:
+                        return list(pmids)
+            continue
+        if start == end: # window has 1-day size and still more than 10000 results
+            raise ValueError(f"Window {start:%Y/%m/%d} has {result['count']} results, exceeds {_CAP} cap.")
+        mid = start + (end - start) // 2
+        stack.append((mid + timedelta(days=1), end))
+        stack.append((start, mid))
+    return list(pmids)
 
 
 def write_pmids(path: Path, pmids: list[str]) -> None:
@@ -48,22 +83,7 @@ def write_pmids(path: Path, pmids: list[str]) -> None:
     path.write_text("".join(f"{pmid}\n" for pmid in pmids), encoding="utf-8")
 
 
-def _build_query(
-    query: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    filters: list[str] | None = None,
-) -> str:
-    built = query.strip()
-    if not built:
-        raise ValueError("Query must not be empty.")
-    if date_from and date_to:
-        built += f' AND ("{date_from}"[Date - Publication] : "{date_to}"[Date - Publication])'
-    elif date_from:
-        built += f' AND ("{date_from}"[Date - Publication] : "3000"[Date - Publication])'
-    for clause in filters or []:
-        cleaned = clause.strip()
-        if cleaned:
-            built += f" AND {cleaned}"
-    return built
+def _parse_date(value: str) -> date:
+    parts = [int(p) for p in value.strip().replace("-", "/").split("/")]
+    parts += [1] * (3 - len(parts))
+    return date(parts[0], parts[1], parts[2])
