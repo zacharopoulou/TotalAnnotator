@@ -148,12 +148,15 @@ def call_pubtator3(
         base_url=endpoint or os.getenv("PUBTATOR3_API_URL", PUBTATOR3_API_BASE_URL),
         timeout=timeout,
     )
-    if document.pmid:
+    if document.source == "pubmed" and document.pmid:
         return active_client.fetch_publications_by_pmids([document.pmid], format=format)
 
-    pmcid = _document_pmcid(document)
+    pmcid = _document_pmcid(document) if document.source == "pubmed" else None
     if pmcid:
         return active_client.fetch_publications_by_pmcids([pmcid], format=format)
+
+    if document.text.strip():
+        return active_client.annotate_text(build_pubtator3_text_payload(document))
 
     return None
 

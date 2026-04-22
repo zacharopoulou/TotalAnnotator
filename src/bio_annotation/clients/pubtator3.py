@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import socket
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 from urllib import error, parse, request
@@ -14,6 +15,10 @@ DEFAULT_POST_BATCH_SIZE = 1000
 DEFAULT_BIOCONCEPT = "BioConcept"
 
 RequestOpener = Callable[[request.Request, int], bytes]
+
+
+class PubTator3PendingError(ValueError):
+    """Raised when a raw-text PubTator3 job is not ready yet."""
 
 
 def _default_open(http_request: request.Request, timeout: int) -> bytes:
@@ -54,6 +59,10 @@ def _extract_bioc_documents(payload: dict[str, Any]) -> list[Any]:
     return []
 
 
+def _raw_text_base_url(base_url: str) -> str:
+    return base_url.rstrip("/").replace("/pubtator3-api", "/pubtator-api")
+
+
 @dataclass(slots=True)
 class PubTator3Client:
     base_url: str = PUBTATOR3_API_BASE_URL
@@ -89,7 +98,7 @@ class PubTator3Client:
         bioconcept: str = DEFAULT_BIOCONCEPT,
     ) -> str:
         body = payload.encode("utf-8") if isinstance(payload, str) else payload
-        endpoint = f"{self.base_url.rstrip('/')}/annotations/annotate/submit/{bioconcept}"
+        endpoint = f"{_raw_text_base_url(self.base_url)}/annotations/annotate/submit/{bioconcept}"
         http_request = request.Request(
             endpoint,
             data=body,
@@ -103,9 +112,40 @@ class PubTator3Client:
         return session_id
 
     def retrieve_text_annotation(self, session_id: str) -> str:
-        endpoint = f"{self.base_url.rstrip('/')}/annotations/annotate/retrieve/{session_id.strip()}"
+        endpoint = f"{_raw_text_base_url(self.base_url)}/annotations/annotate/retrieve/{session_id.strip()}"
         http_request = request.Request(endpoint, method="GET")
-        return self._send_text(http_request)
+        try:
+            return self._send_text(http_request)
+        except ValueError as exc:
+            if "HTTP Error 404" in str(exc):
+                raise PubTator3PendingError("PubTator3 annotation job is not ready yet.") from exc
+            raise
+
+    def annotate_text(
+        self,
+        payload: bytes | str,
+        *,
+        bioconcept: str = DEFAULT_BIOCONCEPT,
+        max_attempts: int = 10,
+        poll_interval: float = 1.0,
+    ) -> str:
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least 1.")
+
+        session_id = self.submit_text_annotation(payload, bioconcept=bioconcept)
+        last_error: PubTator3PendingError | None = None
+        for attempt in range(max_attempts):
+            try:
+                return self.retrieve_text_annotation(session_id)
+            except PubTator3PendingError as exc:
+                last_error = exc
+                if attempt == max_attempts - 1:
+                    break
+                time.sleep(poll_interval)
+
+        raise ValueError(
+            f"PubTator3 annotation job {session_id} was not ready after {max_attempts} attempts."
+        ) from last_error
 
     def _fetch_publications(
         self,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from urllib import parse
+from urllib import error, parse
 
 from bio_annotation.clients.pubtator3 import PubTator3Client
 
@@ -61,3 +61,29 @@ def test_pubtator3_client_submits_and_retrieves_text_jobs() -> None:
 
     assert session_id == "1111-2222-3333-4444"
     assert payload == '{"text":"PTEN","denotations":[]}'
+
+
+def test_pubtator3_client_annotate_text_polls_until_ready(monkeypatch) -> None:
+    requests: list[tuple[str, str]] = []
+    attempts = {"retrieve": 0}
+
+    def fake_open(http_request, timeout: int) -> bytes:
+        requests.append((http_request.get_method(), http_request.full_url))
+        if http_request.get_method() == "POST":
+            return b"1111-2222-3333-4444"
+        attempts["retrieve"] += 1
+        if attempts["retrieve"] == 1:
+            raise error.HTTPError(http_request.full_url, 404, "Not Found", hdrs=None, fp=None)
+        return b'{"text":"PTEN","denotations":[]}'
+
+    monkeypatch.setattr("bio_annotation.clients.pubtator3.time.sleep", lambda _: None)
+
+    client = PubTator3Client(opener=fake_open)
+    payload = client.annotate_text('{"text":"PTEN"}', max_attempts=2, poll_interval=0.0)
+
+    assert payload == '{"text":"PTEN","denotations":[]}'
+    assert requests == [
+        ("POST", "https://www.ncbi.nlm.nih.gov/research/pubtator-api/annotations/annotate/submit/BioConcept"),
+        ("GET", "https://www.ncbi.nlm.nih.gov/research/pubtator-api/annotations/annotate/retrieve/1111-2222-3333-4444"),
+        ("GET", "https://www.ncbi.nlm.nih.gov/research/pubtator-api/annotations/annotate/retrieve/1111-2222-3333-4444"),
+    ]

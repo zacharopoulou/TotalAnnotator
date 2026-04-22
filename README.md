@@ -131,7 +131,7 @@ uv run totalannotator run-config --config configs/examples/corpus-file.toml
 This currently demonstrates ingestion-only corpus loading and writes:
 
 ```bash
-outputs/examples/corpus-file-output.json
+outputs/examples/corpus-file.json
 ```
 
 ## Configuration Model

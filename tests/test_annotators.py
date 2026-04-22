@@ -170,6 +170,33 @@ def test_pubtator3_adapter_parses_pubannotation_json() -> None:
     assert annotations[1].canonical_id == "D005909"
 
 
+def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
+    document = Document(
+        document_id="CORPUS:doc1",
+        pmid="12345678",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important in glioblastoma.",
+        source="corpus",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.payloads: list[str] = []
+
+        def annotate_text(self, payload: str) -> str:
+            self.payloads.append(payload)
+            return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[{"obj":"Gene:5728","span":{"begin":0,"end":4}}]}'
+
+    client = FakeClient()
+    annotations = annotate_with_pubtator3(document, client=client)
+
+    assert len(annotations) == 1
+    assert annotations[0].source == "pubtator3"
+    assert annotations[0].entity_type == "gene"
+    assert annotations[0].canonical_id == "5728"
+    assert client.payloads
+
+
 def test_run_all_annotators_returns_consistent_result_map() -> None:
     document = sample_document()
     results = run_all_annotators(
