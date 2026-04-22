@@ -54,7 +54,7 @@ def search_pubmed_pmids(
             term += f" AND {clause.strip()}"
     fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
-    lo = _parse_date(date_from) if date_from else date(1800, 1, 1)
+    lo = _parse_date(date_from) if date_from else date(1950, 1, 1)
     hi = _parse_date(date_to) if date_to else date(2100, 12, 31)
 
     pmids: dict[str, None] = {}
