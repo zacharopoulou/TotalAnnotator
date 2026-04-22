@@ -142,12 +142,20 @@ def run_selected_annotators(
                 endpoint=pubtator3_options.get("endpoint") if pubtator3_options else None,
                 timeout=pubtator3_options.get("timeout", 60) if pubtator3_options else 60,
                 format=pubtator3_options.get("format", "biocjson") if pubtator3_options else "biocjson",
-                text_mode=pubtator3_options.get("text_mode", "auto") if pubtator3_options else "auto",
-                raw_text_bioconcept=pubtator3_options.get("raw_text_bioconcept", "All") if pubtator3_options else "All",
-                raw_text_max_attempts=pubtator3_options.get("raw_text_max_attempts", 20) if pubtator3_options else 20,
-                raw_text_poll_interval=pubtator3_options.get("raw_text_poll_interval", 2.0) if pubtator3_options else 2.0,
-                raw_text_poll_backoff=pubtator3_options.get("raw_text_poll_backoff", 1.5) if pubtator3_options else 1.5,
-                raw_text_max_poll_interval=pubtator3_options.get("raw_text_max_poll_interval", 15.0) if pubtator3_options else 15.0,
+                mode=pubtator3_options.get("mode", "auto") if pubtator3_options else "auto",
+                bioconcept=pubtator3_options.get("bioconcept", "All") if pubtator3_options else "All",
+                poll_interval_seconds=pubtator3_options.get("poll_interval_seconds", 2.0)
+                if pubtator3_options
+                else 2.0,
+                poll_backoff=pubtator3_options.get("poll_backoff", 1.5) if pubtator3_options else 1.5,
+                max_poll_interval_seconds=(
+                    pubtator3_options.get("max_poll_interval_seconds", 15.0)
+                    if pubtator3_options
+                    else 15.0
+                ),
+                max_poll_attempts=pubtator3_options.get("max_poll_attempts", 15)
+                if pubtator3_options
+                else 15,
             )
         else:
             raise ValueError(f"Unsupported annotator: {annotator}")
@@ -192,39 +200,44 @@ def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
     endpoint = settings.get("endpoint")
     timeout = settings.get("timeout")
     export_format = settings.get("format")
-    text_mode = settings.get("text_mode")
-    raw_text_bioconcept = settings.get("raw_text_bioconcept")
-    raw_text_max_attempts = settings.get("raw_text_max_attempts")
-    raw_text_poll_interval = settings.get("raw_text_poll_interval")
-    raw_text_poll_backoff = settings.get("raw_text_poll_backoff")
-    raw_text_max_poll_interval = settings.get("raw_text_max_poll_interval")
-    cleaned_text_mode = text_mode if isinstance(text_mode, str) and text_mode.strip() else "auto"
-    if cleaned_text_mode not in {"auto", "raw_text"}:
-        cleaned_text_mode = "auto"
+    mode = settings.get("mode")
+    bioconcept = settings.get("bioconcept")
+    poll_interval_seconds = settings.get("poll_interval_seconds")
+    poll_backoff = settings.get("poll_backoff")
+    max_poll_interval_seconds = settings.get("max_poll_interval_seconds")
+    max_poll_attempts = settings.get("max_poll_attempts")
+
+    cleaned_mode = mode.strip().lower() if isinstance(mode, str) and mode.strip() else "auto"
+    if cleaned_mode not in {"auto", "publication_only", "text_only"}:
+        raise ValueError(
+            "annotators.pubtator3.mode must be one of: "
+            "'auto', 'publication_only', 'text_only'."
+        )
+
     return {
         "endpoint": endpoint if isinstance(endpoint, str) and endpoint.strip() else None,
         "timeout": timeout if isinstance(timeout, int) and timeout > 0 else 60,
         "format": export_format if isinstance(export_format, str) and export_format.strip() else "biocjson",
-        "text_mode": cleaned_text_mode,
-        "raw_text_bioconcept": (
-            raw_text_bioconcept if isinstance(raw_text_bioconcept, str) and raw_text_bioconcept.strip() else "All"
-        ),
-        "raw_text_max_attempts": (
-            raw_text_max_attempts if isinstance(raw_text_max_attempts, int) and raw_text_max_attempts > 0 else 20
-        ),
-        "raw_text_poll_interval": (
-            float(raw_text_poll_interval)
-            if isinstance(raw_text_poll_interval, (int, float)) and float(raw_text_poll_interval) >= 0
+        "mode": cleaned_mode,
+        "bioconcept": bioconcept if isinstance(bioconcept, str) and bioconcept.strip() else "All",
+        "poll_interval_seconds": (
+            float(poll_interval_seconds)
+            if isinstance(poll_interval_seconds, (int, float)) and poll_interval_seconds > 0
             else 2.0
         ),
-        "raw_text_poll_backoff": (
-            float(raw_text_poll_backoff)
-            if isinstance(raw_text_poll_backoff, (int, float)) and float(raw_text_poll_backoff) >= 1.0
+        "poll_backoff": (
+            float(poll_backoff)
+            if isinstance(poll_backoff, (int, float)) and float(poll_backoff) >= 1.0
             else 1.5
         ),
-        "raw_text_max_poll_interval": (
-            float(raw_text_max_poll_interval)
-            if isinstance(raw_text_max_poll_interval, (int, float)) and float(raw_text_max_poll_interval) > 0
+        "max_poll_interval_seconds": (
+            float(max_poll_interval_seconds)
+            if isinstance(max_poll_interval_seconds, (int, float)) and float(max_poll_interval_seconds) > 0
             else 15.0
+        ),
+        "max_poll_attempts": (
+            int(max_poll_attempts)
+            if isinstance(max_poll_attempts, int) and max_poll_attempts > 0
+            else 15
         ),
     }

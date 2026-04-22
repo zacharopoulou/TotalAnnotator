@@ -1,6 +1,10 @@
 [input]
-mode = "corpus"
-corpus_path = "data/corpora/example_documents.json"
+mode = "text_table"
+text_file = "data/inputs/plain_text.tsv"
+format = "tsv"
+document_id_column = "document_id"
+title_column = "title"
+abstract_column = "abstract"
 
 [enrichment]
 sources = []
@@ -8,24 +12,17 @@ sources = []
 [annotators]
 enabled = ["pubtator3"]
 
-[annotators.bern2]
-runtime = "docker"
-base_url = "http://127.0.0.1:8888"
-
-[annotators.flair]
-runtime = "python_local"
-
 [annotators.pubtator3]
 runtime = "remote_api"
 endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
-timeout = 60
-text_mode = "raw_text"
-raw_text_bioconcept = "All"
-raw_text_max_attempts = 20
-raw_text_poll_interval = 2.0
-raw_text_poll_backoff = 1.5
-raw_text_max_poll_interval = 15.0
+timeout = 45
+mode = "text_only"
+bioconcept = "All"
+poll_interval_seconds = 2.0
+poll_backoff = 1.5
+max_poll_interval_seconds = 15.0
+max_poll_attempts = 30
 
 [filters]
 entity_types = []
