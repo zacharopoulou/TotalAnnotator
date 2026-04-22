@@ -1,6 +1,6 @@
 [input]
 mode = "pmids"
-pmids = ["36403686"]
+pmids = ["36403686", "36403685"]
 
 [enrichment]
 sources = []

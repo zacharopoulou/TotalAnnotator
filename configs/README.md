@@ -7,7 +7,7 @@ This directory contains runnable pipeline configurations for TotalAnnotator.
 - `pipeline.toml`
   Default config, set up for a first live `pubtator3` PMID run.
 - `examples/`
-  Small example configs for single PMID, PMID file, and corpus inputs.
+  Small example configs for inline PMID, PMID file, and local text inputs.
 
 ## Main Sections
 
@@ -34,8 +34,9 @@ runtime = "remote_api"
 endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
 timeout = 60
-text_mode = "raw_text"
-raw_text_bioconcept = "All"
+mode = "text_only"
+bioconcept = "All"
+poll_interval_seconds = 2.0
 ```
 
 The pipeline reads these settings and uses them at runtime for the matching annotator.
@@ -43,8 +44,8 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 ## Current Examples
 
 - `examples/pmid-single.toml`
-  Single PMID example with `pubtator3`.
+  Inline PMID example with `pubtator3`.
 - `examples/pmid-file.toml`
   PMID batch example with `pubtator3`.
 - `examples/corpus-file.toml`
-  Local corpus example with `pubtator3` raw-text annotation.
+  Local text-table example with `pubtator3` raw-text annotation.

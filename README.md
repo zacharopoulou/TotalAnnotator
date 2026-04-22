@@ -12,7 +12,7 @@ The near-term workflow target is described in [docs/workflow-spec.md](docs/workf
 
 TotalAnnotator currently supports:
 
-- corpus creation from PubMed PMIDs, PMID files, and local corpus files
+- corpus creation from inline PMIDs, PMID files, and local text inputs
 - rich PubMed metadata ingestion for PMID-based inputs
 - a first live annotator integration with `pubtator3`
 - a unified JSON pipeline output with top-level corpus and annotation sections
@@ -65,7 +65,7 @@ The default [configs/pipeline.toml](configs/pipeline.toml) is set up for a first
 It uses:
 
 - `input.mode = "pmids"`
-- one example PMID
+- an inline PMID list
 - `annotators.enabled = ["pubtator3"]`
 - a `pubtator3` runtime block under `[annotators.pubtator3]`
 
@@ -98,16 +98,16 @@ uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output 
 
 ## Example Configs
 
-Single PMID with `pubtator3`:
+Inline PMID input with `pubtator3`:
 
 ```bash
 uv run totalannotator run-config --config configs/examples/pmid-single.toml
 ```
 
-This runs one PMID through PubMed ingestion and `pubtator3`, and writes:
+This runs the PMIDs defined directly in the config through PubMed ingestion and `pubtator3`, and writes:
 
 ```bash
-outputs/examples/pubtator3-pmid-single.json
+outputs/examples/pubtator3-pmid.json
 ```
 
 PMID file batch with `pubtator3`:
@@ -122,13 +122,13 @@ This runs a batch of PMIDs from `data/inputs/example_pmids.txt` and writes:
 outputs/examples/pubtator3-pmid-file.json
 ```
 
-Plain corpus file:
+Local text table with `pubtator3`:
 
 ```bash
 uv run totalannotator run-config --config configs/examples/corpus-file.toml
 ```
 
-This runs the bundled local corpus through `pubtator3` raw-text annotation and writes:
+This runs the bundled local text input through `pubtator3` raw-text annotation and writes:
 
 ```bash
 outputs/examples/corpus-file.json
@@ -168,8 +168,16 @@ uv run totalannotator inspect-config
 ```
 
 For PubMed-backed documents, `pubtator3` uses the publication export API. For
-local text and corpus inputs, it can use raw-text mode through
-`text_mode = "raw_text"`.
+local text inputs, it can use plain-text mode through:
+
+```toml
+mode = "text_only"
+bioconcept = "All"
+poll_interval_seconds = 2.0
+poll_backoff = 1.5
+max_poll_interval_seconds = 15.0
+max_poll_attempts = 30
+```
 
 ## Output
 
