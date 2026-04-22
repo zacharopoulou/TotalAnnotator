@@ -34,6 +34,8 @@ runtime = "remote_api"
 endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
 timeout = 60
+text_mode = "raw_text"
+raw_text_bioconcept = "All"
 ```
 
 The pipeline reads these settings and uses them at runtime for the matching annotator.
@@ -45,4 +47,4 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 - `examples/pmid-file.toml`
   PMID batch example with `pubtator3`.
 - `examples/corpus-file.toml`
-  Local corpus ingestion-only example.
+  Local corpus example with `pubtator3` raw-text annotation.

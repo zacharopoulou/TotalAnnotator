@@ -6,7 +6,7 @@ corpus_path = "data/corpora/example_documents.json"
 sources = []
 
 [annotators]
-enabled = []
+enabled = ["pubtator3"]
 
 [annotators.bern2]
 runtime = "docker"
@@ -20,6 +20,12 @@ runtime = "remote_api"
 endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
 timeout = 60
+text_mode = "raw_text"
+raw_text_bioconcept = "All"
+raw_text_max_attempts = 20
+raw_text_poll_interval = 2.0
+raw_text_poll_backoff = 1.5
+raw_text_max_poll_interval = 15.0
 
 [filters]
 entity_types = []

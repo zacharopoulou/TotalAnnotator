@@ -128,11 +128,14 @@ Plain corpus file:
 uv run totalannotator run-config --config configs/examples/corpus-file.toml
 ```
 
-This currently demonstrates ingestion-only corpus loading and writes:
+This runs the bundled local corpus through `pubtator3` raw-text annotation and writes:
 
 ```bash
 outputs/examples/corpus-file.json
 ```
+
+Because PubTator3 raw-text jobs are asynchronous, this example can take longer
+than the PMID-based runs.
 
 ## Configuration Model
 
@@ -152,6 +155,10 @@ runtime = "remote_api"
 endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
 timeout = 60
+text_mode = "raw_text"
+raw_text_bioconcept = "All"
+raw_text_max_attempts = 20
+raw_text_poll_interval = 2.0
 ```
 
 This metadata is parsed by the pipeline and is also visible through:
@@ -159,6 +166,10 @@ This metadata is parsed by the pipeline and is also visible through:
 ```bash
 uv run totalannotator inspect-config
 ```
+
+For PubMed-backed documents, `pubtator3` uses the publication export API. For
+local text and corpus inputs, it can use raw-text mode through
+`text_mode = "raw_text"`.
 
 ## Output
 

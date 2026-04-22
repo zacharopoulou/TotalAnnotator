@@ -9,10 +9,16 @@ from urllib import error, parse, request
 
 
 PUBTATOR3_API_BASE_URL = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+PUBTATOR_RAW_TEXT_REQUEST_URL = "https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/RESTful/request.cgi"
+PUBTATOR_RAW_TEXT_RETRIEVE_URL = "https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/RESTful/retrieve.cgi"
 DEFAULT_EXPORT_FORMAT = "biocjson"
 DEFAULT_GET_BATCH_SIZE = 100
 DEFAULT_POST_BATCH_SIZE = 1000
-DEFAULT_BIOCONCEPT = "BioConcept"
+DEFAULT_BIOCONCEPT = "All"
+DEFAULT_TEXT_MAX_ATTEMPTS = 20
+DEFAULT_TEXT_POLL_INTERVAL = 2.0
+DEFAULT_TEXT_POLL_BACKOFF = 1.5
+DEFAULT_TEXT_MAX_POLL_INTERVAL = 15.0
 
 RequestOpener = Callable[[request.Request, int], bytes]
 
@@ -59,10 +65,6 @@ def _extract_bioc_documents(payload: dict[str, Any]) -> list[Any]:
     return []
 
 
-def _raw_text_base_url(base_url: str) -> str:
-    return base_url.rstrip("/").replace("/pubtator3-api", "/pubtator-api")
-
-
 @dataclass(slots=True)
 class PubTator3Client:
     base_url: str = PUBTATOR3_API_BASE_URL
@@ -97,27 +99,27 @@ class PubTator3Client:
         *,
         bioconcept: str = DEFAULT_BIOCONCEPT,
     ) -> str:
-        body = payload.encode("utf-8") if isinstance(payload, str) else payload
-        endpoint = f"{_raw_text_base_url(self.base_url)}/annotations/annotate/submit/{bioconcept}"
+        text = payload.decode("utf-8") if isinstance(payload, bytes) else payload
+        body = parse.urlencode({"text": text, "bioconcept": bioconcept}).encode("utf-8")
         http_request = request.Request(
-            endpoint,
+            PUBTATOR_RAW_TEXT_REQUEST_URL,
             data=body,
-            headers={"Content-Type": "application/octet-stream"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
             method="POST",
         )
-        response_body = self._send_text(http_request)
-        session_id = response_body.strip()
+        response_body = self._send_json(http_request)
+        session_id = str(response_body.get("id") or "").strip()
         if not session_id:
             raise ValueError("PubTator3 submit endpoint returned an empty session ID.")
         return session_id
 
     def retrieve_text_annotation(self, session_id: str) -> str:
-        endpoint = f"{_raw_text_base_url(self.base_url)}/annotations/annotate/retrieve/{session_id.strip()}"
+        endpoint = f"{PUBTATOR_RAW_TEXT_RETRIEVE_URL}?{parse.urlencode({'id': session_id.strip()})}"
         http_request = request.Request(endpoint, method="GET")
         try:
             return self._send_text(http_request)
         except ValueError as exc:
-            if "HTTP Error 404" in str(exc):
+            if "HTTP Error 404" in str(exc) or "HTTP Error 400" in str(exc):
                 raise PubTator3PendingError("PubTator3 annotation job is not ready yet.") from exc
             raise
 
@@ -126,14 +128,23 @@ class PubTator3Client:
         payload: bytes | str,
         *,
         bioconcept: str = DEFAULT_BIOCONCEPT,
-        max_attempts: int = 10,
-        poll_interval: float = 1.0,
+        max_attempts: int = DEFAULT_TEXT_MAX_ATTEMPTS,
+        poll_interval: float = DEFAULT_TEXT_POLL_INTERVAL,
+        poll_backoff: float = DEFAULT_TEXT_POLL_BACKOFF,
+        max_poll_interval: float = DEFAULT_TEXT_MAX_POLL_INTERVAL,
     ) -> str:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1.")
+        if poll_interval < 0:
+            raise ValueError("poll_interval must be non-negative.")
+        if poll_backoff < 1.0:
+            raise ValueError("poll_backoff must be at least 1.0.")
+        if max_poll_interval <= 0:
+            raise ValueError("max_poll_interval must be greater than 0.")
 
         session_id = self.submit_text_annotation(payload, bioconcept=bioconcept)
         last_error: PubTator3PendingError | None = None
+        delay = poll_interval
         for attempt in range(max_attempts):
             try:
                 return self.retrieve_text_annotation(session_id)
@@ -141,7 +152,8 @@ class PubTator3Client:
                 last_error = exc
                 if attempt == max_attempts - 1:
                     break
-                time.sleep(poll_interval)
+                time.sleep(delay)
+                delay = min(delay * poll_backoff, max_poll_interval)
 
         raise ValueError(
             f"PubTator3 annotation job {session_id} was not ready after {max_attempts} attempts."

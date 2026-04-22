@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from io import StringIO
 
 from bio_annotation.cli import main
-from bio_annotation.pipeline_runner import run_pipeline_from_config
+from bio_annotation.pipeline_runner import _read_pubtator3_options, run_pipeline_from_config
 
 
 @dataclass
@@ -198,3 +198,26 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     assert output["input"]["mode"] == "corpus"
     assert output["pipeline"]["annotators_enabled"] == []
     assert output["annotation_summary"]["annotation_count"] == 0
+
+
+def test_read_pubtator3_options_parses_raw_text_settings() -> None:
+    options = _read_pubtator3_options(
+        {
+            "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
+            "timeout": 45,
+            "format": "biocjson",
+            "text_mode": "raw_text",
+            "raw_text_bioconcept": "Gene",
+            "raw_text_max_attempts": 25,
+            "raw_text_poll_interval": 3.0,
+            "raw_text_poll_backoff": 2.0,
+            "raw_text_max_poll_interval": 12.0,
+        }
+    )
+
+    assert options["text_mode"] == "raw_text"
+    assert options["raw_text_bioconcept"] == "Gene"
+    assert options["raw_text_max_attempts"] == 25
+    assert options["raw_text_poll_interval"] == 3.0
+    assert options["raw_text_poll_backoff"] == 2.0
+    assert options["raw_text_max_poll_interval"] == 12.0

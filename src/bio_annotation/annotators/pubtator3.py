@@ -75,6 +75,34 @@ def _parse_pubannotation_document(document: Document, payload: dict[str, Any]) -
     return annotations
 
 
+def _parse_pubtator_text(document: Document, payload: str) -> list[Annotation]:
+    annotations: list[Annotation] = []
+    for line in payload.splitlines():
+        if not line.strip() or "|t|" in line or "|a|" in line:
+            continue
+        parts = line.split("\t")
+        if len(parts) < 6:
+            continue
+        _, start, end, mention, entity_type, canonical_id = parts[:6]
+        try:
+            start_offset = int(start)
+            end_offset = int(end)
+        except ValueError:
+            continue
+        annotations.append(
+            make_annotation(
+                document=document,
+                source="pubtator3",
+                span_text=mention,
+                entity_type=entity_type,
+                start=start_offset,
+                end=end_offset,
+                canonical_id=canonical_id,
+            )
+        )
+    return annotations
+
+
 def parse_pubtator3_response(document: Document, payload: Any) -> list[Annotation]:
     if payload is None:
         return []
@@ -83,7 +111,7 @@ def parse_pubtator3_response(document: Document, payload: Any) -> list[Annotatio
         try:
             payload = json.loads(payload)
         except json.JSONDecodeError:
-            return []
+            return _parse_pubtator_text(document, payload)
 
     if isinstance(payload, dict):
         if "documents" in payload and isinstance(payload["documents"], list):
@@ -118,13 +146,7 @@ def parse_pubtator3_response(document: Document, payload: Any) -> list[Annotatio
 
 
 def build_pubtator3_text_payload(document: Document) -> str:
-    return json.dumps(
-        {
-            "text": document.text,
-            "sourcedb": document.source or "TotalAnnotator",
-            "sourceid": document.document_id,
-        }
-    )
+    return document.text
 
 
 def _document_pmcid(document: Document) -> str | None:
@@ -143,11 +165,27 @@ def call_pubtator3(
     endpoint: str | None = None,
     timeout: int = 60,
     format: str = DEFAULT_EXPORT_FORMAT,
+    text_mode: str = "auto",
+    raw_text_bioconcept: str = "All",
+    raw_text_max_attempts: int = 20,
+    raw_text_poll_interval: float = 2.0,
+    raw_text_poll_backoff: float = 1.5,
+    raw_text_max_poll_interval: float = 15.0,
 ) -> Any:
     active_client = client or PubTator3Client(
         base_url=endpoint or os.getenv("PUBTATOR3_API_URL", PUBTATOR3_API_BASE_URL),
         timeout=timeout,
     )
+    if text_mode == "raw_text" and document.text.strip():
+        return active_client.annotate_text(
+            build_pubtator3_text_payload(document),
+            bioconcept=raw_text_bioconcept,
+            max_attempts=raw_text_max_attempts,
+            poll_interval=raw_text_poll_interval,
+            poll_backoff=raw_text_poll_backoff,
+            max_poll_interval=raw_text_max_poll_interval,
+        )
+
     if document.source == "pubmed" and document.pmid:
         return active_client.fetch_publications_by_pmids([document.pmid], format=format)
 
@@ -156,7 +194,14 @@ def call_pubtator3(
         return active_client.fetch_publications_by_pmcids([pmcid], format=format)
 
     if document.text.strip():
-        return active_client.annotate_text(build_pubtator3_text_payload(document))
+        return active_client.annotate_text(
+            build_pubtator3_text_payload(document),
+            bioconcept=raw_text_bioconcept,
+            max_attempts=raw_text_max_attempts,
+            poll_interval=raw_text_poll_interval,
+            poll_backoff=raw_text_poll_backoff,
+            max_poll_interval=raw_text_max_poll_interval,
+        )
 
     return None
 
@@ -170,12 +215,30 @@ def annotate_with_pubtator3(
     endpoint: str | None = None,
     timeout: int = 60,
     format: str = DEFAULT_EXPORT_FORMAT,
+    text_mode: str = "auto",
+    raw_text_bioconcept: str = "All",
+    raw_text_max_attempts: int = 20,
+    raw_text_poll_interval: float = 2.0,
+    raw_text_poll_backoff: float = 1.5,
+    raw_text_max_poll_interval: float = 15.0,
 ) -> list[Annotation]:
     payload = response
     if payload is None and request_fn is not None:
         payload = request_fn(document)
     if payload is None:
-        payload = call_pubtator3(document, client=client, endpoint=endpoint, timeout=timeout, format=format)
+        payload = call_pubtator3(
+            document,
+            client=client,
+            endpoint=endpoint,
+            timeout=timeout,
+            format=format,
+            text_mode=text_mode,
+            raw_text_bioconcept=raw_text_bioconcept,
+            raw_text_max_attempts=raw_text_max_attempts,
+            raw_text_poll_interval=raw_text_poll_interval,
+            raw_text_poll_backoff=raw_text_poll_backoff,
+            raw_text_max_poll_interval=raw_text_max_poll_interval,
+        )
     return parse_pubtator3_response(document, payload)
 
 
