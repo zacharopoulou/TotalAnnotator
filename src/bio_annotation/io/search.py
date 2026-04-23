@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import json
 import time
 from datetime import date, timedelta
@@ -54,8 +55,8 @@ def search_pubmed_pmids(
             term += f" AND {clause.strip()}"
     fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
-    lo = _parse_date(date_from) if date_from else date(1950, 1, 1)
-    hi = _parse_date(date_to) if date_to else date(2100, 12, 31)
+    lo = _parse_date(date_from, upper=False) if date_from else date(1950, 1, 1)
+    hi = _parse_date(date_to, upper=True) if date_to else date(2100, 12, 31)
 
     pmids: dict[str, None] = {}
     stack = [(lo, hi)]
@@ -83,7 +84,12 @@ def write_pmids(path: Path, pmids: list[str]) -> None:
     path.write_text("".join(f"{pmid}\n" for pmid in pmids), encoding="utf-8")
 
 
-def _parse_date(value: str) -> date:
+def _parse_date(value: str, *, upper: bool) -> date:
     parts = [int(p) for p in value.strip().replace("-", "/").split("/")]
-    parts += [1] * (3 - len(parts))
-    return date(parts[0], parts[1], parts[2])
+    year = parts[0]
+    month = parts[1] if len(parts) > 1 else (12 if upper else 1)
+    if len(parts) > 2:
+        day = parts[2]
+    else:
+        day = calendar.monthrange(year, month)[1] if upper else 1
+    return date(year, month, day)
