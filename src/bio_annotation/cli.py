@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.entity_proposal import flatten_annotations, run_all_annotators
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
@@ -101,7 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--query", required=True, help="PubMed query string.")
     search_parser.add_argument(
         "--max-results",
-        type=int,
+        type=positive_int,
         default=None,
         help="Optional upper bound on PMIDs returned. Default: fetch all matching PMIDs.",
     )
