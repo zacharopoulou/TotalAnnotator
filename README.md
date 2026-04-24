@@ -54,6 +54,26 @@ Search PubMed and write a PMID file:
 uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
 ```
 
+`search-pmids` bypasses NCBI ESearch's 10,000-result cap by recursively
+bisecting the publication-date range until every window fits under the limit,
+then concatenating the per-window results. The command writes the full PMID
+list to `--output` and prints a short summary (query, count, output path, and
+the first 10 PMIDs) to stdout.
+
+Supported options:
+
+- `--query` (required) — PubMed query string.
+- `--output` (required) — path to write the PMID file (one PMID per line).
+- `--max-results` — optional upper bound on the returned PMIDs (positive int).
+  Applied as a final slice after the full search completes.
+- `--date-from` / `--date-to` — bound the publication-date window. Accept
+  `YYYY`, `YYYY/MM`, or `YYYY/MM/DD`; partial dates expand to the start or end
+  of the period depending on which bound they are.
+- `--sort-by` — PubMed sort order. Only `pub_date` gives a globally correct
+  ordering across the full result set (the bisection processes windows
+  latest-first). `relevance` and `author` are honored per-window only.
+- `--filter` — extra PubMed filter clause (e.g. `"english[lang]"`). Repeatable.
+
 If no annotators are enabled yet, `run-config` still works as an ingestion step
 and returns the loaded documents with zero annotations.
 
