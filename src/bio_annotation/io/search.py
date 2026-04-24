@@ -66,17 +66,15 @@ def search_pubmed_pmids(
         result = fn(window)
         if result["count"] <= _CAP:
             for pmid in result["pmids"]:
-                if pmid not in pmids:
-                    pmids[pmid] = None
-                    if max_results is not None and len(pmids) >= max_results:
-                        return list(pmids)
+                pmids.setdefault(pmid, None)
             continue
         if start == end: # window has 1-day size and still more than 10000 results
             raise ValueError(f"Window {start:%Y/%m/%d} has {result['count']} results, exceeds {_CAP} cap.")
         mid = start + (end - start) // 2
-        stack.append((mid + timedelta(days=1), end))
         stack.append((start, mid))
-    return list(pmids)
+        stack.append((mid + timedelta(days=1), end))
+    collected = list(pmids)
+    return collected[:max_results] if max_results is not None else collected
 
 
 def write_pmids(path: Path, pmids: list[str]) -> None:
