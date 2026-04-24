@@ -228,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
                     "query": args.query,
                     "pmid_count": len(pmids),
                     "output": str(args.output),
-                    "pmids": pmids,
+                    "pmids_preview (First 10)": pmids[:10],
                 },
                 indent=2,
             )
