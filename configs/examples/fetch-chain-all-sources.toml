@@ -1,0 +1,47 @@
+# Chain mode: Entrez + Europe PMC + PubTator3, with per-source field filters
+#
+# When `source` is a list, the FetchOrchestrator runs each source in order
+# and merges the resulting Documents per PMID:
+#   * top-level fields (title, abstract, year, full_text) are taken from
+#     the first source that produces a non-empty value;
+#   * metadata dicts are unioned (later sources do not overwrite earlier
+#     keys), so each provider's payload survives under its own namespace
+#     (pubmed_record, epmc_meta, pubtator3_payload);
+#   * `metadata.origin_sources` records the contributing sources in order.
+#
+# `[input.fields_per_source]` lets each source apply its own filter,
+# independently of the others. Anything not listed for a given source is
+# dropped from that source's contribution to the merged Document.
+#
+# This is the closest CLI equivalent of the Streamlit UI's "Chain" mode.
+#
+# Run with:
+#   uv run python -m bio_annotation.cli configs/examples/fetch-chain-all-sources.toml
+
+[input]
+mode = "pmids"
+pmids = ["36403686", "36403685"]
+source = ["entrez", "europe_pmc", "pubtator3"]
+
+[input.fields_per_source]
+entrez = ["mesh_terms", "authors", "journal", "doi"]
+europe_pmc = ["citation_count", "is_open_access", "license", "full_text_urls"]
+# pubtator3 is intentionally omitted -> keep every field PubTator3 returns
+
+[enrichment]
+sources = []
+
+[annotators]
+enabled = ["pubtator3"]
+
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/examples/fetch-chain-all-sources.json"

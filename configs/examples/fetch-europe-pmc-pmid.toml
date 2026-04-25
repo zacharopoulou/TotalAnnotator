@@ -1,0 +1,37 @@
+# Single source: Europe PMC
+#
+# Europe PMC is the right pick when you want citation counts, open-access
+# flags, license info, or full-text URLs that Entrez does not return. The
+# raw EPMC payload is stashed in metadata.epmc_meta and the convenience
+# fields (citation_count, is_open_access, in_epmc, license, full_text_urls,
+# doi, pmcid) are surfaced directly.
+#
+# `fields` keeps only those convenience fields plus the core (pmid, title,
+# abstract, year). Drop the line to keep everything.
+#
+# Run with:
+#   uv run python -m bio_annotation.cli configs/examples/fetch-europe-pmc-pmid.toml
+
+[input]
+mode = "pmids"
+pmids = ["36403686"]
+source = "europe_pmc"
+fields = ["citation_count", "is_open_access", "license", "full_text_urls"]
+
+[enrichment]
+sources = []
+
+[annotators]
+enabled = ["pubtator3"]
+
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/examples/fetch-europe-pmc-pmid.json"

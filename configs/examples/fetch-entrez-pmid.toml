@@ -1,0 +1,38 @@
+# Single source: Entrez (NCBI E-utilities)
+#
+# This config makes the historical default explicit: fetch PubMed records
+# through Entrez. With `source = "entrez"`, the CLI dispatches through the
+# same FetchOrchestrator the Streamlit UI uses, so you get the EntrezSource
+# adapter (full PubMed record stashed in metadata.pubmed_record).
+#
+# `fields` trims which Entrez fields end up on the Document. The core fields
+# (pmid, title, abstract, year) are always preserved; everything else listed
+# here is kept and the rest dropped. Remove the `fields` line entirely to
+# keep every field Entrez returns.
+#
+# Run with:
+#   uv run python -m bio_annotation.cli configs/examples/fetch-entrez-pmid.toml
+
+[input]
+mode = "pmids"
+pmids = ["36403686"]
+source = "entrez"
+fields = ["mesh_terms", "authors", "journal", "doi"]
+
+[enrichment]
+sources = []
+
+[annotators]
+enabled = ["pubtator3"]
+
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/examples/fetch-entrez-pmid.json"
