@@ -8,7 +8,15 @@ version = "0.1.0"
 description = "Config-first biomedical literature pipeline for corpora, annotators, and evaluation"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "requests>=2.32",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "tenacity>=9.0",
+    "python-dotenv>=1.0",
+    "streamlit>=1.39",
+    "pip-system-certs>=5.0; sys_platform == 'win32'",
+]
 
 [project.scripts]
 totalannotator = "bio_annotation.cli:main"
