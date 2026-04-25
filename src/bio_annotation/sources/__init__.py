@@ -24,11 +24,13 @@ from bio_annotation.sources.base import (
     check_supports,
 )
 from bio_annotation.sources.entrez import EntrezSource
+from bio_annotation.sources.europe_pmc import EuropePmcSource
 from bio_annotation.sources.pubtator3 import PubTator3Source
 from bio_annotation.sources.raw_text import RawTextSource
 
 __all__ = [
     "EntrezSource",
+    "EuropePmcSource",
     "FetchInput",
     "FetchKind",
     "FetchSource",
