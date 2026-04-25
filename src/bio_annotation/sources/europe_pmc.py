@@ -94,8 +94,11 @@ class EuropePmcSource:
         results = self._extract_results(payload)
         documents = [self._build_document(result) for result in results]
 
-        if request.fields:
-            documents = [self._apply_field_filter(d, request.fields) for d in documents]
+        effective_fields = request.fields_for(self.name)
+        if effective_fields is not None:
+            documents = [
+                self._apply_field_filter(d, effective_fields) for d in documents
+            ]
 
         return documents
 

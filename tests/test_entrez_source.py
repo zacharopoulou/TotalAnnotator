@@ -214,3 +214,58 @@ def test_entrez_source_advertises_supported_inputs_and_fields() -> None:
     for field_name in ("pmid", "pmcid", "doi", "title", "abstract", "year",
                        "authors", "mesh_terms", "journal", "keywords"):
         assert field_name in source.fields_provided
+
+
+def test_entrez_source_uses_per_source_slice_when_present() -> None:
+    """fields_per_source['entrez'] takes precedence over the global fields."""
+
+    records = {"12345": _record(pmid="12345")}
+    source = _source_with_records(records)
+
+    request = FetchInput.from_pmid(
+        "12345",
+        fields=frozenset({"journal"}),
+        fields_per_source={"entrez": frozenset({"mesh_terms"})},
+    )
+    [doc] = source.fetch(request)
+
+    record = doc.metadata["pubmed_record"]
+    assert "mesh_terms" in record
+    assert "journal" not in record  # global filter is overridden by entrez slice
+    assert "authors" not in record
+
+
+def test_entrez_source_falls_back_to_global_fields_when_no_entrez_slice() -> None:
+    """No 'entrez' key in fields_per_source -> the global fields filter applies."""
+
+    records = {"12345": _record(pmid="12345")}
+    source = _source_with_records(records)
+
+    request = FetchInput.from_pmid(
+        "12345",
+        fields=frozenset({"journal"}),
+        fields_per_source={"europe_pmc": frozenset({"is_open_access"})},
+    )
+    [doc] = source.fetch(request)
+
+    record = doc.metadata["pubmed_record"]
+    assert "journal" in record
+    assert "mesh_terms" not in record
+
+
+def test_entrez_source_per_source_empty_set_keeps_only_core_fields() -> None:
+    """An explicit empty frozenset for 'entrez' still drops every non-core field."""
+
+    records = {"12345": _record(pmid="12345")}
+    source = _source_with_records(records)
+
+    request = FetchInput.from_pmid(
+        "12345",
+        fields_per_source={"entrez": frozenset()},
+    )
+    [doc] = source.fetch(request)
+
+    record = doc.metadata["pubmed_record"]
+    assert set(record).issubset({"pmid", "title", "abstract", "year"})
+    for core in ("pmid", "title", "abstract", "year"):
+        assert core in record

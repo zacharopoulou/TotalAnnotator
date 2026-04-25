@@ -97,9 +97,10 @@ class EntrezSource:
         else:
             pmids = request.pmids
 
+        effective_fields = request.fields_for(self.name)
         documents: list[Document] = []
         for pmid in pmids:
-            document = self._fetch_one(pmid, request.fields)
+            document = self._fetch_one(pmid, effective_fields)
             if document is not None:
                 documents.append(document)
         return documents

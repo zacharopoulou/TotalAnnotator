@@ -243,6 +243,62 @@ def test_fields_none_keeps_full_metadata() -> None:
     assert "full_text_urls" in doc.metadata
 
 
+def test_per_source_slice_overrides_global_fields_for_europe_pmc() -> None:
+    """fields_per_source['europe_pmc'] takes precedence over global fields."""
+
+    payload = {"resultList": {"result": [_result()]}}
+    source = EuropePmcSource(client=_make_client(payload))
+
+    request = FetchInput.from_pmid(
+        "36403686",
+        fields=frozenset({"license"}),  # global says: keep license
+        fields_per_source={
+            "europe_pmc": frozenset({"citation_count"}),  # but EPMC slice says: only citation_count
+        },
+    )
+    doc = source.fetch(request)[0]
+
+    assert doc.metadata.get("citation_count") == 16
+    assert "license" not in doc.metadata  # global filter overridden by EPMC slice
+    assert "full_text_urls" not in doc.metadata
+
+
+def test_per_source_filter_for_other_source_does_not_affect_europe_pmc() -> None:
+    """A slice for 'entrez' does not affect the EuropePMC filter resolution."""
+
+    payload = {"resultList": {"result": [_result()]}}
+    source = EuropePmcSource(client=_make_client(payload))
+
+    request = FetchInput.from_pmid(
+        "36403686",
+        fields=frozenset({"license"}),
+        fields_per_source={"entrez": frozenset({"mesh_terms"})},
+    )
+    doc = source.fetch(request)[0]
+
+    # EuropePMC falls back to the global 'license' filter; license is kept,
+    # everything else (citation_count, full_text_urls) is dropped.
+    assert "license" in doc.metadata
+    assert "citation_count" not in doc.metadata
+    assert "full_text_urls" not in doc.metadata
+
+
+def test_per_source_empty_set_for_europe_pmc_keeps_only_core_metadata() -> None:
+    payload = {"resultList": {"result": [_result()]}}
+    source = EuropePmcSource(client=_make_client(payload))
+
+    request = FetchInput.from_pmid(
+        "36403686",
+        fields_per_source={"europe_pmc": frozenset()},
+    )
+    doc = source.fetch(request)[0]
+
+    # _CORE_FIELDS in europe_pmc.py = {pmid, pmcid, title, abstract, year}.
+    # Anything outside that set must be dropped from metadata.
+    for dropped in ("license", "citation_count", "full_text_urls", "doi"):
+        assert dropped not in doc.metadata
+
+
 def test_supports_all_advertised_input_kinds() -> None:
     source = EuropePmcSource()
     expected = {"pmid", "pmid_list", "pmcid", "pmcid_list", "query"}

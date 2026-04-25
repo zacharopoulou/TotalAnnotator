@@ -12,6 +12,7 @@ and raw-text inputs interchangeably. A source declares:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
@@ -36,6 +37,20 @@ class FetchInput:
     """Request payload describing what the user wants to fetch.
 
     Construct via the ``from_*`` factory methods to keep call sites readable.
+
+    Field-filter semantics
+    ----------------------
+    Two complementary mechanisms control which fields each source keeps in
+    ``Document.metadata``:
+
+    * ``fields`` - a single set applied to **every** source (legacy / global).
+    * ``fields_per_source`` - a per-source override, e.g.
+      ``{"entrez": frozenset({"mesh_terms"}), "europe_pmc": frozenset(...)}``.
+      A source is filtered using its own slice when present, even if it is
+      empty, in which case only the source's core fields are kept.
+
+    Sources should always read filters via :meth:`fields_for` so they get the
+    right slice without caring which mechanism was used.
     """
 
     kind: FetchKind
@@ -45,6 +60,21 @@ class FetchInput:
     text: str = ""
     text_id: str = ""
     fields: frozenset[str] | None = None
+    fields_per_source: Mapping[str, frozenset[str]] | None = None
+
+    def fields_for(self, source_name: str) -> frozenset[str] | None:
+        """Return the field filter that applies to *source_name*.
+
+        Resolution order:
+
+        1. ``fields_per_source[source_name]`` if present (per-source wins).
+        2. ``fields`` if set (legacy global filter).
+        3. ``None`` (no filter; source returns all fields it normally would).
+        """
+
+        if self.fields_per_source is not None and source_name in self.fields_per_source:
+            return self.fields_per_source[source_name]
+        return self.fields
 
     @classmethod
     def from_pmid(
@@ -52,11 +82,17 @@ class FetchInput:
         pmid: str,
         *,
         fields: frozenset[str] | None = None,
+        fields_per_source: Mapping[str, frozenset[str]] | None = None,
     ) -> "FetchInput":
         cleaned = pmid.strip()
         if not cleaned:
             raise ValueError("PMID must not be empty.")
-        return cls(kind="pmid", pmids=(cleaned,), fields=fields)
+        return cls(
+            kind="pmid",
+            pmids=(cleaned,),
+            fields=fields,
+            fields_per_source=fields_per_source,
+        )
 
     @classmethod
     def from_pmid_list(
@@ -64,11 +100,17 @@ class FetchInput:
         pmids: list[str],
         *,
         fields: frozenset[str] | None = None,
+        fields_per_source: Mapping[str, frozenset[str]] | None = None,
     ) -> "FetchInput":
         cleaned = tuple(p.strip() for p in pmids if p and p.strip())
         if not cleaned:
             raise ValueError("PMID list must contain at least one non-empty value.")
-        return cls(kind="pmid_list", pmids=cleaned, fields=fields)
+        return cls(
+            kind="pmid_list",
+            pmids=cleaned,
+            fields=fields,
+            fields_per_source=fields_per_source,
+        )
 
     @classmethod
     def from_pmcid(
@@ -76,9 +118,15 @@ class FetchInput:
         pmcid: str,
         *,
         fields: frozenset[str] | None = None,
+        fields_per_source: Mapping[str, frozenset[str]] | None = None,
     ) -> "FetchInput":
         cleaned = _normalize_pmcid(pmcid)
-        return cls(kind="pmcid", pmcids=(cleaned,), fields=fields)
+        return cls(
+            kind="pmcid",
+            pmcids=(cleaned,),
+            fields=fields,
+            fields_per_source=fields_per_source,
+        )
 
     @classmethod
     def from_pmcid_list(
@@ -86,11 +134,17 @@ class FetchInput:
         pmcids: list[str],
         *,
         fields: frozenset[str] | None = None,
+        fields_per_source: Mapping[str, frozenset[str]] | None = None,
     ) -> "FetchInput":
         cleaned = tuple(_normalize_pmcid(p) for p in pmcids if p and p.strip())
         if not cleaned:
             raise ValueError("PMCID list must contain at least one non-empty value.")
-        return cls(kind="pmcid_list", pmcids=cleaned, fields=fields)
+        return cls(
+            kind="pmcid_list",
+            pmcids=cleaned,
+            fields=fields,
+            fields_per_source=fields_per_source,
+        )
 
     @classmethod
     def from_query(
@@ -98,11 +152,17 @@ class FetchInput:
         query: str,
         *,
         fields: frozenset[str] | None = None,
+        fields_per_source: Mapping[str, frozenset[str]] | None = None,
     ) -> "FetchInput":
         cleaned = query.strip()
         if not cleaned:
             raise ValueError("Query must not be empty.")
-        return cls(kind="query", query=cleaned, fields=fields)
+        return cls(
+            kind="query",
+            query=cleaned,
+            fields=fields,
+            fields_per_source=fields_per_source,
+        )
 
     @classmethod
     def from_text(
