@@ -11,6 +11,14 @@ from bio_annotation.schemas.document import Document
 
 
 PubMedFetcher = Callable[[str], dict[str, Any]]
+OrchestratorFactory = Callable[[], "object"]
+"""Zero-arg callable returning a FetchOrchestrator-like object.
+
+Imported lazily to keep ``preprocessing`` from depending on ``orchestrator``
+at module import time and to make tests easy: pass a factory that returns a
+stub orchestrator and the loader will use it instead of building the default
+production one.
+"""
 
 
 def load_document_from_pmid(
@@ -146,8 +154,30 @@ def load_documents_from_config(
     config: PipelineConfig,
     *,
     pmid_fetcher: PubMedFetcher | None = None,
+    orchestrator_factory: OrchestratorFactory | None = None,
 ) -> list[Document]:
+    """Load documents according to *config*.
+
+    Routing rules:
+
+    * ``input.mode = pmids | pmid_file`` **and** ``config.fetch_sources`` set
+      -> dispatch through :class:`FetchOrchestrator` so the same Entrez /
+      EuropePMC / PubTator3 / RawText sources used by the Streamlit UI can
+      drive the CLI as well. ``input.fields`` and ``input.fields_per_source``
+      become :class:`FetchInput` filters.
+    * Anything else (no ``input.source`` set, or ``input.mode`` is ``text_table``
+      / ``corpus``) -> falls back to the legacy single-source loaders below.
+
+    The legacy code paths are unchanged so configs that worked before the
+    fetch-sources layer continue to behave identically.
+    """
+
     mode = config.input_mode
+    if mode in {"pmids", "pmid_file"} and config.fetch_sources:
+        return _load_documents_via_orchestrator(
+            config,
+            orchestrator_factory=orchestrator_factory,
+        )
     if mode == "pmids":
         return load_documents_from_pmids(
             config.pmids,
@@ -177,6 +207,101 @@ def load_documents_from_config(
             raise ValueError("input.corpus_path must be set when input.mode = 'corpus'.")
         return load_corpus_documents(config.corpus_path)
     raise ValueError(f"Unsupported input mode: {mode}")
+
+
+def _load_documents_via_orchestrator(
+    config: PipelineConfig,
+    *,
+    orchestrator_factory: OrchestratorFactory | None,
+) -> list[Document]:
+    """Build a FetchInput from *config* and fetch via the orchestrator."""
+
+    pmids = _resolve_pmids_from_config(config)
+    if not pmids:
+        return []
+
+    request = _build_orchestrator_request(config, pmids)
+    orchestrator = _build_orchestrator(orchestrator_factory)
+
+    fetch_sources = config.fetch_sources
+    if len(fetch_sources) == 1:
+        return orchestrator.fetch(request, prefer=fetch_sources[0])
+    return orchestrator.fetch(request, prefer=list(fetch_sources))
+
+
+def _resolve_pmids_from_config(config: PipelineConfig) -> list[str]:
+    if config.input_mode == "pmids":
+        return _dedupe_pmids(config.pmids)
+    if config.pmid_file is None:
+        raise ValueError(
+            "input.pmid_file must be set when input.mode = 'pmid_file'."
+        )
+    raw = [
+        line.strip()
+        for line in config.pmid_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    return _dedupe_pmids(raw)
+
+
+def _build_orchestrator_request(
+    config: PipelineConfig,
+    pmids: list[str],
+) -> Any:
+    """Construct a FetchInput honouring ``input.fields`` and per-source filters.
+
+    Imported lazily to avoid pulling the ``sources`` package (and through it
+    every HTTP client) into module import for callers that never need it.
+    """
+
+    from bio_annotation.sources.base import FetchInput
+
+    fields = (
+        frozenset(config.fetch_fields)
+        if config.fetch_fields is not None
+        else None
+    )
+    fields_per_source = (
+        {name: frozenset(values) for name, values in config.fetch_fields_per_source.items()}
+        if config.fetch_fields_per_source
+        else None
+    )
+
+    if len(pmids) == 1:
+        return FetchInput.from_pmid(
+            pmids[0],
+            fields=fields,
+            fields_per_source=fields_per_source,
+        )
+    return FetchInput.from_pmid_list(
+        pmids,
+        fields=fields,
+        fields_per_source=fields_per_source,
+    )
+
+
+def _build_orchestrator(factory: OrchestratorFactory | None) -> Any:
+    """Return an orchestrator instance, falling back to the default 4-source set."""
+
+    if factory is not None:
+        return factory()
+
+    from bio_annotation.orchestrator import FetchOrchestrator
+    from bio_annotation.sources import (
+        EntrezSource,
+        EuropePmcSource,
+        PubTator3Source,
+        RawTextSource,
+    )
+
+    return FetchOrchestrator(
+        sources=[
+            EntrezSource(),
+            EuropePmcSource(),
+            PubTator3Source(),
+            RawTextSource(),
+        ]
+    )
 
 
 def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
