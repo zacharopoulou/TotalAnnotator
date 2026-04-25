@@ -23,11 +23,17 @@ from bio_annotation.sources.base import (
     UnsupportedInputError,
     check_supports,
 )
+from bio_annotation.sources.entrez import EntrezSource
+from bio_annotation.sources.pubtator3 import PubTator3Source
+from bio_annotation.sources.raw_text import RawTextSource
 
 __all__ = [
+    "EntrezSource",
     "FetchInput",
     "FetchKind",
     "FetchSource",
+    "PubTator3Source",
+    "RawTextSource",
     "UnsupportedInputError",
     "check_supports",
 ]
