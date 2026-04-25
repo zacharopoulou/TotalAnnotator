@@ -11,7 +11,7 @@ def test_pubtator3_text_fallback_uses_submit_and_retrieve_for_text_only_document
     def fake_open(http_request, timeout: int) -> bytes:
         requests.append((http_request.get_method(), http_request.full_url))
         if http_request.get_method() == "POST":
-            return b"1111-2222-3333-4444"
+            return b'{"id":"1111-2222-3333-4444"}'
         return (
             b'{"text":"PTEN regulates glioblastoma.","denotations":['
             b'{"id":"T1","span":{"begin":0,"end":4},"obj":"Gene:5728","text":"PTEN"}'
