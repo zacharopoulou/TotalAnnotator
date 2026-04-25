@@ -17,7 +17,14 @@ from typing import Literal, Protocol, runtime_checkable
 
 from bio_annotation.schemas.document import Document
 
-FetchKind = Literal["pmid", "pmid_list", "query", "raw_text"]
+FetchKind = Literal[
+    "pmid",
+    "pmid_list",
+    "pmcid",
+    "pmcid_list",
+    "query",
+    "raw_text",
+]
 
 
 class UnsupportedInputError(ValueError):
@@ -33,6 +40,7 @@ class FetchInput:
 
     kind: FetchKind
     pmids: tuple[str, ...] = ()
+    pmcids: tuple[str, ...] = ()
     query: str = ""
     text: str = ""
     text_id: str = ""
@@ -61,6 +69,28 @@ class FetchInput:
         if not cleaned:
             raise ValueError("PMID list must contain at least one non-empty value.")
         return cls(kind="pmid_list", pmids=cleaned, fields=fields)
+
+    @classmethod
+    def from_pmcid(
+        cls,
+        pmcid: str,
+        *,
+        fields: frozenset[str] | None = None,
+    ) -> "FetchInput":
+        cleaned = _normalize_pmcid(pmcid)
+        return cls(kind="pmcid", pmcids=(cleaned,), fields=fields)
+
+    @classmethod
+    def from_pmcid_list(
+        cls,
+        pmcids: list[str],
+        *,
+        fields: frozenset[str] | None = None,
+    ) -> "FetchInput":
+        cleaned = tuple(_normalize_pmcid(p) for p in pmcids if p and p.strip())
+        if not cleaned:
+            raise ValueError("PMCID list must contain at least one non-empty value.")
+        return cls(kind="pmcid_list", pmcids=cleaned, fields=fields)
 
     @classmethod
     def from_query(
@@ -114,3 +144,24 @@ def check_supports(source: FetchSource, request: FetchInput) -> None:
             f"Source {source.name!r} does not support input kind {request.kind!r}. "
             f"Supported kinds: {sorted(source.supported_inputs)}."
         )
+
+
+def _normalize_pmcid(value: str) -> str:
+    """Return a PMCID with the canonical ``PMC`` prefix.
+
+    PubTator3 and Europe PMC both expect the ``PMC`` prefix; users often paste
+    the bare digits. Accept either form so call sites stay friendly.
+    """
+
+    cleaned = str(value).strip()
+    if not cleaned:
+        raise ValueError("PMCID must not be empty.")
+    upper = cleaned.upper()
+    if upper.startswith("PMC:"):
+        upper = upper.split(":", 1)[1]
+    if not upper.startswith("PMC"):
+        upper = f"PMC{upper}"
+    digits = upper[3:]
+    if not digits.isdigit():
+        raise ValueError(f"PMCID {value!r} must be of the form 'PMC<digits>'.")
+    return upper
