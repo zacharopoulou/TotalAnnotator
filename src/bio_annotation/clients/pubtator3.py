@@ -79,8 +79,17 @@ class PubTator3Client:
         *,
         format: str = DEFAULT_EXPORT_FORMAT,
         concepts: Iterable[str] | None = None,
+        full: bool = False,
     ) -> Any:
-        return self._fetch_publications("pmids", pmids, format=format, concepts=concepts)
+        if full and format == "pubtator":
+            raise ValueError("PubTator3 full-text export is only available in biocxml or biocjson formats.")
+        return self._fetch_publications(
+            "pmids",
+            pmids,
+            format=format,
+            concepts=concepts,
+            full=full,
+        )
 
     def fetch_publications_by_pmcids(
         self,
@@ -88,10 +97,61 @@ class PubTator3Client:
         *,
         format: str = DEFAULT_EXPORT_FORMAT,
         concepts: Iterable[str] | None = None,
+        full: bool = False,
     ) -> Any:
         if format not in {"biocxml", "biocjson"}:
             raise ValueError("PubTator3 PMCID export only supports biocxml or biocjson formats.")
-        return self._fetch_publications("pmcids", pmcids, format=format, concepts=concepts)
+        return self._fetch_publications(
+            "pmcids",
+            pmcids,
+            format=format,
+            concepts=concepts,
+            full=full,
+            endpoint_path="publications/pmc_export",
+        )
+
+    def search_publications(
+        self,
+        query: str,
+        *,
+        page: int = 1,
+        max_pages: int = 1,
+    ) -> dict[str, Any]:
+        """Call the PubTator3 ``/search/`` endpoint and return the JSON payload.
+
+        ``page`` is 1-based. PubTator3 returns 10 hits per page; pass
+        ``max_pages > 1`` to merge several consecutive pages of ``results``
+        into a single dict (other top-level fields are taken from the first
+        page response).
+        """
+
+        if not query or not query.strip():
+            raise ValueError("Query must not be empty.")
+        if page < 1:
+            raise ValueError("page must be >= 1.")
+        if max_pages < 1:
+            raise ValueError("max_pages must be >= 1.")
+
+        first = self._search_page(query, page=page)
+        if max_pages == 1:
+            return first
+
+        merged = dict(first)
+        merged_results = list(first.get("results", []))
+        for offset in range(1, max_pages):
+            extra = self._search_page(query, page=page + offset)
+            extra_results = extra.get("results")
+            if not isinstance(extra_results, list) or not extra_results:
+                break
+            merged_results.extend(extra_results)
+        merged["results"] = merged_results
+        return merged
+
+    def _search_page(self, query: str, *, page: int) -> dict[str, Any]:
+        params = {"text": query, "page": str(page)}
+        endpoint = f"{self.base_url.rstrip('/')}/search/?{parse.urlencode(params)}"
+        http_request = request.Request(endpoint, method="GET")
+        return self._send_json(http_request)
 
     def submit_text_annotation(
         self,
@@ -166,6 +226,8 @@ class PubTator3Client:
         *,
         format: str,
         concepts: Iterable[str] | None,
+        full: bool = False,
+        endpoint_path: str = "publications/export",
     ) -> Any:
         cleaned_identifiers = _clean_identifiers(identifiers)
         if not cleaned_identifiers:
@@ -176,10 +238,26 @@ class PubTator3Client:
             raise ValueError("PubTator3 concepts filtering is not supported with biocjson export.")
 
         if len(cleaned_identifiers) <= self.get_batch_size:
-            payloads = [self._fetch_export_batch(identifier_type, cleaned_identifiers, format=format, concepts=cleaned_concepts)]
+            payloads = [
+                self._fetch_export_batch(
+                    identifier_type,
+                    cleaned_identifiers,
+                    format=format,
+                    concepts=cleaned_concepts,
+                    full=full,
+                    endpoint_path=endpoint_path,
+                )
+            ]
         else:
             payloads = [
-                self._fetch_export_batch(identifier_type, batch, format=format, concepts=cleaned_concepts)
+                self._fetch_export_batch(
+                    identifier_type,
+                    batch,
+                    format=format,
+                    concepts=cleaned_concepts,
+                    full=full,
+                    endpoint_path=endpoint_path,
+                )
                 for batch in _chunked(cleaned_identifiers, self.post_batch_size)
             ]
 
@@ -194,11 +272,15 @@ class PubTator3Client:
         *,
         format: str,
         concepts: list[str],
+        full: bool = False,
+        endpoint_path: str = "publications/export",
     ) -> Any:
-        endpoint = f"{self.base_url.rstrip('/')}/publications/export/{format}"
+        endpoint = f"{self.base_url.rstrip('/')}/{endpoint_path}/{format}"
         params: dict[str, str] = {identifier_type: ",".join(identifiers)}
         if concepts:
             params["concepts"] = ",".join(concepts)
+        if full:
+            params["full"] = "true"
 
         if len(identifiers) <= self.get_batch_size:
             url = f"{endpoint}?{parse.urlencode(params)}"
