@@ -105,7 +105,7 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
             [
                 "[input]",
                 'mode = "text_table"',
-                f'text_file = "{tmp_path / "documents.csv"}"',
+                f'text_file = "{(tmp_path / "documents.csv").as_posix()}"',
                 'format = "csv"',
                 'document_id_column = "document_id"',
                 'title_column = "title"',
@@ -166,7 +166,7 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
             [
                 "[input]",
                 'mode = "corpus"',
-                f'corpus_path = "{tmp_path / "documents.json"}"',
+                f'corpus_path = "{(tmp_path / "documents.json").as_posix()}"',
                 "",
                 "[enrichment]",
                 "sources = []",
