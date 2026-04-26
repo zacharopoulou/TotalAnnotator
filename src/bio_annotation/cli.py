@@ -40,7 +40,7 @@ def demo_payload() -> dict[str, object]:
             ]
         },
         flair_spans=[],
-        pubtator_response={
+        pubtator3_response={
             "documents": [
                 {
                     "passages": [
@@ -157,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
                     "corpus_path": str(config.corpus_path) if config.corpus_path is not None else None,
                     "enrichment_sources": config.enrichment_sources,
                     "annotators": config.annotators,
+                    "annotator_settings": config.annotator_settings,
                     "entity_types": config.entity_types,
                     "output_path": str(config.output_path) if config.output_path is not None else None,
                 },
