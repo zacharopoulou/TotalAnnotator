@@ -5,8 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from bio_annotation._cli_arg_validator import positive_int
-from bio_annotation.entity_proposal import flatten_annotations, run_all_annotators
+from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
@@ -41,7 +40,7 @@ def demo_payload() -> dict[str, object]:
             ]
         },
         flair_spans=[],
-        pubtator_response={
+        pubtator3_response={
             "documents": [
                 {
                     "passages": [
@@ -131,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in (None, "info"):
         print("TotalAnnotator")
-        print("Workflow: document -> annotators -> unified annotations")
+        print("Workflow: corpus -> annotators -> comparable outputs")
         print("Quickstart: uv sync && uv run totalannotator demo")
         print("Inspect config: uv run totalannotator inspect-config")
         print("Preview documents: uv run totalannotator load-documents")
@@ -163,6 +162,7 @@ def main(argv: list[str] | None = None) -> int:
                     "corpus_path": str(config.corpus_path) if config.corpus_path is not None else None,
                     "enrichment_sources": config.enrichment_sources,
                     "annotators": config.annotators,
+                    "annotator_settings": config.annotator_settings,
                     "entity_types": config.entity_types,
                     "output_path": str(config.output_path) if config.output_path is not None else None,
                 },

@@ -1,12 +1,12 @@
-"""Annotator adapters and runner utilities."""
+"""Primary annotator adapter package."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
-from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
-from bio_annotation.entity_proposal.pubtator3_proposer import annotate_with_pubtator3
+from bio_annotation.annotators.bern2 import annotate_with_bern2
+from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -24,8 +24,6 @@ def run_all_annotators(
     pubtator3_request_fn: Any = None,
     pubtator3_endpoint: str | None = None,
 ) -> dict[str, list[Annotation]]:
-    """Run all configured annotator adapters and return normalized outputs."""
-
     return {
         "bern2": annotate_with_bern2(
             document,
@@ -53,7 +51,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
     for source in ("bern2", "flair", "pubtator3"):
         annotations.extend(results.get(source, []))
     return annotations
-
 
 __all__ = [
     "annotate_with_bern2",

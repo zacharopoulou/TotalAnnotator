@@ -1,16 +1,32 @@
 # TotalAnnotator
 
-TotalAnnotator is a biomedical and clinical literature annotation project focused on turning article text into structured entity and relation outputs.
+TotalAnnotator is a config-first biomedical literature pipeline for building corpora, running annotators, and producing comparable annotation outputs.
 
-The near-term product workflow target is documented in [docs/workflow-spec.md](docs/workflow-spec.md).
+The current product direction is:
 
-The long-term pipeline vision is documented in [Workflow_longterm.md](Workflow_longterm.md) and follows this general path:
+`PMID/query/corpus input -> canonical documents -> selected annotators -> unified annotations`
 
-`document -> entity proposals -> candidate merging -> normalization -> adjudication -> validation -> final JSON`
+The near-term workflow target is described in [docs/workflow-spec.md](docs/workflow-spec.md). The longer-term research roadmap remains in [Workflow_longterm.md](Workflow_longterm.md).
 
-## Getting Started
+## What You Can Run Today
 
-This repository uses `uv` for environment and dependency management.
+TotalAnnotator currently supports:
+
+- corpus creation from inline PMIDs, PMID files, and local text inputs
+- rich PubMed metadata ingestion for PMID-based inputs
+- a first live annotator integration with `pubtator3`
+- a unified JSON pipeline output with top-level corpus and annotation sections
+
+## Available Annotators
+
+- `pubtator3`
+  First live annotator integration. Runs through the official NCBI PubTator API.
+- `bern2`
+  Runtime scaffold kept in config for future local deployment.
+- `flair`
+  Runtime scaffold kept in config for future local deployment.
+
+## Quickstart
 
 ```bash
 git clone <YOUR_REPOSITORY_URL>
@@ -18,40 +34,51 @@ cd TotalAnnotator
 uv sync
 ```
 
-Run the built-in project command:
+Project overview:
 
 ```bash
 uv run totalannotator
 ```
 
-Run the local mocked demo:
-
-```bash
-uv run totalannotator demo
-```
-
-Inspect the example pipeline config:
+Inspect the default config:
 
 ```bash
 uv run totalannotator inspect-config
 ```
 
-Preview documents loaded from the pipeline config:
+Preview the documents that will be loaded:
 
 ```bash
 uv run totalannotator load-documents
 ```
 
-Run the selected annotators from the pipeline config:
+Run the pipeline:
 
 ```bash
 uv run totalannotator run-config
 ```
 
-Search PubMed and write a PMID file:
+## First Live Run
+
+The default [configs/pipeline.toml](configs/pipeline.toml) is set up for a first live `pubtator3` run on a PMID input.
+
+It uses:
+
+- `input.mode = "pmids"`
+- an inline PMID list
+- `annotators.enabled = ["pubtator3"]`
+- a `pubtator3` runtime block under `[annotators.pubtator3]`
+
+Run it with:
 
 ```bash
-uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
+uv run totalannotator run-config
+```
+
+The output is written to:
+
+```bash
+outputs/pubtator3_pipeline_output.json
 ```
 
 `search-pmids` bypasses NCBI ESearch's 10,000-result cap by recursively
@@ -77,92 +104,103 @@ Supported options:
 If no annotators are enabled yet, `run-config` still works as an ingestion step
 and returns the loaded documents with zero annotations.
 
-For PMID-based ingestion, PubMed link and external metadata enrichment is
-configurable through `[enrichment]`.
-
-Run the test suite:
-
-```bash
-uv run pytest
-```
-
-## Current Focus
-
-The repository is in the first implementation stage:
-
-- shared `Document` and `Annotation` schemas
-- annotator adapters for BERN2, Flair, and PubTator
-- a unified output format so different annotators can be compared easily
-
-This first milestone is centered on:
-
-`PMID/document input -> annotator outputs -> unified annotations`
-
-The intended near-term execution flow is:
-
-`config -> validation -> document loading -> selected annotators -> harmonized per-annotator annotations -> overlap-based agreement summaries`
-
-## What Exists Right Now
-
-- `src/bio_annotation/schemas/`
-  Shared `Document` and `Annotation` objects used across the pipeline.
-- `src/bio_annotation/io/`
-  PubMed record readers for PMID-based ingestion.
-- `src/bio_annotation/preprocessing/`
-  Config-driven document loading from PMIDs, PMID files, and text tables.
-- `src/bio_annotation/pipeline_runner.py`
-  Minimal config-driven runner for loading documents and executing selected annotators.
-- `src/bio_annotation/entity_proposal/`
-  Annotator adapters and a `run_all_annotators()` entry point.
-- `src/bio_annotation/cli.py`
-  A runnable CLI with demo, config inspection, and document-loading preview commands.
-- `tests/`
-  Offline tests for adapter normalization and unified outputs.
-
-## Environment Notes
-
-- `pyproject.toml` is the source of truth for project dependencies
-- `.python-version` pins the local development interpreter to Python 3.12
-- `uv sync` will create and manage the local `.venv/`
-- heavy annotator-specific dependencies can be added later once the live integrations are chosen
-- current demo commands are intentionally offline and use mocked annotator payloads
-
-## Near-Term Goals
-
-- connect live annotator backends where practical
-- compare annotator outputs before building merging and normalization
-- define a stable workflow and config contract for users and collaborators
-
-## Input Modes
-
-The current config loader supports these input modes:
+The current pipeline supports these input modes:
 
 - `pmids`
 - `pmid_file`
 - `text_table`
 - `corpus`
 
-## Runnable Examples
+The CLI also supports upstream PMID generation with:
 
-Single PMID:
+```bash
+uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
+```
+
+## Example Configs
+
+Inline PMID input with `pubtator3`:
 
 ```bash
 uv run totalannotator run-config --config configs/examples/pmid-single.toml
 ```
 
-PMID file:
+This runs the PMIDs defined directly in the config through PubMed ingestion and `pubtator3`, and writes:
+
+```bash
+outputs/examples/pubtator3-pmid.json
+```
+
+PMID file batch with `pubtator3`:
 
 ```bash
 uv run totalannotator run-config --config configs/examples/pmid-file.toml
 ```
 
-Plain corpus file:
+This runs a batch of PMIDs from `data/inputs/example_pmids.txt` and writes:
+
+```bash
+outputs/examples/pubtator3-pmid-file.json
+```
+
+Local text table with `pubtator3`:
 
 ```bash
 uv run totalannotator run-config --config configs/examples/corpus-file.toml
 ```
 
-## Current Output Shape
+This runs the bundled local text input through `pubtator3` raw-text annotation and writes:
+
+```bash
+outputs/examples/corpus-file.json
+```
+
+Because PubTator3 raw-text jobs are asynchronous, this example can take longer
+than the PMID-based runs.
+
+## Configuration Model
+
+The pipeline config is organized into five main sections:
+
+- `[input]`
+- `[enrichment]`
+- `[annotators]`
+- `[filters]`
+- `[output]`
+
+Annotator-specific runtime metadata lives under nested tables such as:
+
+```toml
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
+text_mode = "raw_text"
+raw_text_bioconcept = "All"
+raw_text_max_attempts = 20
+raw_text_poll_interval = 2.0
+```
+
+This metadata is parsed by the pipeline and is also visible through:
+
+```bash
+uv run totalannotator inspect-config
+```
+
+For PubMed-backed documents, `pubtator3` uses the publication export API. For
+local text inputs, it can use plain-text mode through:
+
+```toml
+mode = "text_only"
+bioconcept = "All"
+poll_interval_seconds = 2.0
+poll_backoff = 1.5
+max_poll_interval_seconds = 15.0
+max_poll_attempts = 30
+```
+
+## Output
 
 The current pipeline output is corpus-first.
 
@@ -177,52 +215,17 @@ Top-level sections include:
 - `document_annotations`
 - `annotations`
 
-In ingestion-only mode, `documents` is the main deliverable and the annotation
-sections stay empty.
+When no annotators are enabled, the pipeline still succeeds and returns a clean canonical corpus.
 
-## Example Config Shapes
+## Development
 
-Example single PMID config:
+Run the test suite:
 
-```toml
-[input]
-mode = "pmids"
-pmids = ["38123456"]
-
-[enrichment]
-sources = ["elinks", "crossref", "europe_pmc", "semantic_scholar", "unpaywall", "biorxiv"]
-
-[annotators]
-enabled = []
+```bash
+uv run pytest
 ```
 
-Example PMID file config:
+The shared early-stage contracts are:
 
-```toml
-[input]
-mode = "pmid_file"
-pmid_file = "data/inputs/example_pmids.txt"
-
-[annotators]
-enabled = []
-```
-
-Example plain corpus config:
-
-```toml
-[input]
-mode = "corpus"
-corpus_path = "data/corpora/example_documents.json"
-
-[annotators]
-enabled = []
-```
-
-## Development Note
-
-The main shared contracts for early work are:
-
-- `Document`: what each annotator receives
-- `Annotation`: what each annotator returns
-
-Keeping these stable will make the next stages much easier to build in parallel.
+- `Document`: the canonical input each annotator receives
+- `Annotation`: the unified output each annotator returns

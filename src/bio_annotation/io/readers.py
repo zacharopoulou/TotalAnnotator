@@ -433,7 +433,7 @@ def _build_enrichment_bundle(
     timeout: int,
     enrichments: list[str] | None,
 ) -> dict[str, Any]:
-    requested = set(enrichments or ["elinks", "crossref", "europe_pmc", "semantic_scholar", "unpaywall", "biorxiv"])
+    requested = set(enrichments or [])
     bundle: dict[str, Any] = {}
     if "elinks" in requested:
         _merge_dict(bundle, _fetch_elinks(record.get("pmid"), timeout=timeout))
