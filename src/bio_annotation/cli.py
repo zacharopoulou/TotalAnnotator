@@ -99,7 +99,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     search_parser = subparsers.add_parser("search-pmids", help="Search PubMed and write matching PMIDs to a file.")
     search_parser.add_argument("--query", required=True, help="PubMed query string.")
-    search_parser.add_argument("--max-results", type=int, default=100, help="Maximum number of PMIDs to return.")
+    search_parser.add_argument(
+        "--max-results",
+        type=positive_int,
+        default=None,
+        help="Optional upper bound on PMIDs returned. Default: fetch all matching PMIDs.",
+    )
     search_parser.add_argument("--date-from", help="Optional publication start date.")
     search_parser.add_argument("--date-to", help="Optional publication end date.")
     search_parser.add_argument("--sort-by", default="relevance", help="PubMed sort order.")
@@ -223,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
                     "query": args.query,
                     "pmid_count": len(pmids),
                     "output": str(args.output),
-                    "pmids": pmids,
+                    "pmids_preview (First 10)": pmids[:10],
                 },
                 indent=2,
             )
