@@ -45,6 +45,29 @@ def parse_flair_spans(document: Document, spans: Iterable[Any]) -> list[Annotati
     return annotations
 
 
+def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annotation]:
+    annotations: list[Annotation] = []
+    for label in labels:
+        span = getattr(label, "data_point", None)
+        if span is None:
+            continue
+        text = getattr(span, "text", None)
+        if not text:
+            continue
+        annotations.append(
+            make_annotation(
+                document=document,
+                source="flair",
+                span_text=text,
+                entity_type=getattr(label, "value", None),
+                start=getattr(span, "start_position", None),
+                end=getattr(span, "end_position", None),
+                confidence=getattr(label, "score", None),
+            )
+        )
+    return annotations
+
+
 def annotate_with_flair(
     document: Document,
     *,
@@ -52,9 +75,10 @@ def annotate_with_flair(
     tagger: Any = None,
     sentence_factory: Callable[[str], Any] | None = None,
 ) -> list[Annotation]:
-    predictions = spans
+    if spans is not None:
+        return parse_flair_spans(document, spans)
 
-    if predictions is None and tagger is not None:
+    if tagger is not None:
         if sentence_factory is None:
             try:
                 from flair.data import Sentence
@@ -65,9 +89,6 @@ def annotate_with_flair(
             sentence = sentence_factory(document.text)
 
         tagger.predict(sentence)
-        predictions = sentence.get_spans("ner")
+        return parse_flair_labels(document, sentence.get_labels())
 
-    if predictions is None:
-        return []
-
-    return parse_flair_spans(document, predictions)
+    return []
