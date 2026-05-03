@@ -1,11 +1,11 @@
-"""Streamlit workbench for fetch_pmids-style pipelines (visualize + save JSON).
+"""Streamlit workbench: fetch literature and/or run annotators on pasted text (visualize + save JSON).
 
 Run from the TotalAnnotator repository root::
 
     pip install -e ".[ui]"
-    streamlit run apps/fetch_explorer/app.py
+    streamlit run apps/fetch_annotate_explorer/app.py
 
-Loads ``<repo>/.env`` the same way as ``scripts/fetch_pmids.py`` (does not override
+Loads ``<repo>/.env`` the same way as ``scripts/unified_fetch.py`` (does not override
 existing environment variables).
 """
 
@@ -22,12 +22,10 @@ from typing import Any
 
 import streamlit as st
 
-# -----------------------------------------------------------------------------
-# Repo layout: TotalAnnotator/apps/fetch_explorer/app.py
-# -----------------------------------------------------------------------------
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
-FETCH_PMIDS_PATH = ROOT / "scripts" / "fetch_pmids.py"
+UNIFIED_FETCH_PATH = ROOT / "scripts" / "unified_fetch.py"
 
 
 def _ensure_src_on_path() -> None:
@@ -35,11 +33,11 @@ def _ensure_src_on_path() -> None:
         sys.path.insert(0, str(SRC))
 
 
-def _load_fetch_pmids_module():
+def _load_unified_fetch_module():
     _ensure_src_on_path()
-    spec = importlib.util.spec_from_file_location("fetch_pmids_workbench", FETCH_PMIDS_PATH)
+    spec = importlib.util.spec_from_file_location("unified_fetch_workbench", UNIFIED_FETCH_PATH)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load {FETCH_PMIDS_PATH}")
+        raise RuntimeError(f"Cannot load {UNIFIED_FETCH_PATH}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -250,7 +248,8 @@ def _run_pipeline(
                 fields_per_source=fps,
             )
     except Exception as exc:
-        return None, f"Fetch failed: {exc!s}"
+        verb = "Annotate" if input_kind == "raw_text" else "Fetch"
+        return None, f"{verb} failed: {exc!s}"
 
     stderr_text = buf.getvalue()
     payload: dict[str, Any] = {
@@ -290,23 +289,24 @@ def _run_pipeline(
 # -----------------------------------------------------------------------------
 # Streamlit UI
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="TotalAnnotator Fetch Explorer", layout="wide")
-st.title("TotalAnnotator · Fetch explorer")
+st.set_page_config(page_title="TotalAnnotator · Fetch & annotate explorer", layout="wide")
+st.title("TotalAnnotator · Fetch & annotate explorer")
 st.caption(
-    "Fetch literature or paste raw text, run annotators, inspect highlights and JSON, save to disk. "
+    "Fetch literature from PubMed-linked APIs, or paste text and run annotators only. "
+    "Inspect highlights and JSON, save to disk. "
     "Install `pip install -e \".[ui]\"` from the repo root for Streamlit + Flair (HunFlair2)."
 )
 
 try:
-    fp = _load_fetch_pmids_module()
+    fp = _load_unified_fetch_module()
 except Exception as exc:
-    st.error(f"Failed to load fetch_pmids.py: {exc}")
+    st.error(f"Failed to load unified_fetch.py: {exc}")
     st.stop()
 
 fp._load_repo_dotenv()
 
 with st.sidebar:
-    st.header("Fetch")
+    st.header("Fetch & annotate")
     catalog = fp._field_catalog()
     all_fields = sorted({f for fields in catalog.values() for f in fields})
 
@@ -314,14 +314,14 @@ with st.sidebar:
         "Sources (order preserved)",
         options=["pubtator3", "entrez", "europe_pmc", "raw_text"],
         default=["pubtator3"],
-        help="Literature modes: choose backends to merge. Raw-text tab forces raw_text only.",
+        help="Used on the Literature tab. The Annotate text tab builds a document from your paste only (no remote fetch).",
     )
 
     field_pick = st.multiselect(
         "Fields (empty = default auto)",
         options=all_fields,
         default=[],
-        help="If empty, PubTator uses lightweight defaults (see fetch_pmids).",
+        help="If empty, PubTator uses lightweight defaults (see unified_fetch).",
     )
     explicit_fields: list[str] | None = field_pick if field_pick else None
 
@@ -334,10 +334,10 @@ with st.sidebar:
 
     st.subheader("Annotators")
     annotators = st.multiselect(
-        "Run after fetch",
+        "Annotators to run",
         options=["pubtator3", "medcat", "flair"],
         default=[],
-        help="PubTator3 uses the fetched document text. MedCAT needs MEDCAT_API_URL or endpoint below. Flair runs HunFlair2 locally.",
+        help="After a document exists (fetched or pasted), run the selected annotators. PubTator3 uses the document text; MedCAT needs MEDCAT_API_URL or the override below; Flair runs HunFlair2 locally.",
     )
     include_medcat_raw = st.checkbox("MedCAT: include medcat_raw (large)", value=False)
     medcat_ep = st.text_input(
@@ -352,7 +352,7 @@ with st.sidebar:
     )
     include_flair_raw = st.checkbox("Flair: include flair_raw (Sentence snapshot, large)", value=False)
 
-tab_lit, tab_raw = st.tabs(["Literature fetch", "Raw text"])
+tab_lit, tab_raw = st.tabs(["Literature fetch", "Annotate text"])
 
 with tab_lit:
     mode = st.selectbox(
@@ -383,6 +383,7 @@ with tab_lit:
         ids_blob = single
 
 with tab_raw:
+    st.caption("No literature fetch — text is wrapped as a document, then annotators run.")
     raw_doc_id = st.text_input("Document id label", value="RAW:1")
     raw_body = st.text_area(
         "Text to annotate",
@@ -392,8 +393,8 @@ with tab_raw:
 
 render_source_legend()
 
-run_lit = tab_lit.button("Run fetch (literature)", type="primary")
-run_raw = tab_raw.button("Run fetch (raw text)", type="primary")
+run_lit = tab_lit.button("Fetch literature", type="primary")
+run_raw = tab_raw.button("Run annotators", type="primary")
 
 payload_result: dict[str, Any] | None = None
 error_msg = ""
@@ -491,7 +492,23 @@ if payload:
             ht, hc = st.tabs(["Highlighted text", "Annotation tables"])
             with ht:
                 if body_for_highlight:
-                    st.markdown(render_highlighted(body_for_highlight, results), unsafe_allow_html=True)
+                    st.caption(
+                        "One panel per annotator so spans are not merged in document order "
+                        "(mixing PubTator3 + MedCAT + Flair in a single layer dropped overlaps and looked misaligned)."
+                    )
+                    any_highlight = False
+                    for src_key in ("pubtator3", "medcat", "flair"):
+                        items = results.get(src_key)
+                        if not isinstance(items, list) or not items:
+                            continue
+                        any_highlight = True
+                        st.markdown(f"**{src_key}** ({len(items)})")
+                        st.markdown(
+                            render_highlighted(body_for_highlight, {src_key: items}),
+                            unsafe_allow_html=True,
+                        )
+                    if not any_highlight:
+                        st.info("No span annotations to highlight (check MedCAT URL includes /api/process).")
                 else:
                     st.info("No text to highlight.")
 

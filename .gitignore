@@ -17,7 +17,9 @@ data/processed/
 data/inputs/query_*.txt
 data/corpora/query_*.json
 
-# Benchmark corpora: large exports / upstream drops 
+# Benchmark corpora: large exports / upstream drops
 data/benchmarks/**/*.jsonl
+data/benchmarks/**/*.json
 data/benchmarks/**/*.parquet
 data/benchmarks/**/native/
+

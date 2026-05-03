@@ -1,6 +1,6 @@
 # MedCAT with TotalAnnotator (local Docker)
 
-How to run **CogStack MedCATservice** on your own machine with **Docker**, then point **TotalAnnotator** at it. 
+ **CogStack MedCATservice**  with **Docker**, then point **TotalAnnotator** at it. 
 
 For the upstream project and API details, see [CogStack/MedCATservice](https://github.com/CogStack/MedCATservice).
 
@@ -16,8 +16,6 @@ download the example MedMen model
 
 
 
-
-```bat
 cd path\to\MedCATservice\scripts
 
 set MODEL_NAME=medmen
@@ -42,19 +40,18 @@ $env:MODEL_META_URL = "https://cogstack-medcat-example-models.s3.eu-west-2.amazo
 py -3 -m pip install requests
 py -3 .\download_model.py
 ```
-
-You should see files under **`MedCATservice\models\medmen\`** when this finishes.
+should see files under **`MedCATservice\models\medmen\`** when this finishes.
 
 ---
 
 ## 4. Start MedCAT with Docker
 
-```bat
+```
 cd path\to\MedCATservice\docker
 docker compose up -d
 ```
 
-The default **compose** file maps the service to **port 5555** on your PC (container internal port remains 5000).
+The default **compose** file maps the service to **port 5555** on  PC (container internal port remains 5000).
 
 **Check that it is alive — `GET /api/info`**
 
@@ -93,7 +90,9 @@ Configure TotalAnnotator
    MEDCAT_API_URL=http://127.0.0.1:5555/api/process
    ```
 
-The helper script **`scripts\fetch.cmd`** loads `.env` automatically before running Python.
+MedCAT often returns **many low-confidence spans** (`acc` / `context_similarity` well below 1). TotalAnnotator will highlight **everything** the API returns unless you filter.To be investigated further.
+
+The helper script **`scripts\unified_fetch.cmd`** loads `.env` automatically before running Python.
 
 ---
 
@@ -101,8 +100,8 @@ The helper script **`scripts\fetch.cmd`** loads `.env` automatically before runn
 
 From the TotalAnnotator root, using **cmd**:
 
-```bat
-scripts\fetch_pmids.cmd 36403686 --annotator medcat
+```
+scripts\unified_fetch.cmd 36403686 --annotator medcat
 ```
 
 
@@ -111,9 +110,9 @@ scripts\fetch_pmids.cmd 36403686 --annotator medcat
 
 Large output — use when you need **`type_ids`**, **`meta_anns`**, and the rest of the raw service payload:
 
-```bat
-scripts\fetch_pmids.cmd 36403686 --annotator medcat --medcat-raw
+```
+scripts\unified_fetch.cmd 36403686 --annotator medcat --medcat-raw
 ```
 
-That adds **`medcat_raw`** next to **`medcat`** for each document. You can also enable this via TOML: **`[annotators.medcat] include_raw = true`** in a config passed to `fetch_pmids.py` (see `configs/examples/fetch-script.toml`).
+That adds **`medcat_raw`** next to **`medcat`** for each document. You can also enable this via TOML: **`[annotators.medcat] include_raw = true`** in a config passed to `unified_fetch.py` (see `configs/examples/fetch-script.toml`).
 

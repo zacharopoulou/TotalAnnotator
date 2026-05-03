@@ -24,7 +24,7 @@ TotalAnnotator currently supports:
 - `bern2`
   Runtime scaffold kept in config for future local deployment.
 - `flair`
-  Optional local HunFlair2 NER (`flair==0.15.1`, aligned with the HunFlair2 fork): `pip install -e ".[flair]"` or use the fetch explorer extra `pip install -e ".[ui]"` (includes Streamlit + Flair). Example: `py -3 scripts/fetch_pmids.py <PMID> --annotator flair --flair-model hunflair2` and optional `--flair-raw` for a Sentence snapshot JSON. Compatible `torch` / `transformers` come in as Flair dependencies.
+  Runtime scaffold kept in config for future local deployment.
 
 ## Quickstart
 

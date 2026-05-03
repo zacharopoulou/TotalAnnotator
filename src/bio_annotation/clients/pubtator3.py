@@ -162,8 +162,25 @@ class PubTator3Client:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             method="POST",
         )
-        response_body = self._send_json(http_request)
-        session_id = str(response_body.get("id") or "").strip()
+        try:
+            raw = self.opener(http_request, self.timeout)
+        except (error.URLError, TimeoutError, socket.timeout) as exc:
+            raise ValueError(f"PubTator3 request failed: {exc}") from exc
+
+        decoded = raw.decode("utf-8").strip()
+        session_id = ""
+        try:
+            parsed: Any = json.loads(decoded)
+        except json.JSONDecodeError:
+            # NCBI raw-text submit often returns a bare session id (not JSON). Parsing as JSON can
+            # succeed for a numeric prefix then fail with "Extra data" (e.g. "1111-2222-...").
+            session_id = decoded.splitlines()[0].strip() if decoded else ""
+        else:
+            if isinstance(parsed, dict):
+                session_id = str(parsed.get("id") or "").strip()
+            elif isinstance(parsed, (str, int)):
+                session_id = str(parsed).strip()
+
         if not session_id:
             raise ValueError("PubTator3 submit endpoint returned an empty session ID.")
         return session_id

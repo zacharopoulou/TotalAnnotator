@@ -65,6 +65,11 @@ def build_pipeline_output(
     corpus_documents = [document_to_dict(document) for document in documents]
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
     medcat_options = _read_medcat_options(annotator_settings.get("medcat", {}))
+    flair_options = _read_flair_options(annotator_settings.get("flair", {}))
+
+    flair_tagger = None
+    if "flair" in enabled_annotators and flair_spans_by_document is None:
+        flair_tagger = _load_flair_tagger(flair_options["model"])
 
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
@@ -87,6 +92,7 @@ def build_pipeline_output(
                 if flair_spans_by_document is not None
                 else None
             ),
+            flair_tagger=flair_tagger,
         )
         annotations = flatten_annotations(results)
         annotations = filter_annotations_by_type(annotations, config.entity_types)
@@ -141,6 +147,7 @@ def run_selected_annotators(
     pubtator3_options: dict[str, Any] | None = None,
     medcat_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
+    flair_tagger: Any | None = None,
 ) -> dict[str, list[Annotation]]:
     results: dict[str, list[Annotation]] = {}
 
@@ -148,7 +155,11 @@ def run_selected_annotators(
         if annotator == "bern2":
             results[annotator] = annotate_with_bern2(document, request_fn=bern2_request_fn)
         elif annotator == "flair":
-            results[annotator] = annotate_with_flair(document, spans=flair_spans)
+            results[annotator] = annotate_with_flair(
+                document,
+                spans=flair_spans,
+                tagger=flair_tagger,
+            )
         elif annotator == "pubtator3":
             results[annotator] = annotate_with_pubtator3(
                 document,
@@ -214,6 +225,19 @@ def _validate_annotators(annotators: list[str]) -> None:
     unsupported = [annotator for annotator in annotators if annotator not in SUPPORTED_ANNOTATORS]
     if unsupported:
         raise ValueError(f"Unsupported annotators requested: {', '.join(unsupported)}")
+
+
+def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
+    model = settings.get("model")
+    return {
+        "model": model.strip() if isinstance(model, str) and model.strip() else "hunflair2",
+    }
+
+
+def _load_flair_tagger(model: str) -> Any:
+    from flair.nn import Classifier
+
+    return Classifier.load(model)
 
 
 def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:

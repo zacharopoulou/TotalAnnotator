@@ -10,7 +10,7 @@ Its purpose is to explain the codebase and pipeline decisions in a way that is e
   Near-term workflow for corpus creation, annotator execution, and harmonized outputs.
 
 - `MEDCAT_GUIDE.md`
-  Local **Docker** setup for CogStack MedCATservice, `.env` for TotalAnnotator, and `fetch_pmids` usage (including optional raw JSON).
+  Local **Docker** setup for CogStack MedCATservice, `.env` for TotalAnnotator, and `unified_fetch` usage (including optional raw JSON).
 
 ## Planned Notes
 

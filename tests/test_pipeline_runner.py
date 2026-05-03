@@ -133,8 +133,10 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
     )
 
     monkeypatch.setattr(
-        "bio_annotation.pipeline_runner.run_pipeline_from_config",
+        "bio_annotation.cli.run_pipeline_from_config",
         lambda path: {
+            "stage": "corpus",
+            "input": {"mode": "text_table"},
             "document_count": 1,
             "pipeline": {
                 "mode": "ingestion_and_annotation",

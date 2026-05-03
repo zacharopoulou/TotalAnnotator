@@ -1,30 +1,19 @@
 #!/usr/bin/env python3
-"""Run :mod:`bio_annotation.fetch` for literature IDs or a PubMed query — no pipeline TOML required.
-
+"""Unified fetch CLI for :mod:`bio_annotation.fetch`: PMIDs, PMCIDs, PubMed queries,
+optional TOML config, and optional annotators 
 From the repository root::
+    Example commands: TotalAnnotator\docs\unified_fetch_cli_reference.txt
+    
+``--source`` may be repeated. Defaults to ``pubtator3`` 
 
-    python scripts/fetch_pmids.py 36403686 26968172
-    python scripts/fetch_pmids.py --ids-file data/inputs/example_pmids.txt
-    python scripts/fetch_pmids.py --input-kind pmcid PMC7083241
-    python scripts/fetch_pmids.py --input-kind query --query "glioblastoma review"
-    python scripts/fetch_pmids.py 36403686 --source entrez
-    python scripts/fetch_pmids.py 36403686 --source pubtator3 --source entrez
-    python scripts/fetch_pmids.py 36403686 --annotator pubtator3
-    python scripts/fetch_pmids.py 36403686 --annotator medcat --medcat-raw
-    python scripts/fetch_pmids.py 36403686 --annotator flair --flair-model hunflair2
-    python scripts/fetch_pmids.py 36403686 --annotator flair --flair-raw
-
-``--source`` may be repeated (merge order). Defaults to ``pubtator3`` only.
-
-Use ``--medcat-raw`` (or ``[annotators.medcat] include_raw = true`` in a TOML ``--config``)
+Use--medcat-raw`` (or ``[annotators.medcat] include_raw = true`` in a TOML ``--config``)
 to add ``medcat_raw`` next to ``medcat`` in each annotator row: the full MedCATservice JSON
 response for that document (same shape as ``Invoke-RestMethod`` / ``POST /api/process``).
 
 Use ``--flair-raw`` (or ``[annotators.flair] include_raw = true``) to add ``flair_raw``: a
 JSON-safe snapshot of the Flair ``Sentence`` after ``predict`` (``to_dict()``), alongside ``flair``.
 
-If a ``.env`` file exists in the repository root, it is loaded before annotators run
-(so ``MEDCAT_API_URL`` works when you invoke this script with ``python``, not only via ``fetch_pmids.cmd``).
+If ``.env`` file exists in the repository root, it is loaded before annotators run
 
 ``--field`` maps to fetch logical fields. Use ``--list-fields`` to inspect all
 supported fields per source.
@@ -58,7 +47,7 @@ def _load_repo_dotenv() -> None:
     """Set ``os.environ`` from ``<repo>/.env`` if present (``KEY=value``, ``#`` comments).
 
     Does not override variables already set in the process environment.
-    Running ``py -3 scripts/fetch_pmids.py`` then matches ``fetch_pmids.cmd`` loading ``.env``.
+    Running ``py -3 scripts/unified_fetch.py`` then matches ``unified_fetch.cmd`` loading ``.env``.
     """
 
     path = _repo_root() / ".env"
@@ -87,7 +76,7 @@ def _load_repo_dotenv() -> None:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Fetch documents via bio_annotation.fetch (PMID, PMCID, or query).",
+        description="Unified fetch: documents via bio_annotation.fetch (PMID, PMCID, or query).",
     )
     p.add_argument(
         "ids",
@@ -239,8 +228,8 @@ def _normalize_cli_aliases(argv: list[str]) -> list[str]:
     """Allow convenient config invocation aliases.
 
     Supported shortcuts:
-    - ``fetch_pmids.py config path/to/file.toml``
-    - ``fetch_pmids.py path/to/file.toml``
+    - ``unified_fetch.py config path/to/file.toml``
+    - ``unified_fetch.py path/to/file.toml``
     """
 
     if not argv:
@@ -976,7 +965,7 @@ def _run_annotators(
                 if not ep:
                     print(
                         "Warning: MedCAT skipped — set MEDCAT_API_URL or "
-                        "[annotators.medcat] endpoint in config (or use scripts/fetch_pmids.cmd with .env).",
+                        "[annotators.medcat] endpoint in config (or use scripts/unified_fetch.cmd with .env).",
                         file=sys.stderr,
                     )
                     row["results"]["medcat"] = []

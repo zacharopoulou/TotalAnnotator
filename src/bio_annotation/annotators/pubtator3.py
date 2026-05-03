@@ -18,23 +18,55 @@ def _document_annotation_text(document: Document) -> str:
     return document.text.strip()
 
 
+def _passage_base_offset(passage: dict[str, Any]) -> int:
+    """BioC passage ``offset``: start of passage text in the document-wide character sequence."""
+
+    raw = passage.get("offset")
+    if raw is None:
+        return 0
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _parse_bioc_document(document: Document, doc_payload: dict[str, Any]) -> list[Annotation]:
     annotations: list[Annotation] = []
     source_text = _document_annotation_text(document)
 
     for passage in doc_payload.get("passages", []):
+        if not isinstance(passage, dict):
+            continue
+        passage_base = _passage_base_offset(passage)
         for record in passage.get("annotations", []):
             locations = record.get("locations", [])
             first_location = locations[0] if locations else {}
-            start = pick_first(first_location.get("offset"), record.get("start"))
+            local_start = pick_first(first_location.get("offset"), record.get("start"))
             length = first_location.get("length")
-            end = pick_first(
+            local_end = pick_first(
                 record.get("end"),
-                int(start) + int(length) if start is not None and length is not None else None,
+                int(local_start) + int(length)
+                if local_start is not None and length is not None
+                else None,
             )
 
+            ls: int | None
+            le: int | None
+            try:
+                ls = int(local_start) if local_start is not None else None
+            except (TypeError, ValueError):
+                ls = None
+            try:
+                le = int(local_end) if local_end is not None else None
+            except (TypeError, ValueError):
+                le = None
+            if ls is None:
+                continue
+            start = ls + passage_base
+            end = (le + passage_base) if le is not None else None
+
             mention = pick_first(record.get("text"), record.get("span_text"))
-            if mention is None and start is not None and end is not None:
+            if mention is None and end is not None:
                 mention = source_text[int(start) : int(end)]
             if not mention:
                 continue

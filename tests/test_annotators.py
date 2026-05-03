@@ -126,9 +126,10 @@ def test_pubtator3_adapter_parses_bioc_json_with_absolute_offsets() -> None:
 
     assert len(annotations) == 2
     assert annotations[0].source == "pubtator3"
-    assert annotations[0].start == 0
+    # Passage-level BioC ``offset`` (10) must be added to location offsets (0, 15).
+    assert annotations[0].start == 10
     assert annotations[0].canonical_id == "5728"
-    assert annotations[1].start == 15
+    assert annotations[1].start == 25
     assert annotations[1].entity_type == "disease"
 
 

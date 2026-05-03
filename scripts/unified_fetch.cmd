@@ -5,4 +5,4 @@ if exist "%~dp0..\.env" (
     if not "%%A"=="" set "%%A=%%B"
   )
 )
-py -3 "%~dp0fetch_pmids.py" %*
+py -3 "%~dp0unified_fetch.py" %*

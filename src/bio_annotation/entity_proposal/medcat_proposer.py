@@ -5,13 +5,54 @@ import logging
 import os
 import warnings
 from typing import Any, Callable
-from urllib import error, request
+from urllib import error, parse, request
 
 from bio_annotation.entity_proposal._shared import make_annotation, pick_first
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_medcat_process_url(url: str) -> str:
+    """CogStack MedCATservice expects POST ``/api/process``. Users often set only host:port."""
+
+    raw = (url or "").strip()
+    if not raw:
+        return raw
+    if raw.rstrip("/").lower().endswith("/api/process"):
+        return raw.rstrip("/")
+    parsed = parse.urlparse(raw)
+    if not parsed.scheme or not parsed.netloc:
+        return raw
+    if parsed.path.rstrip("/").endswith("/api/process"):
+        return raw.rstrip("/")
+    return parse.urljoin(raw.rstrip("/") + "/", "api/process")
+
+
+def _medcat_min_acc_threshold(explicit: float | None) -> float | None:
+    """Optional 0..1 cutoff on MedCAT ``acc`` / ``context_similarity`` (see env ``MEDCAT_MIN_ACC``)."""
+
+    if explicit is not None:
+        return explicit if explicit > 0.0 else None
+    raw = os.getenv("MEDCAT_MIN_ACC", "").strip()
+    if not raw:
+        return None
+    try:
+        v = float(raw)
+    except ValueError:
+        return None
+    return v if v > 0.0 else None
+
+
+def _first_nonempty_str_list(value: Any) -> str | None:
+    if not isinstance(value, list) or not value:
+        return None
+    first = value[0]
+    if first is None:
+        return None
+    text = str(first).strip()
+    return text or None
 
 
 def _looks_like_entity_record(item: dict[str, Any]) -> bool:
@@ -70,8 +111,16 @@ def _extract_records(payload: Any) -> list[dict[str, Any]]:
         return []
 
     # CogStack MedCATservice: { "result": { "annotations": ... } }
+    # MedCAT 1.2+ often uses annotations: { "entities": { "0": {...}, ... }, "tokens": [...] }.
     result = payload.get("result")
     if isinstance(result, dict):
+        ann = result.get("annotations")
+        if isinstance(ann, dict):
+            nested = ann.get("entities")
+            if isinstance(nested, dict) and nested:
+                records = _flatten_annotation_value(nested)
+                if records:
+                    return records
         for key in ("annotations", "entities"):
             records = _flatten_annotation_value(result.get(key))
             if records:
@@ -87,7 +136,15 @@ def _extract_records(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
-def parse_medcat_response(document: Document, payload: Any) -> list[Annotation]:
+def parse_medcat_response(
+    document: Document,
+    payload: Any,
+    *,
+    min_acc: float | None = None,
+) -> list[Annotation]:
+    """Parse MedCATservice JSON. Set ``min_acc`` or ``MEDCAT_MIN_ACC`` to drop low-confidence spans."""
+
+    threshold = _medcat_min_acc_threshold(min_acc)
     annotations: list[Annotation] = []
     for record in _extract_records(payload):
         mention = pick_first(
@@ -100,6 +157,20 @@ def parse_medcat_response(document: Document, payload: Any) -> list[Annotation]:
         )
         if not mention:
             continue
+        raw_conf = pick_first(
+            record.get("acc"),
+            record.get("context_similarity"),
+            record.get("confidence"),
+            record.get("score"),
+        )
+        if threshold is not None:
+            try:
+                conf_f = float(raw_conf) if raw_conf is not None else None
+            except (TypeError, ValueError):
+                conf_f = None
+            if conf_f is None or conf_f < threshold:
+                continue
+
         annotations.append(
             make_annotation(
                 document=document,
@@ -110,6 +181,8 @@ def parse_medcat_response(document: Document, payload: Any) -> list[Annotation]:
                     record.get("entity_type"),
                     record.get("tui"),
                     record.get("semantic_type"),
+                    _first_nonempty_str_list(record.get("type_ids")),
+                    _first_nonempty_str_list(record.get("types")),
                     "concept",
                 ),
                 start=pick_first(
@@ -142,7 +215,7 @@ def parse_medcat_response(document: Document, payload: Any) -> list[Annotation]:
 
 
 def call_medcat(document: Document, endpoint: str | None = None, timeout: int = 45) -> Any:
-    target = endpoint or os.getenv("MEDCAT_API_URL")
+    target = _normalize_medcat_process_url(endpoint or os.getenv("MEDCAT_API_URL") or "")
     if not target:
         return None
     text = document.get_text()
@@ -182,13 +255,14 @@ def annotate_with_medcat(
     response: Any = None,
     request_fn: Callable[[Document], Any] | None = None,
     endpoint: str | None = None,
+    min_acc: float | None = None,
 ) -> list[Annotation]:
     payload = response
     if payload is None and request_fn is not None:
         payload = request_fn(document)
     if payload is None:
         payload = call_medcat(document, endpoint=endpoint)
-    return parse_medcat_response(document, payload)
+    return parse_medcat_response(document, payload, min_acc=min_acc)
 
 
 __all__ = ["annotate_with_medcat", "call_medcat", "parse_medcat_response"]

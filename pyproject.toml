@@ -8,18 +8,17 @@ version = "0.1.0"
 description = "Config-first biomedical literature pipeline for corpora, annotators, and evaluation"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "flair==0.15.1",
+]
 
 [project.optional-dependencies]
-# Fetch explorer: Streamlit + Flair (HunFlair2) for local NER in the UI.
+# Fetch & annotate explorer (Streamlit). Flair is a default dependency for HunFlair2 in CLI and library.
 ui = [
     "streamlit>=1.28.0",
-    "flair==0.15.1",
 ]
-# HunFlair2 only (CLI / library without the UI).
-flair = [
-    "flair==0.15.1",
-]
+# Back-compat extra: `pip install -e ".[flair]"` still works; Flair is already installed with the base package.
+flair = []
 
 [project.scripts]
 totalannotator = "bio_annotation.cli:main"
