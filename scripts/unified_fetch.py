@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Unified fetch CLI for :mod:`bio_annotation.fetch`: PMIDs, PMCIDs, PubMed queries,
-optional TOML config, and optional annotators 
-From the repository root::
-    Example commands: TotalAnnotator\docs\unified_fetch_cli_reference.txt
-    
-``--source`` may be repeated. Defaults to ``pubtator3`` 
+optional TOML config, and optional annotators.
 
-Use--medcat-raw`` (or ``[annotators.medcat] include_raw = true`` in a TOML ``--config``)
+From the repository root::
+
+    Example commands: see ``docs/unified_fetch_cli_reference.txt``.
+
+``--source`` may be repeated. Defaults to ``pubtator3``.
+
+Use ``--medcat-raw`` (or ``[annotators.medcat] include_raw = true`` in a TOML ``--config``)
 to add ``medcat_raw`` next to ``medcat`` in each annotator row: the full MedCATservice JSON
 response for that document (same shape as ``Invoke-RestMethod`` / ``POST /api/process``).
 
