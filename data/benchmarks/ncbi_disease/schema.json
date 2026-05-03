@@ -1,0 +1,43 @@
+{
+    "source": {
+        "huggingface_dataset": "bigbio/ncbi_disease",
+        "huggingface_config": "ncbi_disease_bigbio_kb",
+        "load_dataset_call": "datasets.load_dataset('bigbio/ncbi_disease', 'ncbi_disease_bigbio_kb', trust_remote_code=True)",
+        "splits": ["train", "validation", "test"],
+        "downloader": "src/bio_annotation/benchmarks/ncbi_disease.py"
+    },
+    "native_files": {
+        "directory": "data/benchmarks/ncbi_disease/native/",
+        "origin": "Two flavors of the same corpus, both downloaded from the NCBI Dogan/DISEASE page (https://www.ncbi.nlm.nih.gov/CBBresearch/Dogan/DISEASE/). Same abstracts, two packagings.",
+        "contents": {
+            "NCBItrainset_corpus/NCBItrainset_corpus.txt": "Per-split distribution, training set (PubTator format with NCBI license header). 593 abstracts in the upstream file.",
+            "NCBIdevelopset_corpus/NCBIdevelopset_corpus.txt": "Per-split distribution, development split, PubTator format with header. 100 abstracts.",
+            "NCBItestset_corpus/NCBItestset_corpus.txt": "Per-split distribution, test split, PubTator format with header. 100 abstracts.",
+            "NCBI_corpus/NCBI_corpus_training.txt": "Combined-archive flavor, training split, PubTator format without header.",
+            "NCBI_corpus/NCBI_corpus_development.txt": "Combined-archive flavor, development split.",
+            "NCBI_corpus/NCBI_corpus_testing.txt": "Combined-archive flavor, test split."
+        },
+        "format": "PubTator stand-off text. Each abstract is a block of three line types: '<PMID>|t|<title>', '<PMID>|a|<abstract>', then one tab-separated annotation line per disease mention with PMID, start, end, surface_text, type, and concept_id (MeSH 'D...' or OMIM numeric, '|'-separated for composite mentions).",
+        "relationship_to_jsonl": "train/validation/test.jsonl in this folder are produced by the bigbio loading script from the upstream PubTator files. The bigbio loader emits 592 train / 100 validation / 100 test documents (one row in train is dropped vs the upstream 593-abstract file)."
+    },
+    "id": "Document id, equal to the PMID. String.",
+    "document_id": "PMID of the paper. Same value as `id` in this corpus.",
+    "passages": {
+        "id": "Passage id, '<PMID>_title' or '<PMID>_abstract'.",
+        "type": "'title' or 'abstract'.",
+        "text": "Passage text in a one-element list.",
+        "offsets": "Character span [start, end] of the passage in the concatenated document. Title starts at 0; abstract starts at len(title) + 1 (one space joins them)."
+    },
+    "entities": {
+        "id": "Entity id, '<PMID>_<concept_id>_<index>'. For composite mentions the concept_id segment is '|'-separated (e.g. 'D003110|D009369').",
+        "type": "One of: 'SpecificDisease', 'DiseaseClass', 'CompositeMention', 'Modifier'. SpecificDisease = a single specific disease (e.g. 'adenomatous polyposis coli'). DiseaseClass = a disease class or general term (e.g. 'cancer', 'tumours'). CompositeMention = one surface mention covering two or more diseases (e.g. 'colon and other cancers'). Modifier = disease term used adjectivally on another concept.",
+        "text": "Entity surface text in a one-element list.",
+        "offsets": "Character span [start, end] of the mention.",
+        "normalized": "List of normalized concept ids. One element per linked concept (multiple for CompositeMention). Each element is {db_name, db_id}.",
+        "normalized.db_name": "'MESH' or 'OMIM'.",
+        "normalized.db_id": "MeSH descriptor id (e.g. 'D012878') or OMIM numeric id (e.g. '155600')."
+    },
+    "events": "Always [] for this corpus (bigbio_kb shape includes the field; NCBI Disease has no events).",
+    "coreferences": "Always [] for this corpus.",
+    "relations": "Always [] for this corpus. NCBI Disease is a NER + normalization corpus with no relation extraction layer."
+}

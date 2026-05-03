@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.annotators.bern2 import annotate_with_bern2
-from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.flair import annotate_with_flair, run_flair_on_document
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.schemas.document import Document
 
@@ -65,6 +65,16 @@ class FakeSpan:
     start_position: int
     end_position: int
     labels: list[FakeLabel]
+
+
+def test_run_flair_on_document_empty_body_raw_snapshot() -> None:
+    document = Document(document_id="PMID:1", pmid="1", title="", abstract="  \n", source="pubmed")
+    ann, raw = run_flair_on_document(document, tagger=object(), include_raw=True)
+    assert ann == []
+    assert raw == {"skipped": "empty_document_text"}
+
+    _, raw_off = run_flair_on_document(document, tagger=object(), include_raw=False)
+    assert raw_off is None
 
 
 def test_flair_adapter_normalizes_spans() -> None:
@@ -253,7 +263,7 @@ def test_run_all_annotators_returns_consistent_result_map() -> None:
         },
     )
 
-    assert set(results) == {"bern2", "flair", "pubtator3"}
+    assert set(results) == {"bern2", "flair", "pubtator3", "medcat"}
     assert all(isinstance(items, list) for items in results.values())
     assert len(flatten_annotations(results)) == 3
 

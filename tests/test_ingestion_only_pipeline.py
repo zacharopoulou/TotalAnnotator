@@ -57,7 +57,7 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
             [
                 "[input]",
                 'mode = "corpus"',
-                f'corpus_path = "{tmp_path / "documents.json"}"',
+                f'corpus_path = "{(tmp_path / "documents.json").as_posix()}"',
                 "",
                 "[annotators]",
                 "enabled = []",
@@ -66,7 +66,7 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
                 "entity_types = []",
                 "",
                 "[output]",
-                f'path = "{output_path}"',
+                f'path = "{output_path.as_posix()}"',
             ]
         ),
         encoding="utf-8",

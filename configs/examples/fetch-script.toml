@@ -1,0 +1,25 @@
+[fetch]
+# Optional; if omitted, pass PMIDs on CLI.
+# file = "data/inputs/example_pmids.txt"
+source = ["pubtator3"]
+fields = ["title", "abstract"]
+include_annotations = false
+strict_sources = true
+
+[annotators]
+enabled = ["medcat"]
+
+[annotators.pubtator3]
+# Optional: chunked text annotation when full-text PubTator jobs time out
+# chunk_size = 6000
+# chunk_overlap = 300
+
+[annotators.medcat]
+# CogStack MedCATservice: POST /api/process (see .env.example MEDCAT_API_URL).
+endpoint = "http://127.0.0.1:5555/api/process"
+# include_raw = true
+
+# Local Flair / HunFlair2 (requires `pip install -e ".[flair]"`). Same idea as TotalAnnotator-hunflair2 fork.
+# [annotators.flair]
+# model = "hunflair2"
+# include_raw = true   # adds flair_raw (Sentence to_dict snapshot) next to flair

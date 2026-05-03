@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
 from bio_annotation.preprocessing.document_loader import (
@@ -16,7 +17,7 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3"}
+SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "medcat"}
 
 
 def run_pipeline_from_config(
@@ -25,15 +26,22 @@ def run_pipeline_from_config(
     pmid_fetcher: Callable[[str], dict[str, Any]] | None = None,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
+    orchestrator_factory: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
-    documents = load_documents_from_config(config, pmid_fetcher=pmid_fetcher)
+    documents = load_documents_from_config(
+        config,
+        pmid_fetcher=pmid_fetcher,
+        orchestrator_factory=orchestrator_factory,
+    )
     payload = build_pipeline_output(
         documents,
         config,
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
+        medcat_request_fn=medcat_request_fn,
         flair_spans_by_document=flair_spans_by_document,
     )
     if config.output_path is not None:
@@ -47,6 +55,7 @@ def build_pipeline_output(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     enabled_annotators = list(config.annotators)
@@ -55,6 +64,7 @@ def build_pipeline_output(
     input_description = resolve_input_description(config)
     corpus_documents = [document_to_dict(document) for document in documents]
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
+    medcat_options = _read_medcat_options(annotator_settings.get("medcat", {}))
 
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
@@ -69,7 +79,9 @@ def build_pipeline_output(
             enabled_annotators,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
+            medcat_request_fn=medcat_request_fn,
             pubtator3_options=pubtator3_options,
+            medcat_options=medcat_options,
             flair_spans=(
                 flair_spans_by_document.get(document.document_id)
                 if flair_spans_by_document is not None
@@ -125,7 +137,9 @@ def run_selected_annotators(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
+    medcat_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
 ) -> dict[str, list[Annotation]]:
     results: dict[str, list[Annotation]] = {}
@@ -157,6 +171,12 @@ def run_selected_annotators(
                 if pubtator3_options
                 else 15,
             )
+        elif annotator == "medcat":
+            results[annotator] = annotate_with_medcat(
+                document,
+                request_fn=medcat_request_fn,
+                endpoint=medcat_options.get("endpoint") if medcat_options else None,
+            )
         else:
             raise ValueError(f"Unsupported annotator: {annotator}")
 
@@ -165,7 +185,7 @@ def run_selected_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3"):
+    for source in ("bern2", "flair", "pubtator3", "medcat"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -240,4 +260,11 @@ def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
             if isinstance(max_poll_attempts, int) and max_poll_attempts > 0
             else 15
         ),
+    }
+
+
+def _read_medcat_options(settings: dict[str, object]) -> dict[str, Any]:
+    endpoint = settings.get("endpoint")
+    return {
+        "endpoint": endpoint if isinstance(endpoint, str) and endpoint.strip() else None,
     }

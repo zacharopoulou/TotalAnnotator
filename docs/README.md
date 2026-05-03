@@ -9,6 +9,9 @@ Its purpose is to explain the codebase and pipeline decisions in a way that is e
 - `workflow-spec.md`
   Near-term workflow for corpus creation, annotator execution, and harmonized outputs.
 
+- `MEDCAT_GUIDE.md`
+  Local **Docker** setup for CogStack MedCATservice, `.env` for TotalAnnotator, and `fetch_pmids` usage (including optional raw JSON).
+
 ## Planned Notes
 
 - benchmark dataset conventions and evaluation flow

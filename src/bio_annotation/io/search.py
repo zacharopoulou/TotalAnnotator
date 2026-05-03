@@ -1,3 +1,17 @@
+"""PubMed ``esearch`` helpers.
+
+NCBI caps ``retmax`` at 10,000 IDs per request. When the hit count for a
+date-filtered query exceeds that cap, :func:`search_pubmed_pmids` recursively
+splits the publication-date window (binary split on calendar dates) until each
+window has at most 10,000 hits, then merges unique PMIDs.
+
+``date_from`` / ``date_to`` accept ``YYYY``, ``YYYY/MM``, or ``YYYY/MM/DD``; open
+month boundaries use the first or last calendar day of that month. When
+``date_from`` is omitted the lower bound defaults to ``1950-01-01``. If a
+single day still exceeds the cap, :class:`ValueError` is raised (the query
+cannot be subdivided further).
+"""
+
 from __future__ import annotations
 
 import calendar

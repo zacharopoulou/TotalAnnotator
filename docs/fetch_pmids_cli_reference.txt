@@ -1,0 +1,47 @@
+fetch_pmids examples — run from TotalAnnotator repo root (use scripts\fetch_pmids.cmd on Windows if you rely on .env)
+
+py -3 scripts/fetch_pmids.py --help
+
+py -3 scripts/fetch_pmids.py --list-fields
+
+py -3 scripts/fetch_pmids.py 36403686
+
+py -3 scripts/fetch_pmids.py --input-kind pmid --id 36403686
+
+py -3 scripts/fetch_pmids.py 36403686 26968172
+
+py -3 scripts/fetch_pmids.py --ids-file my_ids.txt
+
+py -3 scripts/fetch_pmids.py --input-kind query --query "glioblastoma review"
+
+py -3 scripts/fetch_pmids.py --input-kind pmcid PMC7083241
+
+py -3 scripts/fetch_pmids.py 36403686 --source pubtator3 --source entrez
+
+py -3 scripts/fetch_pmids.py 36403686 --field title --field abstract
+
+py -3 scripts/fetch_pmids.py 36403686 --source europe_pmc
+
+py -3 scripts/fetch_pmids.py 36403686 --include-annotations
+
+py -3 scripts/fetch_pmids.py 36403686 --annotator pubtator3
+
+py -3 scripts/fetch_pmids.py 36403686 --annotator medcat
+
+py -3 scripts/fetch_pmids.py 36403686 --annotator medcat --medcat-raw
+
+pip install -e ".[flair]"
+
+py -3 scripts/fetch_pmids.py 36403686 --annotator flair --flair-model hunflair2
+
+py -3 scripts/fetch_pmids.py 36403686 --annotator flair --flair-raw
+
+py -3 scripts/fetch_pmids.py 36403686 --field title --strict-sources
+
+py -3 scripts/fetch_pmids.py 36403686 --annotator pubtator3 --pubtator-chunk-size 8000 --pubtator-chunk-overlap 400
+
+py -3 scripts/fetch_pmids.py configs/examples/fetch-script.toml
+
+py -3 scripts/fetch_pmids.py config configs/examples/fetch-script.toml
+
+py -3 scripts/fetch_pmids.py 36403686 > out.json

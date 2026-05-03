@@ -1,0 +1,33 @@
+# PMID ingestion via bio_annotation.fetch (PubTator3 default — first registered adapter).
+# Omit input.source to use legacy PubMed efetch from io.readers instead.
+
+[input]
+mode = "pmids"
+pmids = ["36403686"]
+source = "pubtator3"
+
+# Optional: merge metadata from multiple adapters (order = merge order).
+# source = ["pubtator3", "europe_pmc"]
+
+# Optional: restrict metadata keys per adapter (see fetch.fields).
+# fields = ["mesh_terms"]
+# [input.fields_per_source]
+# europe_pmc = ["citation_count", "is_open_access"]
+
+[enrichment]
+sources = []
+
+[annotators]
+enabled = ["pubtator3"]
+
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/fetch_pubtator_run.json"

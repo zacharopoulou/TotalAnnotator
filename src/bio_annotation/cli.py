@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
@@ -165,6 +166,9 @@ def main(argv: list[str] | None = None) -> int:
                     "annotator_settings": config.annotator_settings,
                     "entity_types": config.entity_types,
                     "output_path": str(config.output_path) if config.output_path is not None else None,
+                    "fetch_sources": config.fetch_sources,
+                    "fetch_fields": config.fetch_fields,
+                    "fetch_fields_per_source": config.fetch_fields_per_source,
                 },
                 indent=2,
             )
@@ -228,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
                     "query": args.query,
                     "pmid_count": len(pmids),
                     "output": str(args.output),
-                    "pmids_preview (First 10)": pmids[:10],
+                    "pmids_preview": pmids[:10],
                 },
                 indent=2,
             )
@@ -237,3 +241,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

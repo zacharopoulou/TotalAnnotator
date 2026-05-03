@@ -32,6 +32,9 @@ class PipelineConfig:
     annotator_settings: dict[str, dict[str, object]]
     entity_types: list[str]
     output_path: Path | None
+    fetch_sources: list[str]
+    fetch_fields: list[str] | None
+    fetch_fields_per_source: dict[str, list[str]] | None
 
 
 def load_pipeline_config(path: Path) -> PipelineConfig:
@@ -75,6 +78,15 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
     output_path_value = output_config.get("path")
     output_path = Path(output_path_value) if isinstance(output_path_value, str) and output_path_value.strip() else None
 
+    fetch_sources = _read_fetch_sources(input_config.get("source"))
+    fetch_fields = _read_optional_string_list(
+        input_config.get("fields"),
+        field_name="input.fields",
+    )
+    fetch_fields_per_source = _read_fields_per_source(
+        input_config.get("fields_per_source")
+    )
+
     _validate_input_config(
         path,
         input_mode=input_mode,
@@ -98,6 +110,9 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         annotator_settings=annotator_settings,
         entity_types=entity_types,
         output_path=output_path,
+        fetch_sources=fetch_sources,
+        fetch_fields=fetch_fields,
+        fetch_fields_per_source=fetch_fields_per_source,
     )
 
 
@@ -133,6 +148,67 @@ def _read_optional_string(value: object) -> str | None:
     if not isinstance(value, str):
         raise ValueError(f"Expected a string value, got {value!r}.")
     cleaned = value.strip()
+    return cleaned or None
+
+
+SUPPORTED_FETCH_SOURCES = ["entrez", "europe_pmc", "pubtator3", "raw_text"]
+
+
+def _read_fetch_sources(value: object) -> list[str]:
+    """Parse ``input.source``: missing -> [] (legacy loader), str -> one source, list -> chain."""
+
+    if value is None:
+        return []
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return []
+        items = [cleaned]
+    elif isinstance(value, list):
+        items = _read_string_list(value, field_name="input.source", allow_empty=True)
+    else:
+        raise ValueError(
+            "input.source must be a string or a list of strings (got "
+            f"{type(value).__name__})."
+        )
+    invalid = [name for name in items if name not in SUPPORTED_FETCH_SOURCES]
+    if invalid:
+        raise ValueError(
+            "input.source contains unsupported values: "
+            + ", ".join(invalid)
+            + f". Supported: {', '.join(SUPPORTED_FETCH_SOURCES)}."
+        )
+    return items
+
+
+def _read_optional_string_list(value: object, *, field_name: str) -> list[str] | None:
+    if value is None:
+        return None
+    return _read_string_list(value, field_name=field_name, allow_empty=True)
+
+
+def _read_fields_per_source(value: object) -> dict[str, list[str]] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(
+            "input.fields_per_source must be a table mapping source names to lists of fields."
+        )
+    cleaned: dict[str, list[str]] = {}
+    for source_name, fields_value in value.items():
+        if not isinstance(source_name, str) or not source_name.strip():
+            raise ValueError("input.fields_per_source contains an invalid source name.")
+        normalized_name = source_name.strip()
+        if normalized_name not in SUPPORTED_FETCH_SOURCES:
+            raise ValueError(
+                f"input.fields_per_source.{normalized_name} is not a supported source. "
+                f"Supported: {', '.join(SUPPORTED_FETCH_SOURCES)}."
+            )
+        cleaned[normalized_name] = _read_string_list(
+            fields_value,
+            field_name=f"input.fields_per_source.{normalized_name}",
+            allow_empty=True,
+        )
     return cleaned or None
 
 

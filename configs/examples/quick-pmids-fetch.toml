@@ -1,0 +1,45 @@
+# Quick run: edit data/inputs/example_pmids.txt (one PMID per line), then:
+#   uv run totalannotator load-documents --config configs/examples/quick-pmids-fetch.toml
+# Full pipeline (annotators + optional JSON out):
+#   uv run totalannotator run-config --config configs/examples/quick-pmids-fetch.toml
+#
+# --- Where documents are fetched from (input.source) ---
+# Omit "source" entirely -> legacy PubMed efetch only (no fetch orchestrator).
+# Set "source" -> uses bio_annotation.fetch adapters:
+#   pubtator3   — PubTator3 export (default first in the orchestrator)
+#   entrez      — NCBI E-utilities / parsed PubMed record
+#   europe_pmc  — Europe PMC REST
+#   raw_text    — only for pasted text modes, not PMID files
+# Merge from several backends (order = merge order; results united per PMID):
+#   source = ["pubtator3", "entrez"]
+#   source = ["pubtator3", "europe_pmc"]
+#
+# Optional: limit which metadata keys each adapter keeps (see fetch.fields):
+#   fields = ["mesh_terms", "title", "abstract"]
+#   [input.fields_per_source]
+#   entrez = ["mesh_terms", "authors", "journal"]
+#   europe_pmc = ["citation_count", "is_open_access"]
+
+[input]
+mode = "pmid_file"
+pmid_file = "data/inputs/example_pmids.txt"
+source = "pubtator3"
+
+[enrichment]
+sources = []
+
+[annotators]
+# Empty = load documents only; add e.g. "pubtator3" to call the annotator API again on each doc.
+enabled = []
+
+[annotators.pubtator3]
+runtime = "remote_api"
+endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+format = "biocjson"
+timeout = 60
+
+[filters]
+entity_types = []
+
+[output]
+path = "outputs/examples/quick-pmids-fetch.json"

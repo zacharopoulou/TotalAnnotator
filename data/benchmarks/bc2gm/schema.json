@@ -1,0 +1,24 @@
+{
+    "source": {
+        "huggingface_dataset": "spyysalo/bc2gm_corpus",
+        "huggingface_config": null,
+        "load_dataset_call": "datasets.load_dataset('spyysalo/bc2gm_corpus')",
+        "splits": ["train", "validation", "test"],
+        "downloader": "src/bio_annotation/benchmarks/bc2gm.py"
+    },
+    "native_files": {
+        "directory": "data/benchmarks/bc2gm/native/",
+        "origin": "Snapshot of the spyysalo/bc2gm_corpus Hugging Face dataset repo (huggingface_hub.snapshot_download).",
+        "contents": {
+            "README.md": "Hugging Face dataset card. Lists feature schema, splits, and the IOB label mapping (0=O, 1=B-GENE, 2=I-GENE).",
+            ".gitattributes": "HF repo attributes (declares parquet as binary).",
+            "bc2gm_corpus/train-00000-of-00001.parquet": "Training split, 12500 sentences, columns: id, tokens, ner_tags.",
+            "bc2gm_corpus/validation-00000-of-00001.parquet": "Validation split, 2500 sentences.",
+            "bc2gm_corpus/test-00000-of-00001.parquet": "Test split, 5000 sentences."
+        },
+        "relationship_to_jsonl": "train/validation/test.jsonl in this folder are written one row per sentence from the corresponding parquet file. The JSONL preserves the parquet schema (id, tokens, ner_tags) verbatim; ner_tags stay as integer indices, not the B-GENE/I-GENE/O strings."
+    },
+    "id": "Sentence id (string, '0', '1',..). Not a PMID. BC2GM is a sentence-level corpus with no document grouping in this release.",
+    "tokens": "List of whitespace-separated tokens for one sentence. The corpus is pre-tokenized; punctuation is its own token (e.g. '.', '-', '(').",
+    "ner_tags": "[0,1,2] -List of integer IOB tags, one per token, same length as `tokens`. 0=O (outside any gene mention), 1=B-GENE (first token of a gene mention), 2=I-GENE (continuation token of a gene mention). The string label mapping is documented in native/README.md under dataset_info.features.ner_tags.class_label."
+}
