@@ -207,11 +207,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run-config":
         try:
+            config = load_pipeline_config(args.config)
             payload = run_pipeline_from_config(args.config)
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
-        print(json.dumps(payload, indent=2))
+        print_run_config_summary(payload, config.output_path)
         return 0
 
     if args.command == "search-pmids":
@@ -243,3 +244,34 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+def print_run_config_summary(payload: dict[str, object], output_path: Path | None) -> None:
+    annotation_summary = payload.get("annotation_summary")
+    summary = annotation_summary if isinstance(annotation_summary, dict) else {}
+
+    print("Pipeline completed.")
+    if output_path is not None:
+        print(f"Output written to: {output_path.as_posix()}")
+    else:
+        print("No output path configured; no JSON file was written.")
+
+    print(f"Documents: {payload.get('document_count', 0)}")
+    print(f"Annotations: {summary.get('annotation_count', 0)}")
+    print(f"Keywords: {summary.get('keyword_count', 0)}")
+
+    annotator_summary = payload.get("annotator_summary")
+    if isinstance(annotator_summary, dict):
+        produced = annotator_summary.get("produced")
+        not_produced = annotator_summary.get("not_produced")
+        failed = annotator_summary.get("failed")
+        print(f"Annotators with results: {_format_name_list(produced)}")
+        print(f"Annotators without results: {_format_name_list(not_produced)}")
+        if failed:
+            print(f"Annotators failed: {_format_name_list(failed)}")
+
+
+def _format_name_list(value: object) -> str:
+    if isinstance(value, list) and value:
+        return ", ".join(str(item) for item in value)
+    return "none"

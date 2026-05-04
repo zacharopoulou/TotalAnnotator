@@ -86,6 +86,61 @@ def test_flair_adapter_normalizes_spans() -> None:
     assert annotations[0].confidence == 0.87
 
 
+def test_flair_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakeTagger:
+        def predict(self, sentence: object) -> None:
+            return None
+
+    class FakeSentence:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+        def get_spans(self, label_type: str) -> list[FakeSpan]:
+            assert label_type == "ner"
+            return [
+                FakeSpan(
+                    text="PTEN",
+                    start_position=0,
+                    end_position=4,
+                    labels=[FakeLabel(value="gene", score=0.99)],
+                )
+            ]
+
+    def fake_loader(model: str) -> FakeTagger:
+        loaded_models.append(model)
+        return FakeTagger()
+
+    annotations = annotate_with_flair(
+        document,
+        model="hunflair2",
+        sentence_factory=FakeSentence,
+        tagger_loader=fake_loader,
+    )
+
+    assert loaded_models == ["hunflair2"]
+    assert len(annotations) == 1
+    assert annotations[0].source == "flair"
+    assert annotations[0].entity_type == "gene"
+
+
+def test_flair_adapter_returns_empty_when_configured_model_cannot_load() -> None:
+    document = sample_document()
+
+    def broken_loader(model: str) -> object:
+        raise RuntimeError(f"{model} is unavailable")
+
+    annotations = annotate_with_flair(
+        document,
+        model="hunflair2",
+        tagger_loader=broken_loader,
+    )
+
+    assert annotations == []
+
+
 def test_pubtator3_adapter_parses_bioc_json_with_absolute_offsets() -> None:
     document = sample_document()
     response = {
@@ -279,7 +334,10 @@ def test_cli_inspect_config_runs() -> None:
     assert output["input_mode"] == "pmids"
     assert output["pmids"] == ["36403686"]
     assert output["enrichment_sources"] == []
-    assert output["annotators"] == ["pubtator3"]
+    assert output["annotators"] == ["bern2", "flair", "pubtator3"]
+    assert output["annotator_settings"]["bern2"]["runtime"] == "remote_api"
+    assert output["annotator_settings"]["bern2"]["base_url"] == "http://127.0.0.1:8888"
+    assert output["annotator_settings"]["flair"]["model"] == "hunflair2"
     assert output["annotator_settings"]["pubtator3"]["runtime"] == "remote_api"
     assert output["annotator_settings"]["pubtator3"]["format"] == "biocjson"
     assert output["annotator_settings"]["pubtator3"]["endpoint"] == "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"

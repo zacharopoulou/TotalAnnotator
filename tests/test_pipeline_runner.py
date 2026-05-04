@@ -10,11 +10,15 @@ from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
 from bio_annotation.schemas.document import Document
 from bio_annotation.pipeline_runner import (
+    _read_bern2_options,
+    _read_flair_options,
     _read_pubtator3_options,
     build_keyword_annotations,
     run_pipeline_from_config,
+    run_selected_annotators,
 )
 from bio_annotation.schemas.entity import Annotation
+from bio_annotation.schemas.document import Document
 
 
 @dataclass
@@ -131,8 +135,84 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert payload["pipeline"]["annotators_enabled"] == ["bern2", "pubtator3"]
     assert payload["documents"][0]["metadata"]["pubmed_record"]["pmcid"] == "PMC1234567"
     assert payload["annotation_summary"]["annotation_count"] == 2
+    assert payload["annotator_summary"]["configured"] == ["bern2", "pubtator3"]
+    assert payload["annotator_summary"]["produced"] == ["bern2", "pubtator3"]
+    assert payload["annotator_summary"]["not_produced"] == []
     assert payload["document_annotations"][0]["sources"] == ["bern2", "pubtator3"]
+    assert payload["document_annotations"][0]["annotators"] == [
+        {
+            "name": "bern2",
+            "status": "produced_annotations",
+            "annotation_count": 1,
+            "reason": None,
+        },
+        {
+            "name": "pubtator3",
+            "status": "produced_annotations",
+            "annotation_count": 1,
+            "reason": None,
+        },
+    ]
     assert len(payload["annotations"]) == 2
+
+
+def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[enrichment]",
+                "sources = []",
+                "",
+                "[annotators]",
+                'enabled = ["bern2", "flair"]',
+                "",
+                "[annotators.bern2]",
+                'base_url = "http://127.0.0.1:8888"',
+                "",
+                "[annotators.flair]",
+                'model = "hunflair2"',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+            "year": "2024",
+        },
+        bern2_request_fn=lambda document: {"annotations": []},
+        flair_spans_by_document={"PMID:12345678": []},
+    )
+
+    assert payload["annotator_summary"]["configured"] == ["bern2", "flair"]
+    assert payload["annotator_summary"]["produced"] == []
+    assert payload["annotator_summary"]["not_produced"] == ["bern2", "flair"]
+    assert payload["document_annotations"][0]["annotators"] == [
+        {
+            "name": "bern2",
+            "status": "no_annotations",
+            "annotation_count": 0,
+            "reason": "No annotations returned. Verify the Bern2 service is reachable and returned entities for this document.",
+        },
+        {
+            "name": "flair",
+            "status": "no_annotations",
+            "annotation_count": 0,
+            "reason": "No annotations returned. The Flair model may be unavailable/not cached, or it found no entities.",
+        },
+    ]
 
 
 def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
@@ -180,9 +260,22 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
             },
             "entity_types": ["gene"],
             "documents": [],
-            "annotation_summary": {"annotators_enabled": ["flair"], "document_count": 1, "annotation_count": 0},
+            "annotation_summary": {
+                "annotators_enabled": ["flair"],
+                "document_count": 1,
+                "annotation_count": 0,
+                "keyword_count": 0,
+            },
             "document_annotations": [],
+            "keywords": [],
             "annotations": [],
+            "annotator_summary": {
+                "configured": ["flair"],
+                "produced": [],
+                "not_produced": ["flair"],
+                "failed": [],
+                "annotators": [],
+            },
         },
     )
 
@@ -190,10 +283,16 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
     with redirect_stdout(stream):
         exit_code = main(["run-config", "--config", str(config_path)])
 
-    output = json.loads(stream.getvalue())
+    output = stream.getvalue()
     assert exit_code == 0
-    assert output["stage"] == "corpus"
-    assert output["pipeline"]["annotators_enabled"] == ["flair"]
+    assert "Pipeline completed." in output
+    assert "Output written to: outputs/test.json" in output
+    assert "Documents: 1" in output
+    assert "Annotations: 0" in output
+    assert "Keywords: 0" in output
+    assert "Annotators with results: none" in output
+    assert "Annotators without results: flair" in output
+    assert not output.lstrip().startswith("{")
 
 
 def test_cli_run_config_ingestion_only(tmp_path) -> None:
@@ -215,7 +314,7 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
                 "entity_types = []",
                 "",
                 "[output]",
-                'path = "outputs/test.json"',
+                f'path = "{(tmp_path / "outputs" / "test.json").as_posix()}"',
             ]
         ),
         encoding="utf-8",
@@ -229,12 +328,14 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     with redirect_stdout(stream):
         exit_code = main(["run-config", "--config", str(config_path)])
 
-    output = json.loads(stream.getvalue())
+    output = stream.getvalue()
     assert exit_code == 0
-    assert output["stage"] == "corpus"
-    assert output["input"]["mode"] == "corpus"
-    assert output["pipeline"]["annotators_enabled"] == []
-    assert output["annotation_summary"]["annotation_count"] == 0
+    assert "Pipeline completed." in output
+    assert f"Output written to: {(tmp_path / 'outputs' / 'test.json').as_posix()}" in output
+    assert "Annotations: 0" in output
+    assert "Annotators with results: none" in output
+    assert "Annotators without results: none" in output
+    assert not output.lstrip().startswith("{")
 
 
 def test_read_pubtator3_options_parses_text_mode_settings() -> None:
@@ -258,6 +359,71 @@ def test_read_pubtator3_options_parses_text_mode_settings() -> None:
     assert options["poll_interval_seconds"] == 3.0
     assert options["poll_backoff"] == 2.0
     assert options["max_poll_interval_seconds"] == 12.0
+
+
+def test_read_bern2_options_prefers_endpoint_then_base_url() -> None:
+    assert _read_bern2_options({"base_url": "http://bern2.local"}) == {
+        "endpoint": "http://bern2.local"
+    }
+    assert _read_bern2_options(
+        {
+            "base_url": "http://bern2.local",
+            "endpoint": "http://bern2.local/plain",
+        }
+    ) == {"endpoint": "http://bern2.local/plain"}
+
+
+def test_run_selected_annotators_passes_bern2_endpoint(monkeypatch) -> None:
+    document = Document(
+        document_id="doc1",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important.",
+        source="corpus",
+    )
+    calls: list[str | None] = []
+
+    def fake_bern2(document: Document, **kwargs: object) -> list[Annotation]:
+        calls.append(kwargs.get("endpoint"))
+        return []
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_bern2", fake_bern2)
+
+    run_selected_annotators(
+        document,
+        ["bern2"],
+        bern2_options={"endpoint": "http://127.0.0.1:8888"},
+    )
+
+    assert calls == ["http://127.0.0.1:8888"]
+
+
+def test_read_flair_options_reads_model() -> None:
+    assert _read_flair_options({"model": "hunflair2"}) == {"model": "hunflair2"}
+    assert _read_flair_options({}) == {"model": None}
+
+
+def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
+    document = Document(
+        document_id="doc1",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important.",
+        source="corpus",
+    )
+    calls: list[str | None] = []
+
+    def fake_flair(document: Document, **kwargs: object) -> list[Annotation]:
+        calls.append(kwargs.get("model"))
+        return []
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", fake_flair)
+
+    run_selected_annotators(
+        document,
+        ["flair"],
+        flair_options={"model": "hunflair2"},
+    )
+
+    assert calls == ["hunflair2"]
 
 
 def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:
