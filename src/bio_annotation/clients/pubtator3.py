@@ -111,8 +111,13 @@ class PubTator3Client:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             method="POST",
         )
-        response_body = self._send_json(http_request)
-        session_id = str(response_body.get("id") or "").strip()
+        response_text = self._send_text(http_request).strip()
+        try:
+            response_body = json.loads(response_text)
+        except json.JSONDecodeError:
+            session_id = response_text
+        else:
+            session_id = str(response_body.get("id") or "").strip()
         if not session_id:
             raise ValueError("PubTator3 submit endpoint returned an empty session ID.")
         return session_id
