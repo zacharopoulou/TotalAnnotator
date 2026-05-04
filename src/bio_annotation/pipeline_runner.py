@@ -105,7 +105,7 @@ def build_pipeline_output(
             document_annotations.append(
                 {
                     "document_id": document.document_id,
-                    "sources": sorted(results),
+                    "sources": sorted({annotation.source for annotation in annotations}),
                     "annotation_count": len(annotations),
                     "keyword_count": len(keyword_annotations),
                     "keywords": keyword_annotations,
@@ -128,9 +128,6 @@ def build_pipeline_output(
         "pipeline": {
             "mode": "ingestion_only" if not enabled_annotators else "ingestion_and_annotation",
             "annotators_enabled": enabled_annotators,
-            "annotator_settings": {
-                name: annotator_settings.get(name, {}) for name in enabled_annotators
-            },
         },
         "document_count": len(corpus_documents),
         "corpus_summary": summarize_ingestion(documents),
@@ -214,71 +211,186 @@ def build_keyword_annotations(
     document_id: str,
     annotations: list[Annotation],
 ) -> list[dict[str, Any]]:
-    groups: dict[tuple[str, str, int | None, int | None], dict[str, Any]] = {}
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
 
     for annotation in annotations:
         keyword = annotation.span_text.strip()
         if not keyword:
             continue
 
-        key = (document_id, keyword.casefold(), annotation.start, annotation.end)
+        normalized_keyword = keyword.casefold()
+        key = (document_id, normalized_keyword)
 
         if key not in groups:
             groups[key] = {
                 "document_id": document_id,
                 "keyword": keyword,
+                "normalized_keyword": normalized_keyword,
+                "variants": [],
+                "mention_count": 0,
+                "annotation_count": 0,
+                "annotator_count": 0,
+                "labels": [],
+                "canonical_ids": [],
+                "canonical_names": [],
+                "annotators": [],
+                "mentions": [],
+            }
+
+        group = groups[key]
+        group["annotation_count"] += 1
+        if keyword not in group["variants"]:
+            group["variants"].append(keyword)
+
+        mention = _find_keyword_mention(group["mentions"], keyword, annotation.start, annotation.end)
+        if mention is None:
+            mention = {
+                "text": keyword,
                 "start": annotation.start,
                 "end": annotation.end,
                 "annotation_count": 0,
                 "annotator_count": 0,
                 "labels": [],
                 "canonical_ids": [],
+                "canonical_names": [],
                 "annotators": [],
             }
+            group["mentions"].append(mention)
 
-        group = groups[key]
-        group["annotation_count"] += 1
+        mention["annotation_count"] += 1
+        evidence = {
+            "source": annotation.source,
+            "label": annotation.entity_type,
+            "annotation_id": annotation.annotation_id,
+            "canonical_id": annotation.canonical_id,
+            "canonical_name": annotation.canonical_name,
+            "confidence": annotation.confidence,
+        }
+        mention["annotators"].append(evidence)
         group["annotators"].append(
             {
                 "source": annotation.source,
                 "label": annotation.entity_type,
-                "annotation_id": annotation.annotation_id,
                 "canonical_id": annotation.canonical_id,
                 "canonical_name": annotation.canonical_name,
+                "annotation_id": annotation.annotation_id,
+                "mention": {
+                    "text": keyword,
+                    "start": annotation.start,
+                    "end": annotation.end,
+                },
                 "confidence": annotation.confidence,
             }
         )
 
     for group in groups.values():
+        group["variants"] = sorted(group["variants"], key=lambda item: (item.casefold(), item))
+        group["mention_count"] = len(group["mentions"])
+        group["mentions"] = sorted(
+            (_finalize_keyword_rollup(mention) for mention in group["mentions"]),
+            key=lambda item: (
+                item["start"] is None,
+                item["start"] if item["start"] is not None else -1,
+                item["end"] is None,
+                item["end"] if item["end"] is not None else -1,
+                item["text"].casefold(),
+            ),
+        )
         group["annotators"] = sorted(
             group["annotators"],
             key=lambda item: (
                 item["source"],
                 item["label"],
+                item["canonical_id"] or "",
                 item["annotation_id"],
             ),
         )
-        group["annotator_count"] = len({item["source"] for item in group["annotators"]})
-        group["labels"] = sorted({item["label"] for item in group["annotators"]})
-        group["canonical_ids"] = sorted(
-            {
-                item["canonical_id"]
-                for item in group["annotators"]
-                if item["canonical_id"] is not None
-            }
-        )
+        _finalize_keyword_rollup(group)
+        group["annotators"] = _build_annotator_summaries(group["annotators"])
 
     return sorted(
         groups.values(),
         key=lambda item: (
             item["document_id"],
-            item["start"] is None,
-            item["start"] if item["start"] is not None else -1,
-            item["end"] is None,
-            item["end"] if item["end"] is not None else -1,
             item["keyword"].casefold(),
         ),
     )
+
+
+def _find_keyword_mention(
+    mentions: list[dict[str, Any]],
+    text: str,
+    start: int | None,
+    end: int | None,
+) -> dict[str, Any] | None:
+    normalized_text = text.casefold()
+    for mention in mentions:
+        if (
+            mention["text"].casefold() == normalized_text
+            and mention["start"] == start
+            and mention["end"] == end
+        ):
+            return mention
+    return None
+
+
+def _finalize_keyword_rollup(group: dict[str, Any]) -> dict[str, Any]:
+    group["annotators"] = sorted(
+        group["annotators"],
+        key=lambda item: (
+            item["source"],
+            item["label"],
+            item["canonical_id"] or "",
+            item["annotation_id"],
+        ),
+    )
+    group["annotator_count"] = len({item["source"] for item in group["annotators"]})
+    group["labels"] = sorted({item["label"] for item in group["annotators"]})
+    group["canonical_ids"] = sorted(
+        {
+            item["canonical_id"]
+            for item in group["annotators"]
+            if item["canonical_id"] is not None
+        }
+    )
+    group["canonical_names"] = sorted(
+        {
+            item["canonical_name"]
+            for item in group["annotators"]
+            if item["canonical_name"] is not None
+        }
+    )
+    return group
+
+
+def _build_annotator_summaries(evidence_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+
+    for evidence in evidence_items:
+        source = evidence["source"]
+        if source not in summaries:
+            summaries[source] = {
+                "source": source,
+                "annotation_count": 0,
+                "labels": [],
+                "canonical_ids": [],
+                "canonical_names": [],
+            }
+
+        summary = summaries[source]
+        summary["annotation_count"] += 1
+        summary["labels"].append(evidence["label"])
+        if evidence["canonical_id"] is not None:
+            summary["canonical_ids"].append(evidence["canonical_id"])
+        if evidence["canonical_name"] is not None:
+            summary["canonical_names"].append(evidence["canonical_name"])
+
+    for summary in summaries.values():
+        summary["labels"] = sorted(set(summary["labels"]))
+        summary["canonical_ids"] = sorted(set(summary["canonical_ids"]))
+        summary["canonical_names"] = sorted(set(summary["canonical_names"]))
+
+    return sorted(summaries.values(), key=lambda item: item["source"])
 
 
 def filter_annotations_by_type(

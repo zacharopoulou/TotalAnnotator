@@ -8,8 +8,13 @@ from io import StringIO
 from bio_annotation.cli import main
 from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
-from bio_annotation.pipeline_runner import _read_pubtator3_options, run_pipeline_from_config
 from bio_annotation.schemas.document import Document
+from bio_annotation.pipeline_runner import (
+    _read_pubtator3_options,
+    build_keyword_annotations,
+    run_pipeline_from_config,
+)
+from bio_annotation.schemas.entity import Annotation
 
 
 @dataclass
@@ -124,9 +129,9 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert payload["input"]["mode"] == "pmids"
     assert payload["pipeline"]["mode"] == "ingestion_and_annotation"
     assert payload["pipeline"]["annotators_enabled"] == ["bern2", "pubtator3"]
-    assert payload["pipeline"]["annotator_settings"]["pubtator3"]["timeout"] == 45
     assert payload["documents"][0]["metadata"]["pubmed_record"]["pmcid"] == "PMC1234567"
     assert payload["annotation_summary"]["annotation_count"] == 2
+    assert payload["document_annotations"][0]["sources"] == ["bern2", "pubtator3"]
     assert len(payload["annotations"]) == 2
 
 
@@ -137,7 +142,7 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
             [
                 "[input]",
                 'mode = "text_table"',
-                f'text_file = "{tmp_path / "documents.csv"}"',
+                f'text_file = "{(tmp_path / "documents.csv").as_posix()}"',
                 'format = "csv"',
                 'document_id_column = "document_id"',
                 'title_column = "title"',
@@ -172,7 +177,6 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
             "pipeline": {
                 "mode": "ingestion_and_annotation",
                 "annotators_enabled": ["flair"],
-                "annotator_settings": {"flair": {}},
             },
             "entity_types": ["gene"],
             "documents": [],
@@ -199,7 +203,7 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
             [
                 "[input]",
                 'mode = "corpus"',
-                f'corpus_path = "{tmp_path / "documents.json"}"',
+                f'corpus_path = "{(tmp_path / "documents.json").as_posix()}"',
                 "",
                 "[enrichment]",
                 "sources = []",
@@ -254,3 +258,81 @@ def test_read_pubtator3_options_parses_text_mode_settings() -> None:
     assert options["poll_interval_seconds"] == 3.0
     assert options["poll_backoff"] == 2.0
     assert options["max_poll_interval_seconds"] == 12.0
+
+
+def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:
+    keywords = build_keyword_annotations(
+        "doc1",
+        [
+            Annotation(
+                annotation_id="pubtator3:1",
+                source="pubtator3",
+                span_text="GBM",
+                start=10,
+                end=13,
+                entity_type="disease",
+                canonical_id="MESH:D005909",
+                canonical_name="Glioblastoma",
+            ),
+            Annotation(
+                annotation_id="bern2:1",
+                source="bern2",
+                span_text="GBM",
+                start=10,
+                end=13,
+                entity_type="disease",
+                canonical_id="BERN:glioblastoma",
+                canonical_name="Glioblastoma",
+                confidence=0.94,
+            ),
+            Annotation(
+                annotation_id="pubtator3:2",
+                source="pubtator3",
+                span_text="gbm",
+                start=40,
+                end=43,
+                entity_type="disease",
+                canonical_id="MESH:D005909",
+                canonical_name="Glioblastoma",
+            ),
+            Annotation(
+                annotation_id="flair:1",
+                source="flair",
+                span_text="tumor",
+                start=55,
+                end=60,
+                entity_type="disease",
+            ),
+        ],
+    )
+
+    assert len(keywords) == 2
+
+    gbm = keywords[0]
+    assert gbm["keyword"] == "GBM"
+    assert gbm["normalized_keyword"] == "gbm"
+    assert gbm["variants"] == ["GBM", "gbm"]
+    assert gbm["annotation_count"] == 3
+    assert gbm["mention_count"] == 2
+    assert gbm["annotator_count"] == 2
+    assert gbm["labels"] == ["disease"]
+    assert gbm["canonical_ids"] == ["BERN:glioblastoma", "MESH:D005909"]
+    assert [
+        (item["source"], item["annotation_count"], item["canonical_ids"])
+        for item in gbm["annotators"]
+    ] == [
+        ("bern2", 1, ["BERN:glioblastoma"]),
+        ("pubtator3", 2, ["MESH:D005909"]),
+    ]
+    assert "mentions" not in gbm["annotators"][0]
+
+    first_mention = gbm["mentions"][0]
+    assert first_mention["start"] == 10
+    assert first_mention["end"] == 13
+    assert first_mention["annotation_count"] == 2
+    assert first_mention["annotator_count"] == 2
+    assert [item["source"] for item in first_mention["annotators"]] == ["bern2", "pubtator3"]
+    assert {item["canonical_id"] for item in first_mention["annotators"]} == {
+        "BERN:glioblastoma",
+        "MESH:D005909",
+    }
