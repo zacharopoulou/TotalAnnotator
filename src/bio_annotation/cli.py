@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
+from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config

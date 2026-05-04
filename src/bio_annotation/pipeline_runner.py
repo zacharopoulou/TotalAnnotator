@@ -55,6 +55,7 @@ def build_pipeline_output(
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
     _validate_annotators(enabled_annotators)
+
     input_description = resolve_input_description(config)
     corpus_documents = [document_to_dict(document) for document in documents]
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
@@ -69,11 +70,15 @@ def build_pipeline_output(
 
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
+    keywords_output: list[dict[str, Any]] = []
+
     annotation_summary = {
         "annotators_enabled": enabled_annotators,
         "document_count": len(documents),
         "annotation_count": 0,
+        "keyword_count": 0,
     }
+
     for document in documents:
         results = run_selected_annotators(
             document,
@@ -88,18 +93,26 @@ def build_pipeline_output(
             ),
             flair_tagger=flair_tagger,
         )
+
         annotations = flatten_annotations(results)
         annotations = filter_annotations_by_type(annotations, config.entity_types)
+        keyword_annotations = build_keyword_annotations(document.document_id, annotations)
+
         annotation_summary["annotation_count"] += len(annotations)
+        annotation_summary["keyword_count"] += len(keyword_annotations)
+
         if enabled_annotators:
             document_annotations.append(
                 {
                     "document_id": document.document_id,
                     "sources": sorted(results),
                     "annotation_count": len(annotations),
+                    "keyword_count": len(keyword_annotations),
+                    "keywords": keyword_annotations,
                     "annotations": [annotation.to_dict() for annotation in annotations],
                 }
             )
+
         annotations_output.extend(
             {
                 "document_id": document.document_id,
@@ -107,6 +120,7 @@ def build_pipeline_output(
             }
             for annotation in annotations
         )
+        keywords_output.extend(keyword_annotations)
 
     return {
         "stage": "corpus",
@@ -114,7 +128,9 @@ def build_pipeline_output(
         "pipeline": {
             "mode": "ingestion_only" if not enabled_annotators else "ingestion_and_annotation",
             "annotators_enabled": enabled_annotators,
-            "annotator_settings": {name: annotator_settings.get(name, {}) for name in enabled_annotators},
+            "annotator_settings": {
+                name: annotator_settings.get(name, {}) for name in enabled_annotators
+            },
         },
         "document_count": len(corpus_documents),
         "corpus_summary": summarize_ingestion(documents),
@@ -122,6 +138,7 @@ def build_pipeline_output(
         "documents": corpus_documents,
         "annotation_summary": annotation_summary,
         "document_annotations": document_annotations,
+        "keywords": keywords_output,
         "annotations": annotations_output,
     }
 
@@ -158,13 +175,19 @@ def run_selected_annotators(
                 request_fn=pubtator3_request_fn,
                 endpoint=pubtator3_options.get("endpoint") if pubtator3_options else None,
                 timeout=pubtator3_options.get("timeout", 60) if pubtator3_options else 60,
-                format=pubtator3_options.get("format", "biocjson") if pubtator3_options else "biocjson",
+                format=pubtator3_options.get("format", "biocjson")
+                if pubtator3_options
+                else "biocjson",
                 mode=pubtator3_options.get("mode", "auto") if pubtator3_options else "auto",
-                bioconcept=pubtator3_options.get("bioconcept", "All") if pubtator3_options else "All",
+                bioconcept=pubtator3_options.get("bioconcept", "All")
+                if pubtator3_options
+                else "All",
                 poll_interval_seconds=pubtator3_options.get("poll_interval_seconds", 2.0)
                 if pubtator3_options
                 else 2.0,
-                poll_backoff=pubtator3_options.get("poll_backoff", 1.5) if pubtator3_options else 1.5,
+                poll_backoff=pubtator3_options.get("poll_backoff", 1.5)
+                if pubtator3_options
+                else 1.5,
                 max_poll_interval_seconds=(
                     pubtator3_options.get("max_poll_interval_seconds", 15.0)
                     if pubtator3_options
@@ -187,9 +210,84 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
     return annotations
 
 
-def filter_annotations_by_type(annotations: list[Annotation], entity_types: list[str]) -> list[Annotation]:
+def build_keyword_annotations(
+    document_id: str,
+    annotations: list[Annotation],
+) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, int | None, int | None], dict[str, Any]] = {}
+
+    for annotation in annotations:
+        keyword = annotation.span_text.strip()
+        if not keyword:
+            continue
+
+        key = (document_id, keyword.casefold(), annotation.start, annotation.end)
+
+        if key not in groups:
+            groups[key] = {
+                "document_id": document_id,
+                "keyword": keyword,
+                "start": annotation.start,
+                "end": annotation.end,
+                "annotation_count": 0,
+                "annotator_count": 0,
+                "labels": [],
+                "canonical_ids": [],
+                "annotators": [],
+            }
+
+        group = groups[key]
+        group["annotation_count"] += 1
+        group["annotators"].append(
+            {
+                "source": annotation.source,
+                "label": annotation.entity_type,
+                "annotation_id": annotation.annotation_id,
+                "canonical_id": annotation.canonical_id,
+                "canonical_name": annotation.canonical_name,
+                "confidence": annotation.confidence,
+            }
+        )
+
+    for group in groups.values():
+        group["annotators"] = sorted(
+            group["annotators"],
+            key=lambda item: (
+                item["source"],
+                item["label"],
+                item["annotation_id"],
+            ),
+        )
+        group["annotator_count"] = len({item["source"] for item in group["annotators"]})
+        group["labels"] = sorted({item["label"] for item in group["annotators"]})
+        group["canonical_ids"] = sorted(
+            {
+                item["canonical_id"]
+                for item in group["annotators"]
+                if item["canonical_id"] is not None
+            }
+        )
+
+    return sorted(
+        groups.values(),
+        key=lambda item: (
+            item["document_id"],
+            item["start"] is None,
+            item["start"] if item["start"] is not None else -1,
+            item["end"] is None,
+            item["end"] if item["end"] is not None else -1,
+            item["keyword"].casefold(),
+        ),
+    )
+
+
+def filter_annotations_by_type(
+    annotations: list[Annotation],
+    entity_types: list[str],
+) -> list[Annotation]:
     if not entity_types:
         return annotations
+
     allowed = set(entity_types)
     return [annotation for annotation in annotations if annotation.entity_type in allowed]
 
