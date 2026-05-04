@@ -5,6 +5,8 @@ import json
 from io import StringIO
 from contextlib import redirect_stdout
 
+import pytest
+
 from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.annotators.bern2 import annotate_with_bern2
@@ -126,19 +128,18 @@ def test_flair_adapter_loads_configured_model() -> None:
     assert annotations[0].entity_type == "gene"
 
 
-def test_flair_adapter_returns_empty_when_configured_model_cannot_load() -> None:
+def test_flair_adapter_raises_when_configured_model_cannot_load() -> None:
     document = sample_document()
 
     def broken_loader(model: str) -> object:
         raise RuntimeError(f"{model} is unavailable")
 
-    annotations = annotate_with_flair(
-        document,
-        model="hunflair2",
-        tagger_loader=broken_loader,
-    )
-
-    assert annotations == []
+    with pytest.raises(RuntimeError, match="hunflair2 is unavailable"):
+        annotate_with_flair(
+            document,
+            model="hunflair2",
+            tagger_loader=broken_loader,
+        )
 
 
 def test_pubtator3_adapter_parses_bioc_json_with_absolute_offsets() -> None:

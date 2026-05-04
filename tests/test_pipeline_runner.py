@@ -16,6 +16,7 @@ from bio_annotation.pipeline_runner import (
     build_keyword_annotations,
     run_pipeline_from_config,
     run_selected_annotators,
+    run_selected_annotators_with_status,
 )
 from bio_annotation.schemas.entity import Annotation
 from bio_annotation.schemas.document import Document
@@ -424,6 +425,36 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
     )
 
     assert calls == ["hunflair2"]
+
+
+def test_run_selected_annotators_records_failures(monkeypatch) -> None:
+    document = Document(
+        document_id="doc1",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important.",
+        source="corpus",
+    )
+
+    def broken_flair(document: Document, **kwargs: object) -> list[Annotation]:
+        raise RuntimeError("hunflair2 is unavailable")
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", broken_flair)
+
+    results, statuses = run_selected_annotators_with_status(
+        document,
+        ["flair"],
+        flair_options={"model": "hunflair2"},
+    )
+
+    assert results == {"flair": []}
+    assert statuses == [
+        {
+            "name": "flair",
+            "status": "failed",
+            "annotation_count": 0,
+            "reason": "hunflair2 is unavailable",
+        }
+    ]
 
 
 def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:
