@@ -144,41 +144,65 @@ def run_selected_annotators(
     results: dict[str, list[Annotation]] = {}
 
     for annotator in annotators:
-        if annotator == "bern2":
-            results[annotator] = annotate_with_bern2(document, request_fn=bern2_request_fn)
-        elif annotator == "flair":
-            results[annotator] = annotate_with_flair(
-                document,
-                spans=flair_spans,
-                tagger=flair_tagger,
-            )
-        elif annotator == "pubtator3":
-            results[annotator] = annotate_with_pubtator3(
-                document,
-                request_fn=pubtator3_request_fn,
-                endpoint=pubtator3_options.get("endpoint") if pubtator3_options else None,
-                timeout=pubtator3_options.get("timeout", 60) if pubtator3_options else 60,
-                format=pubtator3_options.get("format", "biocjson") if pubtator3_options else "biocjson",
-                mode=pubtator3_options.get("mode", "auto") if pubtator3_options else "auto",
-                bioconcept=pubtator3_options.get("bioconcept", "All") if pubtator3_options else "All",
-                poll_interval_seconds=pubtator3_options.get("poll_interval_seconds", 2.0)
-                if pubtator3_options
-                else 2.0,
-                poll_backoff=pubtator3_options.get("poll_backoff", 1.5) if pubtator3_options else 1.5,
-                max_poll_interval_seconds=(
-                    pubtator3_options.get("max_poll_interval_seconds", 15.0)
+        try:
+            if annotator == "bern2":
+                results[annotator] = annotate_with_bern2(
+                    document,
+                    request_fn=bern2_request_fn,
+                )
+            elif annotator == "flair":
+                results[annotator] = annotate_with_flair(
+                    document,
+                    spans=flair_spans,
+                    tagger=flair_tagger,
+                )
+            elif annotator == "pubtator3":
+                results[annotator] = annotate_with_pubtator3(
+                    document,
+                    request_fn=pubtator3_request_fn,
+                    endpoint=pubtator3_options.get("endpoint")
                     if pubtator3_options
-                    else 15.0
-                ),
-                max_poll_attempts=pubtator3_options.get("max_poll_attempts", 15)
-                if pubtator3_options
-                else 15,
-            )
-        else:
-            raise ValueError(f"Unsupported annotator: {annotator}")
+                    else None,
+                    timeout=pubtator3_options.get("timeout", 60)
+                    if pubtator3_options
+                    else 60,
+                    format=pubtator3_options.get("format", "biocjson")
+                    if pubtator3_options
+                    else "biocjson",
+                    mode=pubtator3_options.get("mode", "auto")
+                    if pubtator3_options
+                    else "auto",
+                    bioconcept=pubtator3_options.get("bioconcept", "All")
+                    if pubtator3_options
+                    else "All",
+                    poll_interval_seconds=pubtator3_options.get(
+                        "poll_interval_seconds",
+                        2.0,
+                    )
+                    if pubtator3_options
+                    else 2.0,
+                    poll_backoff=pubtator3_options.get("poll_backoff", 1.5)
+                    if pubtator3_options
+                    else 1.5,
+                    max_poll_interval_seconds=(
+                        pubtator3_options.get(
+                            "max_poll_interval_seconds",
+                            15.0,
+                        )
+                        if pubtator3_options
+                        else 15.0
+                    ),
+                    max_poll_attempts=pubtator3_options.get("max_poll_attempts", 15)
+                    if pubtator3_options
+                    else 15,
+                )
+            else:
+                raise ValueError(f"Unsupported annotator: {annotator}")
+        except Exception as exc:
+            print(f"{annotator} unavailable: {exc}")
+            results[annotator] = []
 
     return results
-
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
