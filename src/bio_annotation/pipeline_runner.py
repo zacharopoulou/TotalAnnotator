@@ -250,6 +250,24 @@ def _load_flair_tagger(model: str) -> Any:
     return Classifier.load(model)
 
 
+def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
+    base_url = settings.get("base_url")
+    timeout = settings.get("timeout")
+
+    return {
+        "base_url": (
+            base_url.strip()
+            if isinstance(base_url, str) and base_url.strip()
+            else "http://127.0.0.1:8888"
+        ),
+        "timeout": (
+            int(timeout)
+            if isinstance(timeout, int) and timeout > 0
+            else 60
+        ),
+    }
+
+
 def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
     endpoint = settings.get("endpoint")
     timeout = settings.get("timeout")
