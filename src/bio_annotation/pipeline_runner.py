@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from typing import Any, Callable
@@ -57,16 +58,16 @@ def build_pipeline_output(
     _validate_annotators(enabled_annotators)
     input_description = resolve_input_description(config)
     corpus_documents = [document_to_dict(document) for document in documents]
+    bern2_options = _read_bern2_options(annotator_settings.get("bern2", {}))
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
     flair_options = _read_flair_options(annotator_settings.get("flair", {}))
 
     flair_tagger = None
-    if (
-        "flair" in enabled_annotators
-        and flair_spans_by_document is None
-    ):
-        flair_tagger = _load_flair_tagger(flair_options["model"])
-
+    if "flair" in enabled_annotators and flair_spans_by_document is None:
+        try:
+            flair_tagger = _load_flair_tagger(flair_options["model"])
+        except Exception as exc:
+            print(f"flair unavailable: {exc}")
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
     annotation_summary = {
@@ -80,6 +81,7 @@ def build_pipeline_output(
             enabled_annotators,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
+            bern2_options=bern2_options,
             pubtator3_options=pubtator3_options,
             flair_spans=(
                 flair_spans_by_document.get(document.document_id)
@@ -129,6 +131,186 @@ def build_pipeline_output(
 def write_pipeline_output(payload: dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    write_pipeline_tsv_outputs(payload, output_path)
+
+
+def write_pipeline_tsv_outputs(payload: dict[str, Any], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    write_keywords_tsv(
+        payload,
+        output_path.with_name(f"{output_path.stem}.keywords.tsv"),
+    )
+    write_keyword_annotator_evidence_tsv(
+        payload,
+        output_path.with_name(f"{output_path.stem}.keyword_annotator_evidence.tsv"),
+    )
+    write_annotations_tsv(
+        payload,
+        output_path.with_name(f"{output_path.stem}.annotations.tsv"),
+    )
+
+
+def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
+    documents = _documents_by_id(payload)
+    rows: list[dict[str, Any]] = []
+
+    for keyword in payload.get("keywords", []):
+        if not isinstance(keyword, dict):
+            continue
+
+        document_id = str(keyword.get("document_id") or "")
+        document = documents.get(document_id, {})
+        annotators = [
+            item
+            for item in keyword.get("annotators", [])
+            if isinstance(item, dict)
+        ]
+
+        rows.append(
+            {
+                "document_id": document_id,
+                "pmid": document.get("pmid"),
+                "title": document.get("title"),
+                "keyword": keyword.get("keyword"),
+                "start": keyword.get("start"),
+                "end": keyword.get("end"),
+                "annotation_count": keyword.get("annotation_count"),
+                "annotator_count": keyword.get("annotator_count"),
+                "labels": _join_values(keyword.get("labels")),
+                "canonical_ids": _join_values(keyword.get("canonical_ids")),
+                "sources": _join_values(
+                    sorted(
+                        {
+                            item.get("source")
+                            for item in annotators
+                            if item.get("source")
+                        }
+                    )
+                ),
+            }
+        )
+
+    _write_tsv(
+        output_path,
+        [
+            "document_id",
+            "pmid",
+            "title",
+            "keyword",
+            "start",
+            "end",
+            "annotation_count",
+            "annotator_count",
+            "labels",
+            "canonical_ids",
+            "sources",
+        ],
+        rows,
+    )
+
+
+def write_keyword_annotator_evidence_tsv(
+    payload: dict[str, Any],
+    output_path: Path,
+) -> None:
+    documents = _documents_by_id(payload)
+    rows: list[dict[str, Any]] = []
+
+    for keyword in payload.get("keywords", []):
+        if not isinstance(keyword, dict):
+            continue
+
+        document_id = str(keyword.get("document_id") or "")
+        document = documents.get(document_id, {})
+
+        for item in keyword.get("annotators", []):
+            if not isinstance(item, dict):
+                continue
+
+            rows.append(
+                {
+                    "document_id": document_id,
+                    "pmid": document.get("pmid"),
+                    "title": document.get("title"),
+                    "keyword": keyword.get("keyword"),
+                    "start": keyword.get("start"),
+                    "end": keyword.get("end"),
+                    "source": item.get("source"),
+                    "label": item.get("label"),
+                    "annotation_id": item.get("annotation_id"),
+                    "canonical_id": item.get("canonical_id"),
+                    "canonical_name": item.get("canonical_name"),
+                    "confidence": item.get("confidence"),
+                }
+            )
+
+    _write_tsv(
+        output_path,
+        [
+            "document_id",
+            "pmid",
+            "title",
+            "keyword",
+            "start",
+            "end",
+            "source",
+            "label",
+            "annotation_id",
+            "canonical_id",
+            "canonical_name",
+            "confidence",
+        ],
+        rows,
+    )
+
+
+def write_annotations_tsv(payload: dict[str, Any], output_path: Path) -> None:
+    documents = _documents_by_id(payload)
+    rows: list[dict[str, Any]] = []
+
+    for annotation in payload.get("annotations", []):
+        if not isinstance(annotation, dict):
+            continue
+
+        document_id = str(annotation.get("document_id") or "")
+        document = documents.get(document_id, {})
+
+        rows.append(
+            {
+                "document_id": document_id,
+                "pmid": document.get("pmid"),
+                "title": document.get("title"),
+                "source": annotation.get("source"),
+                "span_text": annotation.get("span_text"),
+                "start": annotation.get("start"),
+                "end": annotation.get("end"),
+                "entity_type": annotation.get("entity_type"),
+                "annotation_id": annotation.get("annotation_id"),
+                "canonical_id": annotation.get("canonical_id"),
+                "canonical_name": annotation.get("canonical_name"),
+                "confidence": annotation.get("confidence"),
+            }
+        )
+
+    _write_tsv(
+        output_path,
+        [
+            "document_id",
+            "pmid",
+            "title",
+            "source",
+            "span_text",
+            "start",
+            "end",
+            "entity_type",
+            "annotation_id",
+            "canonical_id",
+            "canonical_name",
+            "confidence",
+        ],
+        rows,
+    )
 
 
 def run_selected_annotators(
@@ -137,6 +319,7 @@ def run_selected_annotators(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
@@ -149,6 +332,11 @@ def run_selected_annotators(
                 results[annotator] = annotate_with_bern2(
                     document,
                     request_fn=bern2_request_fn,
+                    endpoint=(
+                        bern2_options.get("endpoint")
+                        if bern2_options
+                        else None
+                    ),
                 )
             elif annotator == "flair":
                 results[annotator] = annotate_with_flair(
@@ -204,6 +392,7 @@ def run_selected_annotators(
 
     return results
 
+
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
     for source in ("bern2", "flair", "pubtator3"):
@@ -231,10 +420,66 @@ def document_to_dict(document: Document) -> dict[str, Any]:
     }
 
 
+def _documents_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    documents: dict[str, dict[str, Any]] = {}
+    for document in payload.get("documents", []):
+        if not isinstance(document, dict):
+            continue
+        document_id = document.get("document_id")
+        if document_id is not None:
+            documents[str(document_id)] = document
+    return documents
+
+
+def _join_values(values: object) -> str:
+    if values is None:
+        return ""
+    if isinstance(values, list | tuple | set):
+        return "|".join(str(value) for value in values if value is not None)
+    return str(values)
+
+
+def _write_tsv(
+    output_path: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, Any]],
+) -> None:
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=fieldnames,
+            delimiter="\t",
+            extrasaction="ignore",
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def _validate_annotators(annotators: list[str]) -> None:
     unsupported = [annotator for annotator in annotators if annotator not in SUPPORTED_ANNOTATORS]
     if unsupported:
         raise ValueError(f"Unsupported annotators requested: {', '.join(unsupported)}")
+
+
+def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
+    endpoint = settings.get("endpoint")
+    base_url = settings.get("base_url")
+    timeout = settings.get("timeout")
+
+    cleaned_endpoint = None
+    if isinstance(endpoint, str) and endpoint.strip():
+        cleaned_endpoint = endpoint.strip()
+    elif isinstance(base_url, str) and base_url.strip():
+        cleaned_endpoint = base_url.strip()
+
+    return {
+        "endpoint": cleaned_endpoint,
+        "timeout": (
+            int(timeout)
+            if isinstance(timeout, int) and timeout > 0
+            else 30
+        ),
+    }
 
 
 def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
@@ -248,24 +493,6 @@ def _load_flair_tagger(model: str) -> Any:
     from flair.nn import Classifier
 
     return Classifier.load(model)
-
-
-def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
-    base_url = settings.get("base_url")
-    timeout = settings.get("timeout")
-
-    return {
-        "base_url": (
-            base_url.strip()
-            if isinstance(base_url, str) and base_url.strip()
-            else "http://127.0.0.1:8888"
-        ),
-        "timeout": (
-            int(timeout)
-            if isinstance(timeout, int) and timeout > 0
-            else 60
-        ),
-    }
 
 
 def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
