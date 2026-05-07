@@ -1,0 +1,63 @@
+unified_fetch.py CLI parameters (-- flags)
+=========================================
+
+Primary script:
+  py -3 scripts/unified_fetch.py [ID ...] [options]
+
+Positional:
+  ID ...
+    One or more PMIDs or PMCIDs (meaning depends on --input-kind).
+
+Core input:
+  --input-kind {pmid,pmid_list,pmcid,pmcid_list,query}
+  --id ID
+  --query STRING
+  -q STRING
+  --file PATH
+  -f PATH
+  --ids-file PATH
+  --config PATH
+
+Query controls (added):
+  --max-results N
+    Optional cap on PMIDs returned before fetch.
+  --date-from DATE
+    Lower publication date bound (YYYY, YYYY/MM, YYYY/MM/DD).
+  --date-to DATE
+    Upper publication date bound (YYYY, YYYY/MM, YYYY/MM/DD).
+  --sort-by NAME
+    PubMed sort order (e.g. relevance, pub_date, author).
+  --filter CLAUSE
+    Extra PubMed filter clause; repeatable.
+    Example: --filter "english[lang]" --filter "review[pt]"
+
+Source selection:
+  --source NAME
+    Repeatable; merge sources in order.
+    Supported: pubtator3, entrez, europe_pmc
+
+Annotators:
+  --annotator NAME
+    Repeatable.
+    Supported: pubtator3, medcat, bern2, flair
+  --medcat-raw
+  --flair-raw
+  --flair-model ID
+
+Field controls:
+  --field NAME
+    Repeatable logical field selector.
+  --list-fields
+  --include-annotations / --no-include-annotations
+  --strict-sources
+
+PubTator chunk fallback tuning:
+  --pubtator-chunk-size N
+  --pubtator-chunk-overlap N
+
+Notes:
+  - On Windows, scripts\unified_fetch.cmd loads .env first.
+  - BERN2 can be configured via BERN2_API_URL or [annotators.bern2] endpoint in TOML.
+  - scripts/fetch_pmids.py and scripts/fetch_pmids.cmd were removed.
+  - Query controls are applied in query mode and propagate through fetch adapters.
+
