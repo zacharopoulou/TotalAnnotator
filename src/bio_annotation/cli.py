@@ -166,6 +166,10 @@ def main(argv: list[str] | None = None) -> int:
                     "annotator_settings": config.annotator_settings,
                     "entity_types": config.entity_types,
                     "output_path": str(config.output_path) if config.output_path is not None else None,
+                    "fetch_sources": config.fetch_sources,
+                    "fetch_fields": config.fetch_fields,
+                    "fetch_fields_per_source": config.fetch_fields_per_source,
+                    "pubtator3_full_text": config.pubtator3_full_text,
                 },
                 indent=2,
             )
