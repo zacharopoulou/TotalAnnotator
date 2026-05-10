@@ -1,0 +1,18 @@
+# Fetch a single PMID via Europe PMC.
+# Provides citation count, open-access flag, license, and full-text URLs.
+# Use [input.fields_per_source].europe_pmc to keep only the metadata you need;
+# add "full_text" there to fetch the JATS body when the article is in PMC.
+
+[input]
+mode = "pmids"
+pmids = ["36403686"]
+source = "europe_pmc"
+
+[input.fields_per_source]
+europe_pmc = ["citation_count", "is_open_access", "license", "doi"]
+
+[annotators]
+enabled = []
+
+[output]
+path = "outputs/examples/fetch-europepmc.json"

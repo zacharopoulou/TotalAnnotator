@@ -1,0 +1,24 @@
+# Fetch a single PMID from all three backends and merge the results.
+# Order in `source` is the merge order: the first non-empty value wins for
+# title/abstract/full_text/year. Metadata keys accumulate without overwriting,
+# so each source contributes its own payload (pubtator3_payload, pubmed_record,
+# epmc_meta) and the orchestrator records origin_sources on the merged Document.
+#
+# Each source can keep a different metadata slice via [input.fields_per_source].
+# Sources without an override use the global `fields` list, or everything if
+# neither is set.
+
+[input]
+mode = "pmids"
+pmids = ["36403686"]
+source = ["pubtator3", "entrez", "europe_pmc"]
+
+[input.fields_per_source]
+entrez = ["mesh_terms", "authors", "journal", "year"]
+europe_pmc = ["citation_count", "is_open_access", "license"]
+
+[annotators]
+enabled = []
+
+[output]
+path = "outputs/examples/fetch-merge.json"

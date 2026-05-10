@@ -1,0 +1,17 @@
+# Fetch a single PMID via PubTator3 with full text opt-in.
+# PubTator3 returns body text only when [input.pubtator3] full_text = true,
+# and only for articles available in PubMed Central.
+
+[input]
+mode = "pmids"
+pmids = ["36403686"]
+source = "pubtator3"
+
+[input.pubtator3]
+full_text = true
+
+[annotators]
+enabled = []
+
+[output]
+path = "outputs/examples/fetch-pubtator-fulltext.json"

@@ -1,0 +1,15 @@
+# Fetch a single PMID via PubTator3 only (default settings, no full text).
+# Run with:
+#   uv run totalannotator inspect-config --config configs/examples/fetch-pubtator.toml
+#   uv run totalannotator load-documents --config configs/examples/fetch-pubtator.toml
+
+[input]
+mode = "pmids"
+pmids = ["36403686"]
+source = "pubtator3"
+
+[annotators]
+enabled = []
+
+[output]
+path = "outputs/examples/fetch-pubtator.json"
