@@ -12,6 +12,15 @@ dependencies = [
     "flair==0.15.1",
 ]
 
+[project.optional-dependencies]
+benchmarks = [
+    # bigbio corpora ship as Hugging Face dataset scripts; datasets>=4 removed
+    # script support, so pin to the 2.x/3.x line that still loads them.
+    "datasets>=2.14,<4.0",
+    "pandas>=2.0",
+    "tabulate>=0.9",
+]
+
 [project.scripts]
 totalannotator = "bio_annotation.cli:main"
 
