@@ -17,6 +17,6 @@ data/processed/
 data/inputs/query_*.txt
 data/corpora/query_*.json
 
-# Heavy benchmark splits — regenerate locally with benchmarks/scripts/ncbi.py
+# Can be regenerated locally with benchmarks/scripts/ncbi.py ,will happen with the rest accordingly
 benchmarks/data/ncbi/train.jsonl
 benchmarks/data/ncbi/validation.jsonl
