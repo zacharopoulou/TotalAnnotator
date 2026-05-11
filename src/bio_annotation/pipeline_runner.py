@@ -22,13 +22,16 @@ SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3"}
 def run_pipeline_from_config(
     config_path: Path,
     *,
-    pmid_fetcher: Callable[[str], dict[str, Any]] | None = None,
+    orchestrator_factory: Callable[[], Any] | None = None,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
-    documents = load_documents_from_config(config, pmid_fetcher=pmid_fetcher)
+    documents = load_documents_from_config(
+        config,
+        orchestrator_factory=orchestrator_factory,
+    )
     payload = build_pipeline_output(
         documents,
         config,

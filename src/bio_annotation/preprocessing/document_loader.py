@@ -12,7 +12,7 @@ from bio_annotation.schemas.document import Document
 
 PubMedFetcher = Callable[[str], dict[str, Any]]
 OrchestratorFactory = Callable[[], Any]
-"""Callable returning a fetch orchestrator (see bio_annotation.fetch.default_fetch_orchestrator)."""
+"""Callable returning a fetch orchestrator (bio_annotation.fetch.default_fetch_orchestrator)."""
 
 
 def load_document_from_pmid(
@@ -147,7 +147,6 @@ def load_documents_from_text_table(
 def load_documents_from_config(
     config: PipelineConfig,
     *,
-    pmid_fetcher: PubMedFetcher | None = None,
     orchestrator_factory: OrchestratorFactory | None = None,
 ) -> list[Document]:
     """Load documents per input mode. PMID and PMID-file modes route through the fetch orchestrator."""
