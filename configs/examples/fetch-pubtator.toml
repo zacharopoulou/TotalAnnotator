@@ -1,11 +1,15 @@
-# Fetch a single PMID via PubTator3 only (default settings, no full text).
-# Run with:
-#   uv run totalannotator inspect-config --config configs/examples/fetch-pubtator.toml
-#   uv run totalannotator load-documents --config configs/examples/fetch-pubtator.toml
+# PubTator3 as the fetch source. PubTator3 is the implicit default when
+# [input].source is omitted.
+#
+# To opt into body text (works only when the paper is in PubMed Central),
+# add:
+#
+#   [input.pubtator3]
+#   full_text = true
 
 [input]
-mode = "pmids"
-pmids = ["36403686"]
+mode = "pmid_file"
+pmid_file = "data/inputs/example_pmids.txt"
 source = "pubtator3"
 
 [annotators]

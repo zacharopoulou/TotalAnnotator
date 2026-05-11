@@ -1,4 +1,4 @@
-# Fetch a single PMID from all three backends and merge the results.
+# Merge three fetch sources into one canonical Document per PMID.
 # Order in `source` is the merge order: the first non-empty value wins for
 # title/abstract/full_text/year. Metadata keys accumulate without overwriting,
 # so each source contributes its own payload (pubtator3_payload, pubmed_record,
@@ -7,10 +7,14 @@
 # Each source can keep a different metadata slice via [input.fields_per_source].
 # Sources without an override use the global `fields` list, or everything if
 # neither is set.
+#
+# Full-text body opt-in (only when the paper is in PubMed Central):
+# - PubTator3:  add  [input.pubtator3] full_text = true
+# - Europe PMC: add  "full_text"  to its fields_per_source list below.
 
 [input]
-mode = "pmids"
-pmids = ["36403686"]
+mode = "pmid_file"
+pmid_file = "data/inputs/example_pmids.txt"
 source = ["pubtator3", "entrez", "europe_pmc"]
 
 [input.fields_per_source]

@@ -1,10 +1,10 @@
-# Fetch a single PMID via NCBI Entrez/E-utilities.
+# NCBI Entrez (E-utilities) as the fetch source.
 # Returns rich PubMed metadata: authors, MeSH terms, journal, dates, grants, etc.
-# No full text (Entrez does not provide article body).
+# No full text — Entrez does not provide article body.
 
 [input]
-mode = "pmids"
-pmids = ["36403686"]
+mode = "pmid_file"
+pmid_file = "data/inputs/example_pmids.txt"
 source = "entrez"
 
 [annotators]
