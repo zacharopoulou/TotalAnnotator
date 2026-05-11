@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any
 from xml.etree import ElementTree as ET
 
-from bio_annotation.clients.entrez import EntrezClient
 from bio_annotation.clients.europe_pmc import EuropePmcClient
 from bio_annotation.fetch.input import FetchInput, FetchKind, check_supports
 from bio_annotation.schemas.document import Document
@@ -40,7 +39,7 @@ class EuropePmcSource:
 
     name: str = "europe_pmc"
     supported_inputs: frozenset[FetchKind] = frozenset(
-        {"pmid", "pmid_list", "pmcid", "pmcid_list", "query"}
+        {"pmid", "pmid_list", "pmcid", "pmcid_list"}
     )
     fields_provided: frozenset[str] = frozenset(
         {
@@ -82,34 +81,6 @@ class EuropePmcSource:
                 max_pages=self.max_search_pages,
                 page_size=self.page_size,
             )
-        elif request.kind == "query":
-            has_query_controls = (
-                request.query_max_results is not None
-                or request.query_date_from is not None
-                or request.query_date_to is not None
-                or request.query_sort_by != "relevance"
-                or bool(request.query_filters)
-            )
-            if has_query_controls:
-                pmids = EntrezClient().search_pubmed(
-                    request.query,
-                    max_results=request.query_max_results,
-                    date_from=request.query_date_from,
-                    date_to=request.query_date_to,
-                    sort_by=request.query_sort_by,
-                    filters=list(request.query_filters),
-                )
-                payload = self.client.fetch_by_pmids(
-                    tuple(pmids),
-                    max_pages=self.max_search_pages,
-                    page_size=self.page_size,
-                )
-            else:
-                payload = self.client.search(
-                    request.query,
-                    max_pages=self.max_search_pages,
-                    page_size=self.page_size,
-                )
         else:
             return []
 

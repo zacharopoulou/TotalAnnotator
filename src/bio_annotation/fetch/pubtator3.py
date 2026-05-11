@@ -10,7 +10,6 @@ from bio_annotation.clients.pubtator3 import (
     DEFAULT_EXPORT_FORMAT,
     PubTator3Client,
 )
-from bio_annotation.clients.entrez import EntrezClient
 from bio_annotation.fetch.input import FetchInput, FetchKind, check_supports
 from bio_annotation.schemas.document import Document
 
@@ -20,21 +19,20 @@ _ABSTRACT_SECTION_TYPES = frozenset({"ABSTRACT", "abstract", "Abstract"})
 
 @dataclass(slots=True)
 class PubTator3Source:
-    """Publication-shaped PubTator3 APIs (export + search)."""
+    """PubTator3 BioC publication export by PMID or PMCID."""
 
     name: str = "pubtator3"
     supported_inputs: frozenset[FetchKind] = frozenset(
-        {"pmid", "pmid_list", "pmcid", "pmcid_list", "query"}
+        {"pmid", "pmid_list", "pmcid", "pmcid_list"}
     )
     fields_provided: frozenset[str] = frozenset(
-        {"pmid", "pmcid", "title", "abstract", "full_text", "annotations", "score"}
+        {"pmid", "pmcid", "title", "abstract", "full_text", "annotations"}
     )
 
     client: PubTator3Client = field(default_factory=PubTator3Client)
     format: str = DEFAULT_EXPORT_FORMAT
     full_text: bool = False
     bioconcept: str = DEFAULT_BIOCONCEPT
-    max_search_pages: int = 1
 
     def fetch(self, request: FetchInput) -> list[Document]:
         check_supports(self, request)
@@ -50,13 +48,6 @@ class PubTator3Source:
         if request.kind in {"pmcid", "pmcid_list"}:
             return self._fetch_by_pmcids(
                 request.pmcids,
-                fields=fields,
-                with_full_text=effective_full_text,
-            )
-        if request.kind == "query":
-            return self._fetch_by_query(
-                request.query,
-                request=request,
                 fields=fields,
                 with_full_text=effective_full_text,
             )
@@ -102,74 +93,6 @@ class PubTator3Source:
             fields=fields,
         )
 
-    def _fetch_by_query(
-        self,
-        query: str,
-        *,
-        request: FetchInput,
-        fields: frozenset[str] | None,
-        with_full_text: bool,
-    ) -> list[Document]:
-        has_query_controls = (
-            request.query_max_results is not None
-            or request.query_date_from is not None
-            or request.query_date_to is not None
-            or request.query_sort_by != "relevance"
-            or bool(request.query_filters)
-        )
-
-        score_by_pmid: dict[str, float | None] = {}
-        if has_query_controls:
-            pmids = tuple(
-                EntrezClient().search_pubmed(
-                    query,
-                    max_results=request.query_max_results,
-                    date_from=request.query_date_from,
-                    date_to=request.query_date_to,
-                    sort_by=request.query_sort_by,
-                    filters=list(request.query_filters),
-                )
-            )
-        else:
-            search_payload = self.client.search_publications(
-                query,
-                page=1,
-                max_pages=self.max_search_pages,
-            )
-            results = _extract_search_results(search_payload)
-            if not results:
-                return []
-            pmids = tuple(_coerce_pmid(hit) for hit in results)
-            pmids = tuple(pmid for pmid in pmids if pmid)
-            score_by_pmid = {
-                _coerce_pmid(hit): _coerce_score(hit)
-                for hit in results
-                if _coerce_pmid(hit)
-            }
-
-        if not pmids:
-            return []
-
-        payload = self.client.fetch_publications_by_pmids(
-            pmids,
-            format=self.format,
-            full=with_full_text,
-        )
-        documents = _payload_to_documents(
-            payload,
-            with_full_text=with_full_text,
-            fields=fields,
-        )
-
-        want_score = (fields is None or "score" in fields) and bool(score_by_pmid)
-        if want_score:
-            for document in documents:
-                score = score_by_pmid.get(document.pmid)
-                if score is not None:
-                    document.metadata["pubtator3_search_score"] = score
-        return documents
-
-
 # A. Payload to Document
 
 def _payload_to_documents(
@@ -193,15 +116,6 @@ def _extract_bioc_documents(payload: Any) -> list[dict[str, Any]]:
             if isinstance(container, list):
                 return [item for item in container if isinstance(item, dict)]
     return []
-
-
-def _extract_search_results(payload: Any) -> list[dict[str, Any]]:
-    if not isinstance(payload, dict):
-        return []
-    results = payload.get("results")
-    if not isinstance(results, list):
-        return []
-    return [hit for hit in results if isinstance(hit, dict)]
 
 
 def _build_document(
@@ -345,26 +259,6 @@ def _passage_section(passage: dict[str, Any]) -> str:
             if value:
                 return str(value)
     return ""
-
-
-def _coerce_pmid(hit: dict[str, Any]) -> str:
-    for key in ("pmid", "_id"):
-        value = hit.get(key)
-        if value is not None:
-            cleaned = str(value).strip()
-            if cleaned:
-                return cleaned
-    return ""
-
-
-def _coerce_score(hit: dict[str, Any]) -> float | None:
-    value = hit.get("score")
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 __all__ = ["PubTator3Source"]

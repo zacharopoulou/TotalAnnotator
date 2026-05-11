@@ -49,34 +49,6 @@ def test_from_pmcid_list_normalizes_each_value() -> None:
     assert request.pmcids == ("PMC7083241", "PMC1234567")
 
 
-def test_from_query_carries_optional_params() -> None:
-    request = FetchInput.from_query(
-        "  glioblastoma  ",
-        max_results=200,
-        date_from="2020/01/01",
-        date_to="2024/12/31",
-        sort_by="pub_date",
-        filters=["english[lang]", "  human[mh] "],
-    )
-    assert request.kind == "query"
-    assert request.query == "glioblastoma"
-    assert request.query_max_results == 200
-    assert request.query_date_from == "2020/01/01"
-    assert request.query_date_to == "2024/12/31"
-    assert request.query_sort_by == "pub_date"
-    assert request.query_filters == ("english[lang]", "human[mh]")
-
-
-def test_from_query_defaults_sort_by_when_blank() -> None:
-    request = FetchInput.from_query("glioblastoma", sort_by="   ")
-    assert request.query_sort_by == "relevance"
-
-
-def test_from_query_rejects_empty() -> None:
-    with pytest.raises(ValueError, match="must not be empty"):
-        FetchInput.from_query("   ")
-
-
 # B. _normalize_pmcid helper
 
 @pytest.mark.parametrize(
@@ -138,7 +110,7 @@ def test_check_supports_passes_for_supported_kind() -> None:
 
 def test_check_supports_raises_for_wrong_kind() -> None:
     with pytest.raises(UnsupportedInputError, match="does not support"):
-        check_supports(_DummySource(), FetchInput.from_query("foo"))
+        check_supports(_DummySource(), FetchInput.from_pmcid("PMC1"))
 
 
 def test_dummy_source_is_a_fetch_source() -> None:

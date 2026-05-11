@@ -132,14 +132,14 @@ def test_wrong_kind_for_source_raises_unsupported() -> None:
     a = _StubSource("a", supported_inputs=frozenset({"pmid"}))
     orch = FetchOrchestrator(sources=[a])
     with pytest.raises(UnsupportedInputError):
-        orch.fetch(FetchInput.from_query("foo"), prefer="a")
+        orch.fetch(FetchInput.from_pmcid("PMC1"), prefer="a")
 
 
 def test_no_source_supports_kind_raises() -> None:
     a = _StubSource("a", supported_inputs=frozenset({"pmid"}))
     orch = FetchOrchestrator(sources=[a])
     with pytest.raises(UnsupportedInputError, match="No registered source"):
-        orch.fetch(FetchInput.from_query("foo"))
+        orch.fetch(FetchInput.from_pmcid("PMC1"))
 
 
 # F. unite_into

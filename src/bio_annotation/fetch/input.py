@@ -11,7 +11,7 @@ from bio_annotation.schemas.document import Document
 
 #A. Per-source field catalogs 
 
-# PubTator3: BioC export and embedded annotations; search scores when using query.
+# PubTator3: BioC export and embedded annotations.
 PUBTATOR3_FIELDS = frozenset(
     {
         "pmid",
@@ -20,7 +20,6 @@ PUBTATOR3_FIELDS = frozenset(
         "abstract",
         "full_text",
         "annotations",
-        "score",
     }
 )
 
@@ -103,7 +102,6 @@ FetchKind = Literal[
     "pmid_list",
     "pmcid",
     "pmcid_list",
-    "query",
 ]
 
 
@@ -113,17 +111,11 @@ class UnsupportedInputError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class FetchInput:
-    """What to fetch: IDs or a PubMed-style query."""
+    """What to fetch: known PMIDs or PMCIDs (no query support; use search-pmids upstream)."""
 
     kind: FetchKind
     pmids: tuple[str, ...] = ()
     pmcids: tuple[str, ...] = ()
-    query: str = ""
-    query_max_results: int | None = None
-    query_date_from: str | None = None
-    query_date_to: str | None = None
-    query_sort_by: str = "relevance"
-    query_filters: tuple[str, ...] = ()
     fields: frozenset[str] | None = None
     fields_per_source: Mapping[str, frozenset[str]] | None = None
 
@@ -202,40 +194,7 @@ class FetchInput:
             fields_per_source=fields_per_source,
         )
 
-    @classmethod
-    def from_query(
-        cls,
-        query: str,
-        *,
-        max_results: int | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
-        sort_by: str = "relevance",
-        filters: list[str] | tuple[str, ...] | None = None,
-        fields: frozenset[str] | None = None,
-        fields_per_source: Mapping[str, frozenset[str]] | None = None,
-    ) -> FetchInput:
-        cleaned = query.strip()
-        if not cleaned:
-            raise ValueError("Query must not be empty.")
-        return cls(
-            kind="query",
-            query=cleaned,
-            query_max_results=max_results,
-            query_date_from=date_from.strip() if isinstance(date_from, str) and date_from.strip() else None,
-            query_date_to=date_to.strip() if isinstance(date_to, str) and date_to.strip() else None,
-            query_sort_by=(sort_by.strip() if isinstance(sort_by, str) and sort_by.strip() else "relevance"),
-            query_filters=tuple(
-                str(f).strip()
-                for f in (filters or ())
-                if str(f).strip()
-            ),
-            fields=fields,
-            fields_per_source=fields_per_source,
-        )
-
-
-# C. Source protocol 
+# C. Source protocol
 
 @runtime_checkable
 class FetchSource(Protocol):
