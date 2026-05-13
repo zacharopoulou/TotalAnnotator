@@ -65,7 +65,7 @@ def build_pipeline_output(
     flair_tagger = None
     if "flair" in enabled_annotators and flair_spans_by_document is None:
         try:
-            flair_tagger = _load_flair_tagger(flair_options["model"])
+            flair_tagger = _load_flair_tagger(flair_options["model"] or "hunflair2")
         except Exception as exc:
             print(f"flair unavailable: {exc}")
     document_annotations: list[dict[str, Any]] = []
@@ -75,8 +75,11 @@ def build_pipeline_output(
         "document_count": len(documents),
         "annotation_count": 0,
     }
+
+    all_statuses: list[dict[str, Any]] = []
+
     for document in documents:
-        results = run_selected_annotators(
+        results, statuses = run_selected_annotators_with_status(
             document,
             enabled_annotators,
             bern2_request_fn=bern2_request_fn,
@@ -90,6 +93,11 @@ def build_pipeline_output(
             ),
             flair_tagger=flair_tagger,
         )
+<<<<<<< HEAD
+=======
+        all_statuses.extend(statuses)
+
+>>>>>>> 51a18c5 (Fix keyword output annotator summaries)
         annotations = flatten_annotations(results)
         annotations = filter_annotations_by_type(annotations, config.entity_types)
         annotation_summary["annotation_count"] += len(annotations)
@@ -98,6 +106,7 @@ def build_pipeline_output(
                 {
                     "document_id": document.document_id,
                     "sources": sorted(results),
+                    "annotators": statuses,
                     "annotation_count": len(annotations),
                     "annotations": [annotation.to_dict() for annotation in annotations],
                 }
@@ -123,6 +132,10 @@ def build_pipeline_output(
         "entity_types": config.entity_types,
         "documents": corpus_documents,
         "annotation_summary": annotation_summary,
+        "annotator_summary": _build_annotator_summary(
+            enabled_annotators,
+            all_statuses,
+        ),
         "document_annotations": document_annotations,
         "annotations": annotations_output,
     }
@@ -323,8 +336,36 @@ def run_selected_annotators(
     pubtator3_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
+    flair_options: dict[str, Any] | None = None,
 ) -> dict[str, list[Annotation]]:
+    results, _ = run_selected_annotators_with_status(
+        document,
+        annotators,
+        bern2_request_fn=bern2_request_fn,
+        pubtator3_request_fn=pubtator3_request_fn,
+        bern2_options=bern2_options,
+        pubtator3_options=pubtator3_options,
+        flair_spans=flair_spans,
+        flair_tagger=flair_tagger,
+        flair_options=flair_options,
+    )
+    return results
+
+
+def run_selected_annotators_with_status(
+    document: Document,
+    annotators: list[str],
+    *,
+    bern2_request_fn: Callable[[Document], Any] | None = None,
+    pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    bern2_options: dict[str, Any] | None = None,
+    pubtator3_options: dict[str, Any] | None = None,
+    flair_spans: list[Any] | None = None,
+    flair_tagger: Any = None,
+    flair_options: dict[str, Any] | None = None,
+) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
+    statuses: list[dict[str, Any]] = []
 
     for annotator in annotators:
         try:
@@ -343,6 +384,7 @@ def run_selected_annotators(
                     document,
                     spans=flair_spans,
                     tagger=flair_tagger,
+                    model=flair_options.get("model") if flair_options else None,
                 )
             elif annotator == "pubtator3":
                 results[annotator] = annotate_with_pubtator3(
@@ -389,8 +431,33 @@ def run_selected_annotators(
         except Exception as exc:
             print(f"{annotator} unavailable: {exc}")
             results[annotator] = []
+            statuses.append(
+                {
+                    "name": annotator,
+                    "status": "failed",
+                    "annotation_count": 0,
+                    "reason": str(exc),
+                }
+            )
+            continue
 
-    return results
+        annotation_count = len(results[annotator])
+        if annotation_count:
+            status = "produced_annotations"
+            reason = None
+        else:
+            status = "no_annotations"
+            reason = _no_annotations_reason(annotator)
+        statuses.append(
+            {
+                "name": annotator,
+                "status": status,
+                "annotation_count": annotation_count,
+                "reason": reason,
+            }
+        )
+
+    return results, statuses
 
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
@@ -400,7 +467,135 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
     return annotations
 
 
+<<<<<<< HEAD
 def filter_annotations_by_type(annotations: list[Annotation], entity_types: list[str]) -> list[Annotation]:
+=======
+def build_keyword_annotations(
+    document_id: str,
+    annotations: list[Annotation],
+) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+
+    for annotation in annotations:
+        keyword = annotation.span_text.strip()
+        if not keyword:
+            continue
+
+        normalized = keyword.casefold()
+        key = (document_id, normalized)
+
+        if key not in groups:
+            groups[key] = {
+                "document_id": document_id,
+                "keyword": keyword,
+                "normalized_keyword": normalized,
+                "variants": [],
+                "mention_count": 0,
+                "annotation_count": 0,
+                "annotator_count": 0,
+                "labels": [],
+                "canonical_ids": [],
+                "mentions": [],
+                "annotators": [],
+            }
+
+        group = groups[key]
+        group["annotation_count"] += 1
+        if keyword not in group["variants"]:
+            group["variants"].append(keyword)
+        group["annotators"].append(
+            {
+                "source": annotation.source,
+                "label": annotation.entity_type,
+                "annotation_id": annotation.annotation_id,
+                "canonical_id": _normalize_scalar_id(annotation.canonical_id),
+                "canonical_name": annotation.canonical_name,
+                "confidence": annotation.confidence,
+            }
+        )
+
+        mention_key = (annotation.start, annotation.end)
+        mention = next(
+            (
+                item
+                for item in group["mentions"]
+                if (item["start"], item["end"]) == mention_key
+            ),
+            None,
+        )
+        if mention is None:
+            mention = {
+                "text": keyword,
+                "start": annotation.start,
+                "end": annotation.end,
+                "annotation_count": 0,
+                "annotator_count": 0,
+                "annotators": [],
+            }
+            group["mentions"].append(mention)
+        mention["annotation_count"] += 1
+        mention["annotators"].append(
+            {
+                "source": annotation.source,
+                "label": annotation.entity_type,
+                "annotation_id": annotation.annotation_id,
+                "canonical_id": _normalize_scalar_id(annotation.canonical_id),
+                "canonical_name": annotation.canonical_name,
+                "confidence": annotation.confidence,
+            }
+        )
+
+    for group in groups.values():
+        group["variants"] = sorted(group["variants"])
+        group["mention_count"] = len(group["mentions"])
+        group["mentions"] = [_finalize_mention(item) for item in group["mentions"]]
+        group["mentions"] = sorted(
+            group["mentions"],
+            key=lambda item: (
+                item["start"] is None,
+                item["start"] if item["start"] is not None else -1,
+                item["end"] is None,
+                item["end"] if item["end"] is not None else -1,
+                item["text"].casefold(),
+            ),
+        )
+        group["annotators"] = _summarize_keyword_annotators(group["annotators"])
+        group["annotator_count"] = len(group["annotators"])
+        group["labels"] = sorted(
+            {
+                item["label"]
+                for mention in group["mentions"]
+                for item in mention["annotators"]
+                if item["label"] is not None
+            }
+        )
+        group["canonical_ids"] = sorted(
+            {
+                canonical_id
+                for item in group["annotators"]
+                for canonical_id in _flatten_values(item["canonical_ids"])
+                if canonical_id
+            }
+        )
+
+    return sorted(
+        groups.values(),
+        key=lambda item: (
+            item["document_id"],
+            item["mentions"][0]["start"] is None,
+            item["mentions"][0]["start"] if item["mentions"][0]["start"] is not None else -1,
+            item["mentions"][0]["end"] is None,
+            item["mentions"][0]["end"] if item["mentions"][0]["end"] is not None else -1,
+            item["keyword"].casefold(),
+        ),
+    )
+
+
+def filter_annotations_by_type(
+    annotations: list[Annotation],
+    entity_types: list[str],
+) -> list[Annotation]:
+>>>>>>> 51a18c5 (Fix keyword output annotator summaries)
     if not entity_types:
         return annotations
     allowed = set(entity_types)
@@ -420,6 +615,113 @@ def document_to_dict(document: Document) -> dict[str, Any]:
     }
 
 
+def _build_annotator_summary(
+    configured: list[str],
+    statuses: list[dict[str, Any]],
+) -> dict[str, Any]:
+    produced = sorted(
+        {
+            str(status["name"])
+            for status in statuses
+            if status.get("status") == "produced_annotations"
+        }
+    )
+    failed = sorted(
+        {
+            str(status["name"])
+            for status in statuses
+            if status.get("status") == "failed"
+        }
+    )
+    not_produced = [
+        name
+        for name in configured
+        if name not in produced and name not in failed
+    ]
+    return {
+        "configured": configured,
+        "produced": produced,
+        "not_produced": not_produced,
+        "failed": failed,
+        "annotators": statuses,
+    }
+
+
+def _no_annotations_reason(annotator: str) -> str:
+    if annotator == "bern2":
+        return (
+            "No annotations returned. Verify the Bern2 service is reachable "
+            "and returned entities for this document."
+        )
+    if annotator == "flair":
+        return (
+            "No annotations returned. The Flair model may be unavailable/not "
+            "cached, or it found no entities."
+        )
+    if annotator == "pubtator3":
+        return (
+            "No annotations returned. Verify PubTator3 is reachable and "
+            "returned entities for this document."
+        )
+    return "No annotations returned."
+
+
+def _finalize_mention(mention: dict[str, Any]) -> dict[str, Any]:
+    mention["annotators"] = sorted(
+        mention["annotators"],
+        key=lambda item: (
+            item["source"],
+            item["label"],
+            item["annotation_id"],
+        ),
+    )
+    mention["annotator_count"] = len(
+        {
+            item["source"]
+            for item in mention["annotators"]
+        }
+    )
+    return mention
+
+
+def _summarize_keyword_annotators(
+    annotators: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_source: dict[str, dict[str, Any]] = {}
+    for item in annotators:
+        source = str(item["source"])
+        summary = by_source.setdefault(
+            source,
+            {
+                "source": source,
+                "annotation_count": 0,
+                "labels": [],
+                "canonical_ids": [],
+                "canonical_names": [],
+            },
+        )
+        summary["annotation_count"] += 1
+        if item.get("label") is not None:
+            summary["labels"].append(item["label"])
+        if item.get("canonical_id") is not None:
+            summary["canonical_ids"].append(item["canonical_id"])
+        if item.get("canonical_name") is not None:
+            summary["canonical_names"].append(item["canonical_name"])
+
+    for summary in by_source.values():
+        summary["labels"] = sorted(set(summary["labels"]))
+        summary["canonical_ids"] = sorted(
+            {
+                value
+                for value in _flatten_values(summary["canonical_ids"])
+                if value is not None
+            }
+        )
+        summary["canonical_names"] = sorted(set(summary["canonical_names"]))
+
+    return sorted(by_source.values(), key=lambda item: item["source"])
+
+
 def _documents_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     documents: dict[str, dict[str, Any]] = {}
     for document in payload.get("documents", []):
@@ -431,11 +733,35 @@ def _documents_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return documents
 
 
+def _normalize_scalar_id(value: object) -> object:
+    flattened = list(_flatten_values(value))
+    if not flattened:
+        return None
+    if len(flattened) == 1:
+        return flattened[0]
+    return flattened
+
+
+def _flatten_values(values: object) -> list[object]:
+    if values is None:
+        return []
+    if isinstance(values, list | tuple | set):
+        flattened: list[object] = []
+        for value in values:
+            flattened.extend(_flatten_values(value))
+        return flattened
+    return [values]
+
+
 def _join_values(values: object) -> str:
     if values is None:
         return ""
     if isinstance(values, list | tuple | set):
-        return "|".join(str(value) for value in values if value is not None)
+        return "|".join(
+            str(value)
+            for value in _flatten_values(values)
+            if value is not None
+        )
     return str(values)
 
 
@@ -464,7 +790,6 @@ def _validate_annotators(annotators: list[str]) -> None:
 def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
     endpoint = settings.get("endpoint")
     base_url = settings.get("base_url")
-    timeout = settings.get("timeout")
 
     cleaned_endpoint = None
     if isinstance(endpoint, str) and endpoint.strip():
@@ -474,18 +799,19 @@ def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
 
     return {
         "endpoint": cleaned_endpoint,
-        "timeout": (
-            int(timeout)
-            if isinstance(timeout, int) and timeout > 0
-            else 30
-        ),
     }
 
 
 def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
     model = settings.get("model")
     return {
+<<<<<<< HEAD
         "model": model.strip() if isinstance(model, str) and model.strip() else "hunflair2",
+=======
+        "model": model.strip()
+        if isinstance(model, str) and model.strip()
+        else None,
+>>>>>>> 51a18c5 (Fix keyword output annotator summaries)
     }
 
 
