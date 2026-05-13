@@ -28,4 +28,4 @@ bioconcept = "All"
 entity_types = []
 
 [output]
-path = "outputs/three_annotators.json"
+path = "outputs/annotators_result.json"
