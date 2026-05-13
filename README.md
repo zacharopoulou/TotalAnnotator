@@ -1,6 +1,6 @@
 # TotalAnnotator
 
-TotalAnnotator is a config-first biomedical literature pipeline for building document corpora, running biomedical annotators, and exporting comparable annotation results.
+TotalAnnotator is a biomedical literature pipeline for building document corpora, running biomedical annotators, and exporting comparable annotation results.
 
 The pipeline flow is:
 

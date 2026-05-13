@@ -117,7 +117,7 @@ def main() -> None:
         df = load_split(split)
         chunks.append(analyze_split(split, df))
 
-    summary_path = DATA_DIR / "NCBI_ANALYTICS_SUMMART.md"
+    summary_path = DATA_DIR / "NCBI_ANALYTICS_SUMMARY.md"
     summary_path.write_text("\n".join(chunks), encoding="utf-8")
     print(f"\nSaved to: {summary_path}")
 
