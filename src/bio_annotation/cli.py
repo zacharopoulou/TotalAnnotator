@@ -249,9 +249,17 @@ def main(argv: list[str] | None = None) -> int:
 def print_run_config_summary(payload: dict[str, object], output_path: Path | None) -> None:
     annotation_summary = payload.get("annotation_summary")
     summary = annotation_summary if isinstance(annotation_summary, dict) else {}
+    output = payload.get("output")
+    actual_output_path = (
+        output.get("path")
+        if isinstance(output, dict)
+        else None
+    )
 
     print("Pipeline completed.")
-    if output_path is not None:
+    if isinstance(actual_output_path, str) and actual_output_path:
+        print(f"Output written to: {actual_output_path}")
+    elif output_path is not None:
         print(f"Output written to: {output_path.as_posix()}")
     else:
         print("No output path configured; no JSON file was written.")

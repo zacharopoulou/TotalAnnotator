@@ -277,6 +277,7 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
                 "failed": [],
                 "annotators": [],
             },
+            "output": {"path": "outputs/20260513-122400/test.json"},
         },
     )
 
@@ -287,7 +288,7 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
     output = stream.getvalue()
     assert exit_code == 0
     assert "Pipeline completed." in output
-    assert "Output written to: outputs/test.json" in output
+    assert "Output written to: outputs/20260513-122400/test.json" in output
     assert "Documents: 1" in output
     assert "Annotations: 0" in output
     assert "Keywords: 0" in output
@@ -332,7 +333,9 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     output = stream.getvalue()
     assert exit_code == 0
     assert "Pipeline completed." in output
-    assert f"Output written to: {(tmp_path / 'outputs' / 'test.json').as_posix()}" in output
+    written = sorted((tmp_path / "outputs").glob("*/test.json"))
+    assert len(written) == 1
+    assert f"Output written to: {written[0].as_posix()}" in output
     assert "Annotations: 0" in output
     assert "Annotators with results: none" in output
     assert "Annotators without results: none" in output

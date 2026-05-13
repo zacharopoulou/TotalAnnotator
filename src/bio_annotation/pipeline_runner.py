@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import csv
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -42,7 +43,13 @@ def run_pipeline_from_config(
         flair_spans_by_document=flair_spans_by_document,
     )
     if config.output_path is not None:
-        write_pipeline_output(payload, config.output_path)
+        actual_output_path = timestamped_output_path(config.output_path)
+        payload["output"] = {
+            "configured_path": config.output_path.as_posix(),
+            "path": actual_output_path.as_posix(),
+            "run_dir": actual_output_path.parent.as_posix(),
+        }
+        write_pipeline_output(payload, actual_output_path)
     return payload
 
 
@@ -146,6 +153,11 @@ def write_pipeline_output(payload: dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     write_pipeline_tsv_outputs(payload, output_path)
+
+
+def timestamped_output_path(output_path: Path, *, now: datetime | None = None) -> Path:
+    stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M%S")
+    return output_path.parent / stamp / output_path.name
 
 
 def write_pipeline_tsv_outputs(payload: dict[str, Any], output_path: Path) -> None:

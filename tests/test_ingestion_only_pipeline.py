@@ -112,4 +112,6 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
     payload = run_pipeline_from_config(config_path)
 
     assert payload["document_count"] == 1
-    assert output_path.exists()
+    written = sorted(output_path.parent.glob("*/pipeline.json"))
+    assert len(written) == 1
+    assert payload["output"]["path"] == written[0].as_posix()
