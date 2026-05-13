@@ -218,7 +218,13 @@ def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
 
 
 def _load_flair_tagger(model: str) -> Any:
-    from flair.nn import Classifier
+    try:
+        from flair.nn import Classifier
+    except ImportError as exc:
+        raise RuntimeError(
+            "The Flair annotator requires the optional Flair dependency. "
+            "Install it with: uv sync --extra flair"
+        ) from exc
 
     return Classifier.load(model)
 

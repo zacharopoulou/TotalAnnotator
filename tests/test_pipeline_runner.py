@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import builtins
 import json
 from contextlib import redirect_stdout
 from dataclasses import dataclass
 from io import StringIO
 
+import pytest
+
 from bio_annotation.cli import main
-from bio_annotation.pipeline_runner import _read_pubtator3_options, run_pipeline_from_config
+from bio_annotation.pipeline_runner import _load_flair_tagger, _read_pubtator3_options, run_pipeline_from_config
 
 
 @dataclass
@@ -133,8 +136,9 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
     )
 
     monkeypatch.setattr(
-        "bio_annotation.pipeline_runner.run_pipeline_from_config",
+        "bio_annotation.cli.run_pipeline_from_config",
         lambda path: {
+            "stage": "corpus",
             "document_count": 1,
             "pipeline": {
                 "mode": "ingestion_and_annotation",
@@ -221,3 +225,17 @@ def test_read_pubtator3_options_parses_text_mode_settings() -> None:
     assert options["poll_interval_seconds"] == 3.0
     assert options["poll_backoff"] == 2.0
     assert options["max_poll_interval_seconds"] == 12.0
+
+
+def test_load_flair_tagger_reports_optional_dependency(monkeypatch) -> None:
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "flair.nn":
+            raise ImportError("No module named 'flair'")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(RuntimeError, match="uv sync --extra flair"):
+        _load_flair_tagger("hunflair2")

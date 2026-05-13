@@ -2454,15 +2454,21 @@ wheels = [
 name = "totalannotator"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
-    { name = "flair" },
-]
 
 [package.optional-dependencies]
+all = [
+    { name = "datasets" },
+    { name = "flair" },
+    { name = "pandas" },
+    { name = "tabulate" },
+]
 benchmarks = [
     { name = "datasets" },
     { name = "pandas" },
     { name = "tabulate" },
+]
+flair = [
+    { name = "flair" },
 ]
 
 [package.dev-dependencies]
@@ -2472,12 +2478,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "datasets", marker = "extra == 'all'", specifier = ">=2.14,<4.0" },
     { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
-    { name = "flair", specifier = "==0.15.1" },
+    { name = "flair", marker = "extra == 'all'", specifier = "==0.15.1" },
+    { name = "flair", marker = "extra == 'flair'", specifier = "==0.15.1" },
+    { name = "pandas", marker = "extra == 'all'", specifier = ">=2.0" },
     { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
+    { name = "tabulate", marker = "extra == 'all'", specifier = ">=0.9" },
     { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
 ]
-provides-extras = ["benchmarks"]
+provides-extras = ["flair", "benchmarks", "all"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]

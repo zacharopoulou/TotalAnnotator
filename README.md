@@ -34,6 +34,15 @@ cd TotalAnnotator
 uv sync
 ```
 
+The default install stays lightweight. Install optional extras only when you
+need them:
+
+```bash
+uv sync --extra flair      # local Flair annotator support
+uv sync --extra benchmarks # benchmark dataset tooling and analytics
+uv sync --extra all        # all optional functionality
+```
+
 Project overview:
 
 ```bash
