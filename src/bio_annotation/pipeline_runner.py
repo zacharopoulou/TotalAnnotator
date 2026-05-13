@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import csv
 import json
 from pathlib import Path
@@ -180,14 +181,15 @@ def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
             if isinstance(item, dict)
         ]
 
+        first_mention = _first_mention(keyword)
         rows.append(
             {
                 "document_id": document_id,
                 "pmid": document.get("pmid"),
                 "title": document.get("title"),
                 "keyword": keyword.get("keyword"),
-                "start": keyword.get("start"),
-                "end": keyword.get("end"),
+                "start": first_mention.get("start"),
+                "end": first_mention.get("end"),
                 "annotation_count": keyword.get("annotation_count"),
                 "annotator_count": keyword.get("annotator_count"),
                 "labels": _join_values(keyword.get("labels")),
@@ -237,26 +239,29 @@ def write_keyword_annotator_evidence_tsv(
         document_id = str(keyword.get("document_id") or "")
         document = documents.get(document_id, {})
 
-        for item in keyword.get("annotators", []):
-            if not isinstance(item, dict):
+        for mention in keyword.get("mentions", []):
+            if not isinstance(mention, dict):
                 continue
+            for item in mention.get("annotators", []):
+                if not isinstance(item, dict):
+                    continue
 
-            rows.append(
-                {
-                    "document_id": document_id,
-                    "pmid": document.get("pmid"),
-                    "title": document.get("title"),
-                    "keyword": keyword.get("keyword"),
-                    "start": keyword.get("start"),
-                    "end": keyword.get("end"),
-                    "source": item.get("source"),
-                    "label": item.get("label"),
-                    "annotation_id": item.get("annotation_id"),
-                    "canonical_id": item.get("canonical_id"),
-                    "canonical_name": item.get("canonical_name"),
-                    "confidence": item.get("confidence"),
-                }
-            )
+                rows.append(
+                    {
+                        "document_id": document_id,
+                        "pmid": document.get("pmid"),
+                        "title": document.get("title"),
+                        "keyword": keyword.get("keyword"),
+                        "start": mention.get("start"),
+                        "end": mention.get("end"),
+                        "source": item.get("source"),
+                        "label": item.get("label"),
+                        "annotation_id": item.get("annotation_id"),
+                        "canonical_id": _join_values(item.get("canonical_id")),
+                        "canonical_name": item.get("canonical_name"),
+                        "confidence": item.get("confidence"),
+                    }
+                )
 
     _write_tsv(
         output_path,
@@ -300,7 +305,7 @@ def write_annotations_tsv(payload: dict[str, Any], output_path: Path) -> None:
                 "end": annotation.get("end"),
                 "entity_type": annotation.get("entity_type"),
                 "annotation_id": annotation.get("annotation_id"),
-                "canonical_id": annotation.get("canonical_id"),
+                "canonical_id": _join_values(annotation.get("canonical_id")),
                 "canonical_name": annotation.get("canonical_name"),
                 "confidence": annotation.get("confidence"),
             }
@@ -733,8 +738,17 @@ def _documents_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return documents
 
 
+def _first_mention(keyword: dict[str, Any]) -> dict[str, Any]:
+    mentions = keyword.get("mentions")
+    if isinstance(mentions, list):
+        for mention in mentions:
+            if isinstance(mention, dict):
+                return mention
+    return {}
+
+
 def _normalize_scalar_id(value: object) -> object:
-    flattened = list(_flatten_values(value))
+    flattened = [_normalize_identifier_text(item) for item in _flatten_values(value)]
     if not flattened:
         return None
     if len(flattened) == 1:
@@ -750,19 +764,41 @@ def _flatten_values(values: object) -> list[object]:
         for value in values:
             flattened.extend(_flatten_values(value))
         return flattened
+    if isinstance(values, str):
+        parsed = _parse_stringified_list(values)
+        if parsed is not None:
+            return _flatten_values(parsed)
     return [values]
+
+
+def _normalize_identifier_text(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    if stripped.lower().startswith("mesh:"):
+        return f"MESH:{stripped.split(':', 1)[1]}"
+    return stripped
+
+
+def _parse_stringified_list(value: str) -> object | None:
+    stripped = value.strip()
+    if not stripped.startswith("[") or not stripped.endswith("]"):
+        return None
+    try:
+        parsed = ast.literal_eval(stripped)
+    except (SyntaxError, ValueError):
+        return None
+    return parsed if isinstance(parsed, list | tuple | set) else None
 
 
 def _join_values(values: object) -> str:
     if values is None:
         return ""
-    if isinstance(values, list | tuple | set):
-        return "|".join(
-            str(value)
-            for value in _flatten_values(values)
-            if value is not None
-        )
-    return str(values)
+    return "|".join(
+        str(_normalize_identifier_text(value))
+        for value in _flatten_values(values)
+        if value is not None
+    )
 
 
 def _write_tsv(
