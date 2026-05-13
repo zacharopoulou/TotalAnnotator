@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable
 
@@ -17,6 +18,10 @@ from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3"}
+FLAIR_INSTALL_HINT = (
+    "The Flair annotator requires the optional Flair dependency. "
+    "Install it with: uv sync --extra flair"
+)
 
 
 def run_pipeline_from_config(
@@ -28,6 +33,10 @@ def run_pipeline_from_config(
     flair_spans_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
+    validate_optional_annotator_dependencies(
+        config,
+        flair_spans_by_document=flair_spans_by_document,
+    )
     documents = load_documents_from_config(config, pmid_fetcher=pmid_fetcher)
     payload = build_pipeline_output(
         documents,
@@ -210,6 +219,19 @@ def _validate_annotators(annotators: list[str]) -> None:
         raise ValueError(f"Unsupported annotators requested: {', '.join(unsupported)}")
 
 
+def validate_optional_annotator_dependencies(
+    config: PipelineConfig,
+    *,
+    flair_spans_by_document: dict[str, list[Any]] | None = None,
+) -> None:
+    if "flair" not in config.annotators:
+        return
+    if flair_spans_by_document is not None:
+        return
+    if find_spec("flair.nn") is None:
+        raise ValueError(FLAIR_INSTALL_HINT)
+
+
 def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
     model = settings.get("model")
     return {
@@ -221,10 +243,7 @@ def _load_flair_tagger(model: str) -> Any:
     try:
         from flair.nn import Classifier
     except ImportError as exc:
-        raise RuntimeError(
-            "The Flair annotator requires the optional Flair dependency. "
-            "Install it with: uv sync --extra flair"
-        ) from exc
+        raise RuntimeError(FLAIR_INSTALL_HINT) from exc
 
     return Classifier.load(model)
 

@@ -239,3 +239,28 @@ def test_load_flair_tagger_reports_optional_dependency(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="uv sync --extra flair"):
         _load_flair_tagger("hunflair2")
+
+
+def test_run_pipeline_preflights_missing_flair_dependency(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[annotators]",
+                'enabled = ["flair"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", lambda name: None)
+
+    with pytest.raises(ValueError, match="uv sync --extra flair"):
+        run_pipeline_from_config(config_path)
