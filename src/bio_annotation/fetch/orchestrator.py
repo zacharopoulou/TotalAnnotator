@@ -189,20 +189,6 @@ class PubtatorFirstOrchestrator:
         if kind in {"pmcid", "pmcid_list"}:
             return pt_docs
 
-        if kind == "query":
-            if not pt_docs:
-                return self.entrez.fetch(request)
-            out = list(pt_docs)
-            for doc in out:
-                if doc.pmid and _blank_body(doc):
-                    try:
-                        entrez_docs = self.entrez.fetch(FetchInput.from_pmid(doc.pmid))
-                        if entrez_docs:
-                            unite_into(doc, entrez_docs[0])
-                    except Exception as exc:
-                        logger.warning("entrez fallback failed for PMID %s: %s", doc.pmid, exc)
-            return out
-
         # pmid / pmid_list
         requested = set(request.pmids)
         by_pmid = {d.pmid: d for d in pt_docs if d.pmid}
