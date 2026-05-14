@@ -1,36 +1,14 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from typing import Any
 
+from bio_annotation.entity_types import ENTITY_TYPE_ALIASES, normalize_entity_type
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-ENTITY_TYPE_MAP = {
-    "gene": "gene",
-    "genes": "gene",
-    "gene_or_gene_product": "gene",
-    "gene_protein": "gene",
-    "protein": "protein",
-    "proteins": "protein",
-    "mirna": "mirna",
-    "micro_rna": "mirna",
-    "micro_rna_gene": "mirna",
-    "microrna": "mirna",
-    "disease": "disease",
-    "diseases": "disease",
-    "disease_or_phenotypic_feature": "disease",
-    "drug": "drug",
-    "chemical": "drug",
-    "chemical_entity": "drug",
-    "species": "species",
-    "cell_line": "cell_line",
-    "cellline": "cell_line",
-    "variant": "variant",
-    "sequence_variant": "variant",
-    "mutation": "variant",
-}
+# Backwards-compatible name for older imports.
+ENTITY_TYPE_MAP = ENTITY_TYPE_ALIASES
 
 
 def pick_first(*values: Any) -> Any:
@@ -38,17 +16,6 @@ def pick_first(*values: Any) -> Any:
         if value is not None:
             return value
     return None
-
-
-def normalize_entity_type(label: Any) -> str:
-    if label is None:
-        return "unknown"
-
-    normalized = re.sub(r"[^a-z0-9]+", "_", str(label).strip().lower()).strip("_")
-    if not normalized:
-        return "unknown"
-
-    return ENTITY_TYPE_MAP.get(normalized, normalized)
 
 
 def coerce_float(value: Any) -> float | None:
