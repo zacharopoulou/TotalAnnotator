@@ -16,6 +16,73 @@ SUPPORTED_ENRICHMENT_SOURCES = [
 DEFAULT_ENRICHMENT_SOURCES: list[str] = []
 
 SUPPORTED_FETCH_SOURCES = ["pubtator3", "entrez", "europe_pmc"]
+SUPPORTED_FETCH_FIELDS_BY_SOURCE = {
+    "pubtator3": frozenset(
+        {
+            "pmid",
+            "pmcid",
+            "title",
+            "abstract",
+            "full_text",
+            "annotations",
+        }
+    ),
+    "entrez": frozenset(
+        {
+            "pmid",
+            "pmcid",
+            "doi",
+            "title",
+            "abstract",
+            "structured_abstract",
+            "year",
+            "authors",
+            "affiliations",
+            "journal",
+            "journal_abbrev",
+            "volume",
+            "issue",
+            "pages",
+            "language",
+            "publication_type",
+            "country",
+            "pub_date",
+            "epub_date",
+            "received_date",
+            "accepted_date",
+            "medline_date",
+            "entrez_date",
+            "revision_date",
+            "keywords",
+            "mesh_terms",
+            "chemicals",
+            "gene_symbols",
+            "supplemental_mesh",
+            "grants",
+            "elinks",
+        }
+    ),
+    "europe_pmc": frozenset(
+        {
+            "pmid",
+            "pmcid",
+            "doi",
+            "title",
+            "abstract",
+            "year",
+            "authors",
+            "journal",
+            "mesh_terms",
+            "keywords",
+            "is_open_access",
+            "in_epmc",
+            "citation_count",
+            "full_text_urls",
+            "full_text",
+            "license",
+        }
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -87,6 +154,11 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         field_name="input.fields",
     )
     fetch_fields_per_source = _read_fields_per_source(input_config.get("fields_per_source"))
+    _validate_fetch_fields(
+        fetch_sources=fetch_sources,
+        fetch_fields=fetch_fields,
+        fetch_fields_per_source=fetch_fields_per_source,
+    )
     pubtator3_full_text = _read_pubtator3_full_text(input_config.get("pubtator3"))
 
     _validate_input_config(
@@ -223,6 +295,48 @@ def _read_fields_per_source(value: object) -> dict[str, list[str]] | None:
             allow_empty=True,
         )
     return cleaned or None
+
+
+def _validate_fetch_fields(
+    *,
+    fetch_sources: list[str],
+    fetch_fields: list[str] | None,
+    fetch_fields_per_source: dict[str, list[str]] | None,
+) -> None:
+    if fetch_fields is not None:
+        active_sources = fetch_sources or ["pubtator3"]
+        supported = set().union(
+            *(SUPPORTED_FETCH_FIELDS_BY_SOURCE[source] for source in active_sources)
+        )
+        _reject_unknown_fetch_fields(
+            fetch_fields,
+            supported=supported,
+            field_name="input.fields",
+        )
+
+    if fetch_fields_per_source is None:
+        return
+    for source_name, fields in fetch_fields_per_source.items():
+        _reject_unknown_fetch_fields(
+            fields,
+            supported=SUPPORTED_FETCH_FIELDS_BY_SOURCE[source_name],
+            field_name=f"input.fields_per_source.{source_name}",
+        )
+
+
+def _reject_unknown_fetch_fields(
+    fields: list[str],
+    *,
+    supported: frozenset[str] | set[str],
+    field_name: str,
+) -> None:
+    invalid = [field for field in fields if field not in supported]
+    if invalid:
+        raise ValueError(
+            f"{field_name} contains unsupported values: "
+            + ", ".join(invalid)
+            + f". Supported: {', '.join(sorted(supported))}."
+        )
 
 
 def _read_pubtator3_full_text(value: object) -> bool:
