@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -323,23 +324,45 @@ def _overlap_match(prediction: Annotation, gold: GoldAnnotation) -> bool:
 
 
 def _prediction_id_aliases(value: str | None) -> set[str]:
-    if not value:
-        return set()
     aliases: set[str] = set()
-    for part in str(value).replace("|", ";").replace(",", ";").split(";"):
-        aliases.update(_identifier_aliases(part))
+    for item in _iter_identifier_values(value):
+        aliases.update(_identifier_aliases(item))
     return aliases
 
 
 def _gold_id_aliases(values: tuple[str, ...]) -> set[str]:
     aliases: set[str] = set()
     for value in values:
-        aliases.update(_identifier_aliases(value))
+        for item in _iter_identifier_values(value):
+            aliases.update(_identifier_aliases(item))
     return aliases
 
 
+def _iter_identifier_values(value: Any) -> Iterable[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if item]
+
+    raw = str(value).strip()
+    if not raw:
+        return []
+
+    if raw.startswith("[") and raw.endswith("]"):
+        try:
+            parsed = ast.literal_eval(raw)
+        except (SyntaxError, ValueError):
+            parsed = None
+        if isinstance(parsed, (list, tuple, set)):
+            return [str(item) for item in parsed if item]
+
+    cleaned = raw.strip("[]")
+    parts = cleaned.replace("|", ";").replace(",", ";").split(";")
+    return [part.strip().strip("'\"") for part in parts if part.strip().strip("'\"")]
+
+
 def _identifier_aliases(value: str | None) -> set[str]:
-    raw = str(value or "").strip()
+    raw = str(value or "").strip().strip("'\"")
     if not raw or raw == "-":
         return set()
     normalized = raw.upper().replace(" ", "")
