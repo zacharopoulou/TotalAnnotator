@@ -9,6 +9,7 @@ from bio_annotation.benchmarking.config import (
     DEFAULT_BENCHMARK_ANNOTATORS,
     benchmark_annotator_options,
 )
+from bio_annotation.benchmarking.errors import build_error_analysis
 from bio_annotation.benchmarking.metrics import ScoredPrediction, evaluate_annotator
 from bio_annotation.benchmarking.ncbi import BenchmarkCase, GoldAnnotation, load_ncbi_cases
 from bio_annotation.benchmarking.preflight import (
@@ -110,6 +111,12 @@ def run_ncbi_review_evaluation(
         ).to_dict()
         for annotator in selected_annotators
     ]
+    error_analysis = _build_error_analysis_by_annotator(
+        selected_annotators=selected_annotators,
+        prediction_objects=prediction_objects,
+        gold_annotations=gold_annotations,
+        entity_type=entity_type,
+    )
 
     payload: dict[str, Any] = {
         "benchmark": "ncbi_disease",
@@ -123,6 +130,7 @@ def run_ncbi_review_evaluation(
         },
         "preflight": [result.to_dict() for result in preflight_results],
         "metrics": metric_rows,
+        "error_analysis": error_analysis,
         "statuses": statuses,
         "warnings": _warning_rows(cases),
         "gold_annotations": [gold.to_dict() for gold in gold_annotations],
@@ -141,6 +149,7 @@ def write_review_outputs(payload: dict[str, Any], output_dir: Path) -> None:
         encoding="utf-8",
     )
     _write_metrics_tsv(payload, output_dir / "metrics_by_annotator.tsv")
+    _write_error_analysis_tsv(payload, output_dir)
     _write_gold_jsonl(payload, output_dir / "gold.jsonl")
     _write_predictions_jsonl(payload, output_dir / "predictions.jsonl")
     _write_statuses_tsv(payload, output_dir / "annotator_statuses.tsv")
@@ -153,6 +162,24 @@ def _flatten_gold(cases: list[BenchmarkCase]) -> list[GoldAnnotation]:
     for case in cases:
         gold.extend(case.gold_annotations)
     return gold
+
+
+def _build_error_analysis_by_annotator(
+    *,
+    selected_annotators: list[str],
+    prediction_objects: dict[str, list[ScoredPrediction]],
+    gold_annotations: list[GoldAnnotation],
+    entity_type: str,
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    return {
+        annotator: build_error_analysis(
+            annotator=annotator,
+            predictions=prediction_objects.get(annotator, []),
+            gold_annotations=gold_annotations,
+            entity_type=entity_type,
+        ).to_dict()
+        for annotator in selected_annotators
+    }
 
 
 def _emit_progress(
@@ -219,6 +246,29 @@ def _write_metrics_tsv(payload: dict[str, Any], path: Path) -> None:
             }
         )
     _write_tsv(path, rows)
+
+
+def _write_error_analysis_tsv(payload: dict[str, Any], output_dir: Path) -> None:
+    error_analysis = payload.get("error_analysis")
+    false_positives: list[dict[str, Any]] = []
+    false_negatives: list[dict[str, Any]] = []
+    boundary_errors: list[dict[str, Any]] = []
+    if isinstance(error_analysis, dict):
+        for item in error_analysis.values():
+            if not isinstance(item, dict):
+                continue
+            false_positives.extend(
+                row for row in item.get("false_positives", []) if isinstance(row, dict)
+            )
+            false_negatives.extend(
+                row for row in item.get("false_negatives", []) if isinstance(row, dict)
+            )
+            boundary_errors.extend(
+                row for row in item.get("boundary_errors", []) if isinstance(row, dict)
+            )
+    _write_tsv(output_dir / "false_positives.tsv", false_positives)
+    _write_tsv(output_dir / "false_negatives.tsv", false_negatives)
+    _write_tsv(output_dir / "boundary_errors.tsv", boundary_errors)
 
 
 def _write_statuses_tsv(payload: dict[str, Any], path: Path) -> None:
