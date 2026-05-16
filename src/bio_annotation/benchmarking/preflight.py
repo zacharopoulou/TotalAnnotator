@@ -87,7 +87,7 @@ def preflight_benchmark_annotators(
                     status="failed",
                     message=(
                         f"Benchmark config is being used. Flair is being called with model {model!r}, "
-                        "but the model is not available in the local Flair cache/environment. "
+                        "but the model is not available through Flair's classifier loader in the local environment. "
                         f"Original error: {exc}"
                     ),
                 )
@@ -120,9 +120,9 @@ def preflight_benchmark_annotators(
 
 
 def _load_flair_model(model: str) -> Any:
-    from flair.models import SequenceTagger
+    from flair.nn import Classifier
 
-    return SequenceTagger.load(model)
+    return Classifier.load(model)
 
 
 __all__ = [
