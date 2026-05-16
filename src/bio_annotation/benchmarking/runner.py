@@ -11,6 +11,10 @@ from bio_annotation.benchmarking.config import (
 )
 from bio_annotation.benchmarking.metrics import evaluate_annotator
 from bio_annotation.benchmarking.ncbi import BenchmarkCase, GoldAnnotation, load_ncbi_cases
+from bio_annotation.benchmarking.preflight import (
+    PreflightResult,
+    preflight_benchmark_annotators,
+)
 from bio_annotation.pipeline_runner import run_selected_annotators_with_status
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
@@ -30,12 +34,13 @@ def run_ncbi_review_evaluation(
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
     flair_options: dict[str, Any] | None = None,
+    flair_tagger_loader: Callable[[str], Any] | None = None,
 ) -> dict[str, Any]:
     """Run a standalone benchmark-review evaluation on NCBI Disease.
 
     This deliberately reuses the public annotator runner but keeps benchmark
-    loading, matching, runtime defaults, and output generation outside the
-    normal pipeline runner.
+    loading, matching, runtime defaults, preflight checks, and output generation
+    outside the normal pipeline runner.
     """
 
     selected_annotators = annotators or list(DEFAULT_BENCHMARK_ANNOTATORS)
@@ -45,6 +50,11 @@ def run_ncbi_review_evaluation(
             "pubtator3": pubtator3_options or {},
             "flair": flair_options or {},
         }
+    )
+    preflight_results, preflight_resources = preflight_benchmark_annotators(
+        selected_annotators,
+        runtime_options,
+        flair_tagger_loader=flair_tagger_loader,
     )
     cases = load_ncbi_cases(benchmark_path, split=split)
     predictions_by_annotator: dict[str, list[dict[str, Any]]] = {
@@ -64,6 +74,7 @@ def run_ncbi_review_evaluation(
             pubtator3_request_fn=pubtator3_request_fn,
             bern2_options=runtime_options.get("bern2"),
             pubtator3_options=runtime_options.get("pubtator3"),
+            flair_tagger=preflight_resources.get("flair_tagger"),
             flair_options=runtime_options.get("flair"),
         )
         for status in case_statuses:
@@ -94,6 +105,7 @@ def run_ncbi_review_evaluation(
         "annotator_options": {
             name: runtime_options.get(name, {}) for name in selected_annotators
         },
+        "preflight": [result.to_dict() for result in preflight_results],
         "metrics": metric_rows,
         "statuses": statuses,
         "warnings": _warning_rows(cases),
@@ -117,6 +129,7 @@ def write_review_outputs(payload: dict[str, Any], output_dir: Path) -> None:
     _write_predictions_jsonl(payload, output_dir / "predictions.jsonl")
     _write_statuses_tsv(payload, output_dir / "annotator_statuses.tsv")
     _write_warnings_tsv(payload, output_dir / "loader_warnings.tsv")
+    _write_preflight_tsv(payload, output_dir / "preflight.tsv")
 
 
 def _flatten_gold(cases: list[BenchmarkCase]) -> list[GoldAnnotation]:
@@ -184,6 +197,11 @@ def _write_statuses_tsv(payload: dict[str, Any], path: Path) -> None:
 
 def _write_warnings_tsv(payload: dict[str, Any], path: Path) -> None:
     rows = [row for row in payload.get("warnings", []) if isinstance(row, dict)]
+    _write_tsv(path, rows)
+
+
+def _write_preflight_tsv(payload: dict[str, Any], path: Path) -> None:
+    rows = [row for row in payload.get("preflight", []) if isinstance(row, dict)]
     _write_tsv(path, rows)
 
 
