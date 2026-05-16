@@ -9,10 +9,9 @@ from bio_annotation.benchmarking.config import (
     DEFAULT_BENCHMARK_ANNOTATORS,
     benchmark_annotator_options,
 )
-from bio_annotation.benchmarking.metrics import evaluate_annotator
+from bio_annotation.benchmarking.metrics import ScoredPrediction, evaluate_annotator
 from bio_annotation.benchmarking.ncbi import BenchmarkCase, GoldAnnotation, load_ncbi_cases
 from bio_annotation.benchmarking.preflight import (
-    PreflightResult,
     preflight_benchmark_annotators,
 )
 from bio_annotation.pipeline_runner import run_selected_annotators_with_status
@@ -20,6 +19,7 @@ from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 RequestFn = Callable[[Document], Any]
+ProgressCallback = Callable[[int, int, str], None]
 
 
 def run_ncbi_review_evaluation(
@@ -35,6 +35,8 @@ def run_ncbi_review_evaluation(
     pubtator3_options: dict[str, Any] | None = None,
     flair_options: dict[str, Any] | None = None,
     flair_tagger_loader: Callable[[str], Any] | None = None,
+    progress_callback: ProgressCallback | None = None,
+    progress_interval: int = 25,
 ) -> dict[str, Any]:
     """Run a standalone benchmark-review evaluation on NCBI Disease.
 
@@ -60,13 +62,14 @@ def run_ncbi_review_evaluation(
     predictions_by_annotator: dict[str, list[dict[str, Any]]] = {
         annotator: [] for annotator in selected_annotators
     }
-    prediction_objects: dict[str, list[Annotation]] = {
+    prediction_objects: dict[str, list[ScoredPrediction]] = {
         annotator: [] for annotator in selected_annotators
     }
     gold_annotations = _flatten_gold(cases)
     statuses: list[dict[str, Any]] = []
+    total_documents = len(cases)
 
-    for case in cases:
+    for index, case in enumerate(cases, start=1):
         results, case_statuses = run_selected_annotators_with_status(
             case.document,
             selected_annotators,
@@ -80,10 +83,23 @@ def run_ncbi_review_evaluation(
         for status in case_statuses:
             statuses.append({"document_id": case.document.document_id, **status})
         for annotator, annotations in results.items():
-            prediction_objects.setdefault(annotator, []).extend(annotations)
+            prediction_objects.setdefault(annotator, []).extend(
+                ScoredPrediction(
+                    document_id=case.document.document_id,
+                    annotation=annotation,
+                )
+                for annotation in annotations
+            )
             predictions_by_annotator.setdefault(annotator, []).extend(
                 _prediction_rows(case.document.document_id, annotator, annotations)
             )
+        _emit_progress(
+            progress_callback,
+            index=index,
+            total=total_documents,
+            document_id=case.document.document_id,
+            interval=progress_interval,
+        )
 
     metric_rows = [
         evaluate_annotator(
@@ -137,6 +153,21 @@ def _flatten_gold(cases: list[BenchmarkCase]) -> list[GoldAnnotation]:
     for case in cases:
         gold.extend(case.gold_annotations)
     return gold
+
+
+def _emit_progress(
+    callback: ProgressCallback | None,
+    *,
+    index: int,
+    total: int,
+    document_id: str,
+    interval: int,
+) -> None:
+    if callback is None:
+        return
+    normalized_interval = max(1, interval)
+    if index == 1 or index == total or index % normalized_interval == 0:
+        callback(index, total, document_id)
 
 
 def _prediction_rows(
