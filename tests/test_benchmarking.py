@@ -252,7 +252,7 @@ def test_benchmark_annotator_options_include_runtime_defaults() -> None:
 
     assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
     assert options["flair"]["model"] == "hunflair2"
-    assert options["pubtator3"]["mode"] == "auto"
+    assert options["pubtator3"]["mode"] == "publication_only"
 
 
 def test_benchmark_annotator_options_allow_targeted_overrides() -> None:
@@ -281,6 +281,18 @@ def test_preflight_reports_remote_and_loads_flair_once() -> None:
     assert [result.name for result in results] == ["bern2", "flair"]
     assert results[0].status == "configured"
     assert results[1].status == "ready"
+
+
+def test_preflight_reports_pubtator3_publication_mode() -> None:
+    results, resources = preflight_benchmark_annotators(
+        ["pubtator3"],
+        benchmark_annotator_options(),
+    )
+
+    assert resources == {}
+    assert results[0].name == "pubtator3"
+    assert results[0].status == "configured"
+    assert "mode=publication_only" in results[0].message
 
 
 def test_preflight_fails_once_with_clear_flair_context() -> None:
@@ -369,6 +381,27 @@ def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
     assert loaded_models == ["hunflair2"]
     assert payload["document_count"] == 2
     assert payload["preflight"][0]["status"] == "ready"
+
+
+def test_review_runner_uses_pubtator3_publication_mode_by_default(tmp_path) -> None:
+    benchmark_path = tmp_path / "test.jsonl"
+    benchmark_path.write_text(json.dumps(_sample_ncbi_row("9949209")) + "\n", encoding="utf-8")
+    seen_documents: list[tuple[str, str]] = []
+
+    def fake_pubtator3(document):
+        seen_documents.append((document.document_id, document.pmid or ""))
+        return {"documents": []}
+
+    payload = run_ncbi_review_evaluation(
+        benchmark_path=benchmark_path,
+        annotators=["pubtator3"],
+        pubtator3_request_fn=fake_pubtator3,
+    )
+
+    assert seen_documents == [("9949209", "9949209")]
+    assert payload["annotator_options"]["pubtator3"]["mode"] == "publication_only"
+    assert payload["preflight"][0]["name"] == "pubtator3"
+    assert "mode=publication_only" in payload["preflight"][0]["message"]
 
 
 def test_review_runner_reports_progress(tmp_path) -> None:
