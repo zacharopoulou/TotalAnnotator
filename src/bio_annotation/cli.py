@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
+from bio_annotation.benchmarking.preflight import BenchmarkPreflightError
 from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
 from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
@@ -254,6 +255,10 @@ def main(argv: list[str] | None = None) -> int:
                 output_dir=args.output_dir,
                 entity_type=args.entity_type,
             )
+        except BenchmarkPreflightError as exc:
+            print("Benchmark preflight failed.", file=sys.stderr)
+            print(exc.result.message, file=sys.stderr)
+            return 1
         except (FileNotFoundError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
@@ -293,6 +298,12 @@ def main(argv: list[str] | None = None) -> int:
 
 def print_benchmark_review_summary(payload: dict[str, object], output_dir: Path) -> None:
     print("NCBI Disease benchmark review completed.")
+    preflight = payload.get("preflight")
+    if isinstance(preflight, list):
+        print("Preflight:")
+        for item in preflight:
+            if isinstance(item, dict):
+                print(f"  - {item.get('name')}: {item.get('status')} — {item.get('message')}")
     print(f"Documents: {payload.get('document_count', 0)}")
     print(f"Gold annotations: {payload.get('gold_count', 0)}")
     print(f"Output directory: {output_dir.as_posix()}")
