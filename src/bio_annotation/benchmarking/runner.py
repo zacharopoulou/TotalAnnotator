@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+from bio_annotation.benchmarking.config import (
+    DEFAULT_BENCHMARK_ANNOTATORS,
+    benchmark_annotator_options,
+)
 from bio_annotation.benchmarking.metrics import evaluate_annotator
 from bio_annotation.benchmarking.ncbi import BenchmarkCase, GoldAnnotation, load_ncbi_cases
 from bio_annotation.pipeline_runner import run_selected_annotators_with_status
@@ -30,10 +34,18 @@ def run_ncbi_review_evaluation(
     """Run a standalone benchmark-review evaluation on NCBI Disease.
 
     This deliberately reuses the public annotator runner but keeps benchmark
-    loading, matching, and output generation outside the normal pipeline runner.
+    loading, matching, runtime defaults, and output generation outside the
+    normal pipeline runner.
     """
 
-    selected_annotators = annotators or ["bern2", "pubtator3", "flair"]
+    selected_annotators = annotators or list(DEFAULT_BENCHMARK_ANNOTATORS)
+    runtime_options = benchmark_annotator_options(
+        {
+            "bern2": bern2_options or {},
+            "pubtator3": pubtator3_options or {},
+            "flair": flair_options or {},
+        }
+    )
     cases = load_ncbi_cases(benchmark_path, split=split)
     predictions_by_annotator: dict[str, list[dict[str, Any]]] = {
         annotator: [] for annotator in selected_annotators
@@ -50,9 +62,9 @@ def run_ncbi_review_evaluation(
             selected_annotators,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
-            bern2_options=bern2_options,
-            pubtator3_options=pubtator3_options,
-            flair_options=flair_options,
+            bern2_options=runtime_options.get("bern2"),
+            pubtator3_options=runtime_options.get("pubtator3"),
+            flair_options=runtime_options.get("flair"),
         )
         for status in case_statuses:
             statuses.append({"document_id": case.document.document_id, **status})
@@ -79,6 +91,9 @@ def run_ncbi_review_evaluation(
         "document_count": len(cases),
         "gold_count": len(gold_annotations),
         "annotators": selected_annotators,
+        "annotator_options": {
+            name: runtime_options.get(name, {}) for name in selected_annotators
+        },
         "metrics": metric_rows,
         "statuses": statuses,
         "warnings": _warning_rows(cases),
