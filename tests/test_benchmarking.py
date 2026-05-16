@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 
 import pytest
@@ -180,6 +181,97 @@ def test_evaluate_annotator_reports_strict_and_lenient_scores() -> None:
     assert boundary.lenient.true_positive == 1
 
 
+def test_evaluate_annotator_reports_normalization_scores() -> None:
+    case = case_from_bigbio_row(_sample_ncbi_row(), row_index=1)
+    exact_prediction = ScoredPrediction(
+        document_id=case.document.document_id,
+        annotation=Annotation(
+            annotation_id="pred-1",
+            source="fake",
+            span_text="Glioblastoma",
+            start=20,
+            end=32,
+            entity_type="disease",
+            canonical_id="D005909",
+        ),
+    )
+
+    result = evaluate_annotator(
+        annotator="fake",
+        predictions=[exact_prediction],
+        gold_annotations=case.gold_annotations,
+    )
+
+    assert result.strict_normalization.span_matches == 1
+    assert result.strict_normalization.correct == 1
+    assert result.strict_normalization.incorrect == 0
+    assert result.strict_normalization.accuracy_on_matched_spans == 1.0
+    assert result.lenient_normalization.correct == 1
+
+
+def test_evaluate_annotator_counts_incorrect_and_missing_normalization() -> None:
+    correct_case = case_from_bigbio_row(_sample_ncbi_row("correct-doc"), row_index=1)
+    wrong_case = case_from_bigbio_row(_sample_ncbi_row("wrong-doc"), row_index=2)
+    missing_case = case_from_bigbio_row(_sample_ncbi_row("missing-doc"), row_index=3)
+    predictions = [
+        ScoredPrediction(
+            document_id="correct-doc",
+            annotation=Annotation(
+                annotation_id="pred-correct",
+                source="fake",
+                span_text="Glioblastoma",
+                start=20,
+                end=32,
+                entity_type="disease",
+                canonical_id="MESH:D005909",
+            ),
+        ),
+        ScoredPrediction(
+            document_id="wrong-doc",
+            annotation=Annotation(
+                annotation_id="pred-wrong",
+                source="fake",
+                span_text="Glioblastoma",
+                start=20,
+                end=32,
+                entity_type="disease",
+                canonical_id="MESH:D000000",
+            ),
+        ),
+        ScoredPrediction(
+            document_id="missing-doc",
+            annotation=Annotation(
+                annotation_id="pred-missing",
+                source="fake",
+                span_text="Glioblastoma",
+                start=20,
+                end=32,
+                entity_type="disease",
+                canonical_id=None,
+            ),
+        ),
+    ]
+
+    result = evaluate_annotator(
+        annotator="fake",
+        predictions=predictions,
+        gold_annotations=(
+            correct_case.gold_annotations
+            + wrong_case.gold_annotations
+            + missing_case.gold_annotations
+        ),
+    )
+
+    assert result.strict.true_positive == 3
+    assert result.strict_normalization.span_matches == 3
+    assert result.strict_normalization.correct == 1
+    assert result.strict_normalization.incorrect == 1
+    assert result.strict_normalization.missing_prediction_id == 1
+    assert result.strict_normalization.accuracy_on_matched_spans == pytest.approx(1 / 3)
+    assert result.strict_normalization.accuracy_on_comparable_gold_spans == pytest.approx(1 / 3)
+    assert result.strict_normalization.prediction_id_coverage_on_matched_spans == pytest.approx(2 / 3)
+
+
 def test_error_analysis_separates_boundary_false_positive_and_false_negative() -> None:
     case = case_from_bigbio_row(_sample_ncbi_row(), row_index=1)
     boundary_prediction = ScoredPrediction(
@@ -343,6 +435,7 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
     assert payload["annotator_options"]["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
     assert payload["preflight"][0]["name"] == "bern2"
     assert payload["metrics"][0]["strict"]["true_positive"] == 1
+    assert payload["metrics"][0]["strict_normalization"]["correct"] == 1
     assert payload["error_analysis"]["bern2"]["false_positives"] == []
     assert payload["error_analysis"]["bern2"]["false_negatives"] == []
     assert payload["error_analysis"]["bern2"]["boundary_errors"] == []
@@ -354,6 +447,12 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
     assert (output_dir / "false_positives.tsv").exists()
     assert (output_dir / "false_negatives.tsv").exists()
     assert (output_dir / "boundary_errors.tsv").exists()
+
+    with (output_dir / "metrics_by_annotator.tsv").open("r", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    assert rows[0]["strict_norm_correct"] == "1"
+    assert rows[0]["lenient_norm_correct"] == "1"
+    assert "strict_norm_accuracy_on_matched_spans" in rows[0]
 
 
 def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
