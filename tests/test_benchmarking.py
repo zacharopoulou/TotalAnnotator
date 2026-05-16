@@ -5,6 +5,7 @@ import json
 import pytest
 
 from bio_annotation.benchmarking.config import benchmark_annotator_options
+from bio_annotation.benchmarking.errors import build_error_analysis
 from bio_annotation.benchmarking.metrics import ScoredPrediction, evaluate_annotator
 from bio_annotation.benchmarking.ncbi import case_from_bigbio_row, load_ncbi_cases
 from bio_annotation.benchmarking.preflight import (
@@ -179,6 +180,47 @@ def test_evaluate_annotator_reports_strict_and_lenient_scores() -> None:
     assert boundary.lenient.true_positive == 1
 
 
+def test_error_analysis_separates_boundary_false_positive_and_false_negative() -> None:
+    case = case_from_bigbio_row(_sample_ncbi_row(), row_index=1)
+    boundary_prediction = ScoredPrediction(
+        document_id=case.document.document_id,
+        annotation=Annotation(
+            annotation_id="pred-boundary",
+            source="fake",
+            span_text="Glioblastoma is",
+            start=20,
+            end=35,
+            entity_type="disease",
+        ),
+    )
+    false_positive = ScoredPrediction(
+        document_id=case.document.document_id,
+        annotation=Annotation(
+            annotation_id="pred-fp",
+            source="fake",
+            span_text="aggressive",
+            start=36,
+            end=46,
+            entity_type="disease",
+        ),
+    )
+    other_case = case_from_bigbio_row(_sample_ncbi_row("other-doc"), row_index=2)
+
+    analysis = build_error_analysis(
+        annotator="fake",
+        predictions=[boundary_prediction, false_positive],
+        gold_annotations=case.gold_annotations + other_case.gold_annotations,
+    )
+
+    assert len(analysis.boundary_errors) == 1
+    assert analysis.boundary_errors[0]["prediction_text"] == "Glioblastoma is"
+    assert analysis.boundary_errors[0]["gold_text"] == "Glioblastoma"
+    assert len(analysis.false_positives) == 1
+    assert analysis.false_positives[0]["prediction_text"] == "aggressive"
+    assert len(analysis.false_negatives) == 1
+    assert analysis.false_negatives[0]["document_id"] == "other-doc"
+
+
 def test_evaluate_annotator_matches_only_within_same_document() -> None:
     first_case = case_from_bigbio_row(_sample_ncbi_row("doc-a"), row_index=1)
     second_case = case_from_bigbio_row(_sample_ncbi_row("doc-b"), row_index=2)
@@ -289,11 +331,17 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
     assert payload["annotator_options"]["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
     assert payload["preflight"][0]["name"] == "bern2"
     assert payload["metrics"][0]["strict"]["true_positive"] == 1
+    assert payload["error_analysis"]["bern2"]["false_positives"] == []
+    assert payload["error_analysis"]["bern2"]["false_negatives"] == []
+    assert payload["error_analysis"]["bern2"]["boundary_errors"] == []
     assert (output_dir / "summary.json").exists()
     assert (output_dir / "metrics_by_annotator.tsv").exists()
     assert (output_dir / "gold.jsonl").exists()
     assert (output_dir / "predictions.jsonl").exists()
     assert (output_dir / "preflight.tsv").exists()
+    assert (output_dir / "false_positives.tsv").exists()
+    assert (output_dir / "false_negatives.tsv").exists()
+    assert (output_dir / "boundary_errors.tsv").exists()
 
 
 def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
