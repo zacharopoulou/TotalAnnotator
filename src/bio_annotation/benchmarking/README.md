@@ -1,0 +1,246 @@
+# Standalone Benchmark Review
+
+This package contains the benchmark-review implementation for TotalAnnotator. It is intentionally separate from the main pipeline runner.
+
+The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, scoring, and reporting live here.
+
+## Current benchmark
+
+The first supported benchmark is **NCBI Disease**.
+
+Committed data:
+
+```text
+benchmarks/data/ncbi/test.jsonl
+```
+
+Only the official test split is committed. Train and validation splits can be regenerated locally with:
+
+```bash
+uv sync --extra benchmarks
+uv run python benchmarks/scripts/ncbi.py
+```
+
+The review workflow currently evaluates disease annotations from:
+
+```text
+bern2
+pubtator3
+flair
+```
+
+The default scored entity type is:
+
+```text
+disease
+```
+
+## Running the benchmark review
+
+From the repository root:
+
+```bash
+uv run totalannotator evaluate-ncbi-review
+```
+
+This loads the default NCBI Disease test split and evaluates the default annotator set.
+
+A more explicit run:
+
+```bash
+uv run totalannotator evaluate-ncbi-review \
+  --benchmark-path benchmarks/data/ncbi/test.jsonl \
+  --split test \
+  --annotators bern2,pubtator3,flair \
+  --entity-type disease \
+  --output-dir outputs/benchmark-review/ncbi_disease
+```
+
+Arguments:
+
+- `--benchmark-path`: optional path to an NCBI Disease JSONL split. If omitted, the loader uses `benchmarks/data/ncbi/<split>.jsonl`.
+- `--split`: split name used when `--benchmark-path` is omitted. Default: `test`.
+- `--annotators`: comma-separated annotator names. Default: `bern2,pubtator3,flair`.
+- `--entity-type`: entity type to score. Default: `disease`.
+- `--output-dir`: directory for review outputs. Default: `outputs/benchmark-review/ncbi_disease`.
+
+## Output files
+
+The review command writes a compact set of files for inspection:
+
+```text
+summary.json
+metrics_by_annotator.tsv
+gold.jsonl
+predictions.jsonl
+annotator_statuses.tsv
+loader_warnings.tsv
+```
+
+### `summary.json`
+
+Full machine-readable run payload. It includes:
+
+- benchmark name
+- split
+- entity type
+- document count
+- gold annotation count
+- annotator list
+- strict and lenient metrics
+- per-document annotator statuses
+- loader warnings
+- gold annotations
+- predictions grouped by annotator
+
+### `metrics_by_annotator.tsv`
+
+One row per annotator. Columns include:
+
+```text
+annotator
+prediction_count
+gold_count
+strict_tp
+strict_fp
+strict_fn
+strict_precision
+strict_recall
+strict_f1
+lenient_tp
+lenient_fp
+lenient_fn
+lenient_precision
+lenient_recall
+lenient_f1
+```
+
+### `gold.jsonl`
+
+One gold disease annotation per line, in the canonical annotator text coordinate space.
+
+### `predictions.jsonl`
+
+One predicted annotation per line. Rows include the annotation fields plus `document_id` and `annotator`.
+
+### `annotator_statuses.tsv`
+
+Per-document status records from the annotator runner. This helps distinguish true absence of annotations from service failures, timeouts, or unavailable annotators.
+
+### `loader_warnings.tsv`
+
+Warnings emitted while loading benchmark rows. The most important warnings are gold span text mismatches, which indicate that text reconstruction or offset shifting should be inspected before trusting scores.
+
+## Text and offset contract
+
+Benchmark evaluation is only valid if gold offsets and annotator offsets refer to the same text.
+
+The NCBI loader converts each benchmark row into the same canonical text style used by `Document.text`:
+
+```text
+title + "\n\n" + abstract
+```
+
+Gold offsets are shifted into this canonical coordinate space when the source row has separate title and abstract passages.
+
+The loader validates each gold span by checking that:
+
+```text
+canonical_text[start:end] == gold_span_text
+```
+
+If that check fails, the row is still loaded but a warning is written. Review `loader_warnings.tsv` before interpreting benchmark results.
+
+## Metrics
+
+The review evaluator currently reports two span-level metrics.
+
+### Strict matching
+
+A prediction is correct only when all of these match:
+
+```text
+same document
+same scored entity type
+same start offset
+same end offset
+```
+
+Strict matching is the headline score because it is deterministic and conservative.
+
+### Lenient matching
+
+A prediction is correct when the predicted span overlaps an unmatched gold span:
+
+```text
+max(pred_start, gold_start) < min(pred_end, gold_end)
+```
+
+Lenient matching helps identify boundary disagreements. For example, a prediction of `cancer` inside a gold span `breast cancer` is not strict-correct, but it is lenient-correct.
+
+## Design boundaries
+
+This implementation is deliberately a secondary review layer.
+
+It does **not** replace or reorganize:
+
+```text
+pipeline_runner.py
+pipeline_config.py
+preprocessing/document_loader.py
+```
+
+The benchmark package only calls the existing public annotator runner:
+
+```python
+run_selected_annotators_with_status(...)
+```
+
+This keeps benchmark work useful for review without making normal `run-config` behavior depend on benchmark-specific assumptions.
+
+## Current limitations
+
+This is the first usable evaluation pass, not the final benchmark suite.
+
+Current limitations:
+
+- only NCBI Disease is supported
+- only disease span scoring is implemented
+- normalization accuracy is not scored yet
+- false-positive and false-negative error tables are not yet exported separately
+- no consensus/agreement analysis is included yet
+- live annotator reliability depends on the configured services and remote APIs
+
+## Recommended validation
+
+After changing this package, run:
+
+```bash
+uv run pytest tests/test_benchmarking.py
+```
+
+A successful expected result is:
+
+```text
+4 passed
+```
+
+For a real review run, inspect:
+
+```text
+outputs/benchmark-review/ncbi_disease/metrics_by_annotator.tsv
+outputs/benchmark-review/ncbi_disease/loader_warnings.tsv
+outputs/benchmark-review/ncbi_disease/annotator_statuses.tsv
+```
+
+The warning and status files should be reviewed before drawing conclusions from F1 scores.
+
+## Next implementation steps
+
+Suggested next steps:
+
+1. Add false-positive, false-negative, and boundary-error exports.
+2. Add optional normalization matching for disease identifiers.
+3. Add consensus analysis across annotators.
+4. Add a benchmark config file once more benchmarks exist.
+5. Add additional disease benchmarks to reduce overfitting to NCBI Disease.
