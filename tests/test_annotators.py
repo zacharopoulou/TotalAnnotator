@@ -11,7 +11,7 @@ from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
-from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
+from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
 from bio_annotation.schemas.document import Document
 
 
@@ -263,7 +263,7 @@ def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
             return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[{"obj":"Gene:5728","span":{"begin":0,"end":4}}]}'
 
     client = FakeClient()
-    annotations = annotate_with_pubtator3(document, client=client)
+    annotations = annotate_with_pubtator3(document, client=client, mode="text_only")
 
     assert len(annotations) == 1
     assert annotations[0].source == "pubtator3"
@@ -271,6 +271,101 @@ def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
     assert annotations[0].canonical_id == "5728"
     assert client.payloads == [document.text]
     assert client.options[0]["bioconcept"] == "All"
+
+
+def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -> None:
+    document = Document(
+        document_id="PMID:12345678",
+        pmid="12345678",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important in glioblastoma.",
+        source="pubtator3",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.pmids: list[list[str]] = []
+            self.text_payloads: list[str] = []
+
+        def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            self.pmids.append(pmids)
+            return {"documents": []}
+
+        def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMCID lookup should not be used when PMID is present")
+
+        def annotate_text(self, payload: str, **kwargs: object) -> str:
+            self.text_payloads.append(payload)
+            raise AssertionError("raw text annotation should not be used for PMID documents in auto mode")
+
+    client = FakeClient()
+    payload = call_pubtator3(document, client=client, mode="auto")
+
+    assert payload == {"documents": []}
+    assert client.pmids == [["12345678"]]
+    assert client.text_payloads == []
+
+
+def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -> None:
+    document = Document(
+        document_id="PMC:PMC1234567",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important in glioblastoma.",
+        source="europe_pmc",
+        metadata={"pmcid": "PMC1234567"},
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.pmcids: list[list[str]] = []
+            self.text_payloads: list[str] = []
+
+        def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMID lookup should not be used when no PMID is present")
+
+        def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            self.pmcids.append(pmcids)
+            return {"documents": []}
+
+        def annotate_text(self, payload: str, **kwargs: object) -> str:
+            self.text_payloads.append(payload)
+            raise AssertionError("raw text annotation should not be used for PMCID documents in auto mode")
+
+    client = FakeClient()
+    payload = call_pubtator3(document, client=client, mode="auto")
+
+    assert payload == {"documents": []}
+    assert client.pmcids == [["PMC1234567"]]
+    assert client.text_payloads == []
+
+
+def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers() -> None:
+    document = Document(
+        document_id="CORPUS:doc1",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important in glioblastoma.",
+        source="corpus",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.payloads: list[str] = []
+
+        def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMID lookup should not be used without a PMID")
+
+        def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMCID lookup should not be used without a PMCID")
+
+        def annotate_text(self, payload: str, **kwargs: object) -> str:
+            self.payloads.append(payload)
+            return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
+
+    client = FakeClient()
+    payload = call_pubtator3(document, client=client, mode="auto")
+
+    assert payload == '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
+    assert client.payloads == [document.text]
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
