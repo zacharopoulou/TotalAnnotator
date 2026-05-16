@@ -226,6 +226,16 @@ def _write_metrics_tsv(payload: dict[str, Any], path: Path) -> None:
             continue
         strict = item.get("strict") if isinstance(item.get("strict"), dict) else {}
         lenient = item.get("lenient") if isinstance(item.get("lenient"), dict) else {}
+        strict_norm = (
+            item.get("strict_normalization")
+            if isinstance(item.get("strict_normalization"), dict)
+            else {}
+        )
+        lenient_norm = (
+            item.get("lenient_normalization")
+            if isinstance(item.get("lenient_normalization"), dict)
+            else {}
+        )
         rows.append(
             {
                 "annotator": item.get("annotator"),
@@ -243,6 +253,24 @@ def _write_metrics_tsv(payload: dict[str, Any], path: Path) -> None:
                 "lenient_precision": lenient.get("precision"),
                 "lenient_recall": lenient.get("recall"),
                 "lenient_f1": lenient.get("f1"),
+                "strict_norm_span_matches": strict_norm.get("span_matches"),
+                "strict_norm_correct": strict_norm.get("correct"),
+                "strict_norm_incorrect": strict_norm.get("incorrect"),
+                "strict_norm_missing_prediction_id": strict_norm.get("missing_prediction_id"),
+                "strict_norm_missing_gold_id": strict_norm.get("missing_gold_id"),
+                "strict_norm_accuracy_on_matched_spans": strict_norm.get("accuracy_on_matched_spans"),
+                "strict_norm_accuracy_on_comparable_gold_spans": strict_norm.get("accuracy_on_comparable_gold_spans"),
+                "strict_norm_prediction_id_coverage_on_matched_spans": strict_norm.get("prediction_id_coverage_on_matched_spans"),
+                "strict_norm_gold_id_coverage_on_matched_spans": strict_norm.get("gold_id_coverage_on_matched_spans"),
+                "lenient_norm_span_matches": lenient_norm.get("span_matches"),
+                "lenient_norm_correct": lenient_norm.get("correct"),
+                "lenient_norm_incorrect": lenient_norm.get("incorrect"),
+                "lenient_norm_missing_prediction_id": lenient_norm.get("missing_prediction_id"),
+                "lenient_norm_missing_gold_id": lenient_norm.get("missing_gold_id"),
+                "lenient_norm_accuracy_on_matched_spans": lenient_norm.get("accuracy_on_matched_spans"),
+                "lenient_norm_accuracy_on_comparable_gold_spans": lenient_norm.get("accuracy_on_comparable_gold_spans"),
+                "lenient_norm_prediction_id_coverage_on_matched_spans": lenient_norm.get("prediction_id_coverage_on_matched_spans"),
+                "lenient_norm_gold_id_coverage_on_matched_spans": lenient_norm.get("gold_id_coverage_on_matched_spans"),
             }
         )
     _write_tsv(path, rows)
