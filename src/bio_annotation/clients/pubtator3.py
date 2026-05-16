@@ -19,8 +19,10 @@ DEFAULT_TEXT_MAX_ATTEMPTS = 20
 DEFAULT_TEXT_POLL_INTERVAL = 2.0
 DEFAULT_TEXT_POLL_BACKOFF = 1.5
 DEFAULT_TEXT_MAX_POLL_INTERVAL = 15.0
+DEFAULT_TEXT_MAX_POLL_SECONDS = 180.0
 
 RequestOpener = Callable[[request.Request, int], bytes]
+PollProgressCallback = Callable[[str, int, int, float], None]
 
 
 class PubTator3PendingError(ValueError):
@@ -141,6 +143,8 @@ class PubTator3Client:
         poll_interval: float = DEFAULT_TEXT_POLL_INTERVAL,
         poll_backoff: float = DEFAULT_TEXT_POLL_BACKOFF,
         max_poll_interval: float = DEFAULT_TEXT_MAX_POLL_INTERVAL,
+        max_poll_seconds: float = DEFAULT_TEXT_MAX_POLL_SECONDS,
+        progress_callback: PollProgressCallback | None = None,
     ) -> str:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1.")
@@ -150,22 +154,33 @@ class PubTator3Client:
             raise ValueError("poll_backoff must be at least 1.0.")
         if max_poll_interval <= 0:
             raise ValueError("max_poll_interval must be greater than 0.")
+        if max_poll_seconds <= 0:
+            raise ValueError("max_poll_seconds must be greater than 0.")
 
         session_id = self.submit_text_annotation(payload, bioconcept=bioconcept)
         last_error: PubTator3PendingError | None = None
         delay = poll_interval
+        started_at = time.monotonic()
         for attempt in range(max_attempts):
             try:
                 return self.retrieve_text_annotation(session_id)
             except PubTator3PendingError as exc:
                 last_error = exc
+                elapsed = time.monotonic() - started_at
                 if attempt == max_attempts - 1:
                     break
-                time.sleep(delay)
+                if elapsed >= max_poll_seconds:
+                    break
+                sleep_seconds = min(delay, max_poll_seconds - elapsed)
+                if progress_callback is not None:
+                    progress_callback(session_id, attempt + 1, max_attempts, sleep_seconds)
+                time.sleep(sleep_seconds)
                 delay = min(delay * poll_backoff, max_poll_interval)
 
+        elapsed = time.monotonic() - started_at
         raise ValueError(
-            f"PubTator3 annotation job {session_id} was not ready after {max_attempts} attempts."
+            f"PubTator3 annotation job {session_id} was not ready after "
+            f"{max_attempts} attempts and {elapsed:.1f}s."
         ) from last_error
 
     def _fetch_publications(

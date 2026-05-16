@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import csv
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -463,6 +464,10 @@ def run_selected_annotators_with_status(
                     max_poll_attempts=pubtator3_options.get("max_poll_attempts", 15)
                     if pubtator3_options
                     else 15,
+                    max_poll_seconds=pubtator3_options.get("max_poll_seconds", 180.0)
+                    if pubtator3_options
+                    else 180.0,
+                    progress_callback=_pubtator3_progress,
                 )
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
@@ -700,6 +705,21 @@ def _no_annotations_reason(annotator: str) -> str:
     return "No annotations returned."
 
 
+def _pubtator3_progress(
+    session_id: str,
+    attempt: int,
+    max_attempts: int,
+    sleep_seconds: float,
+) -> None:
+    print(
+        "pubtator3 pending: "
+        f"session={session_id} attempt={attempt}/{max_attempts}; "
+        f"sleeping {sleep_seconds:.1f}s",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def _finalize_mention(mention: dict[str, Any]) -> dict[str, Any]:
     mention["annotators"] = sorted(
         mention["annotators"],
@@ -892,6 +912,7 @@ def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
     poll_backoff = settings.get("poll_backoff")
     max_poll_interval_seconds = settings.get("max_poll_interval_seconds")
     max_poll_attempts = settings.get("max_poll_attempts")
+    max_poll_seconds = settings.get("max_poll_seconds")
 
     cleaned_mode = mode.strip().lower() if isinstance(mode, str) and mode.strip() else "auto"
     if cleaned_mode not in {"auto", "publication_only", "text_only"}:
@@ -925,5 +946,10 @@ def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
             int(max_poll_attempts)
             if isinstance(max_poll_attempts, int) and max_poll_attempts > 0
             else 15
+        ),
+        "max_poll_seconds": (
+            float(max_poll_seconds)
+            if isinstance(max_poll_seconds, (int, float)) and float(max_poll_seconds) > 0
+            else 180.0
         ),
     }
