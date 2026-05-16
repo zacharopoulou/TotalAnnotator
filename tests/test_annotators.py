@@ -11,7 +11,7 @@ from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
-from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
+from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
 from bio_annotation.schemas.document import Document
 
 
@@ -263,7 +263,7 @@ def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
             return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[{"obj":"Gene:5728","span":{"begin":0,"end":4}}]}'
 
     client = FakeClient()
-    annotations = annotate_with_pubtator3(document, client=client)
+    annotations = annotate_with_pubtator3(document, client=client, mode="text_only")
 
     assert len(annotations) == 1
     assert annotations[0].source == "pubtator3"
@@ -271,6 +271,69 @@ def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
     assert annotations[0].canonical_id == "5728"
     assert client.payloads == [document.text]
     assert client.options[0]["bioconcept"] == "All"
+
+
+def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
+    document = Document(
+        document_id="9949209",
+        pmid="9949209",
+        title="Genetic mapping of the copper toxicosis locus.",
+        abstract="Wilson disease causes hepatic copper accumulation.",
+        source="benchmark:ncbi_disease",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.pmids: list[list[str]] = []
+            self.text_payloads: list[str] = []
+
+        def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            self.pmids.append(pmids)
+            return {"documents": []}
+
+        def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMCID lookup should not be used when PMID is present")
+
+        def annotate_text(self, payload: str, **kwargs: object) -> str:
+            self.text_payloads.append(payload)
+            raise AssertionError("raw text annotation should not be used for benchmark PMID documents")
+
+    client = FakeClient()
+    payload = call_pubtator3(document, client=client, mode="publication_only")
+
+    assert payload == {"documents": []}
+    assert client.pmids == [["9949209"]]
+    assert client.text_payloads == []
+
+
+def test_pubtator3_auto_uses_publication_export_before_raw_text() -> None:
+    document = Document(
+        document_id="9949209",
+        pmid="9949209",
+        title="Genetic mapping of the copper toxicosis locus.",
+        abstract="Wilson disease causes hepatic copper accumulation.",
+        source="benchmark:ncbi_disease",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.pmids: list[list[str]] = []
+
+        def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            self.pmids.append(pmids)
+            return {"documents": []}
+
+        def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMCID lookup should not be used when PMID is present")
+
+        def annotate_text(self, payload: str, **kwargs: object) -> str:
+            raise AssertionError("auto mode should prefer publication export for PMID documents")
+
+    client = FakeClient()
+    payload = call_pubtator3(document, client=client, mode="auto")
+
+    assert payload == {"documents": []}
+    assert client.pmids == [["9949209"]]
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
