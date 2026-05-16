@@ -5,7 +5,7 @@ import json
 import pytest
 
 from bio_annotation.benchmarking.config import benchmark_annotator_options
-from bio_annotation.benchmarking.metrics import evaluate_annotator
+from bio_annotation.benchmarking.metrics import ScoredPrediction, evaluate_annotator
 from bio_annotation.benchmarking.ncbi import case_from_bigbio_row, load_ncbi_cases
 from bio_annotation.benchmarking.preflight import (
     BenchmarkPreflightError,
@@ -15,9 +15,9 @@ from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
 from bio_annotation.schemas.entity import Annotation
 
 
-def _sample_ncbi_row() -> dict[str, object]:
+def _sample_ncbi_row(document_id: str = "12345678") -> dict[str, object]:
     return {
-        "document_id": "12345678",
+        "document_id": document_id,
         "passages": [
             {
                 "type": "title",
@@ -71,21 +71,27 @@ def test_load_ncbi_cases_from_jsonl_path(tmp_path) -> None:
 
 def test_evaluate_annotator_reports_strict_and_lenient_scores() -> None:
     case = case_from_bigbio_row(_sample_ncbi_row(), row_index=1)
-    exact_prediction = Annotation(
-        annotation_id="pred-1",
-        source="fake",
-        span_text="Glioblastoma",
-        start=20,
-        end=32,
-        entity_type="disease",
+    exact_prediction = ScoredPrediction(
+        document_id=case.document.document_id,
+        annotation=Annotation(
+            annotation_id="pred-1",
+            source="fake",
+            span_text="Glioblastoma",
+            start=20,
+            end=32,
+            entity_type="disease",
+        ),
     )
-    boundary_prediction = Annotation(
-        annotation_id="pred-2",
-        source="fake",
-        span_text="Glioblastoma is",
-        start=20,
-        end=35,
-        entity_type="disease",
+    boundary_prediction = ScoredPrediction(
+        document_id=case.document.document_id,
+        annotation=Annotation(
+            annotation_id="pred-2",
+            source="fake",
+            span_text="Glioblastoma is",
+            start=20,
+            end=35,
+            entity_type="disease",
+        ),
     )
 
     exact = evaluate_annotator(
@@ -105,6 +111,32 @@ def test_evaluate_annotator_reports_strict_and_lenient_scores() -> None:
     assert boundary.strict.false_positive == 1
     assert boundary.strict.false_negative == 1
     assert boundary.lenient.true_positive == 1
+
+
+def test_evaluate_annotator_matches_only_within_same_document() -> None:
+    first_case = case_from_bigbio_row(_sample_ncbi_row("doc-a"), row_index=1)
+    second_case = case_from_bigbio_row(_sample_ncbi_row("doc-b"), row_index=2)
+    wrong_document_prediction = ScoredPrediction(
+        document_id="doc-b",
+        annotation=Annotation(
+            annotation_id="pred-1",
+            source="fake",
+            span_text="Glioblastoma",
+            start=20,
+            end=32,
+            entity_type="disease",
+        ),
+    )
+
+    result = evaluate_annotator(
+        annotator="fake",
+        predictions=[wrong_document_prediction],
+        gold_annotations=first_case.gold_annotations + second_case.gold_annotations,
+    )
+
+    assert result.strict.true_positive == 1
+    assert result.strict.false_positive == 0
+    assert result.strict.false_negative == 1
 
 
 def test_benchmark_annotator_options_include_runtime_defaults() -> None:
@@ -158,7 +190,7 @@ def test_preflight_fails_once_with_clear_flair_context() -> None:
     assert "Benchmark config is being used" in message
     assert "Flair is being called" in message
     assert "model 'hunflair2'" in message
-    assert "not available in the local Flair cache/environment" in message
+    assert "not available through Flair's classifier loader" in message
 
 
 def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> None:
@@ -201,7 +233,7 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
 def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
     benchmark_path = tmp_path / "test.jsonl"
     benchmark_path.write_text(
-        json.dumps(_sample_ncbi_row()) + "\n" + json.dumps(_sample_ncbi_row()) + "\n",
+        json.dumps(_sample_ncbi_row("doc-a")) + "\n" + json.dumps(_sample_ncbi_row("doc-b")) + "\n",
         encoding="utf-8",
     )
     loaded_models: list[str] = []
@@ -223,3 +255,25 @@ def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
     assert loaded_models == ["hunflair2"]
     assert payload["document_count"] == 2
     assert payload["preflight"][0]["status"] == "ready"
+
+
+def test_review_runner_reports_progress(tmp_path) -> None:
+    benchmark_path = tmp_path / "test.jsonl"
+    benchmark_path.write_text(
+        "".join(json.dumps(_sample_ncbi_row(f"doc-{index}")) + "\n" for index in range(1, 4)),
+        encoding="utf-8",
+    )
+    progress: list[tuple[int, int, str]] = []
+
+    def fake_bern2(document):
+        return {"annotations": []}
+
+    run_ncbi_review_evaluation(
+        benchmark_path=benchmark_path,
+        annotators=["bern2"],
+        bern2_request_fn=fake_bern2,
+        progress_callback=lambda index, total, document_id: progress.append((index, total, document_id)),
+        progress_interval=2,
+    )
+
+    assert progress == [(1, 3, "doc-1"), (2, 3, "doc-2"), (3, 3, "doc-3")]
