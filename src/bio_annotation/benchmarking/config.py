@@ -21,7 +21,7 @@ DEFAULT_BENCHMARK_ANNOTATOR_OPTIONS: dict[str, dict[str, Any]] = {
         "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
         "format": "biocjson",
         "timeout": 60,
-        "mode": "auto",
+        "mode": "publication_only",
         "bioconcept": "All",
     },
 }
