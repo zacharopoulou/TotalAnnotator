@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from io import StringIO
 
 from bio_annotation.cli import main
+from bio_annotation.fetch import FetchOrchestrator
+from bio_annotation.fetch.input import FetchInput, FetchKind
 from bio_annotation.pipeline_runner import _read_pubtator3_options, run_pipeline_from_config
+from bio_annotation.schemas.document import Document
 
 
 @dataclass
@@ -23,6 +26,40 @@ class FakeSpan:
     labels: list[FakeLabel]
 
 
+@dataclass(slots=True)
+class _StubEntrezSource:
+    name: str = "entrez"
+    supported_inputs: frozenset[FetchKind] = frozenset({"pmid", "pmid_list"})
+    fields_provided: frozenset[str] = frozenset()
+
+    def fetch(self, request: FetchInput) -> list[Document]:
+        return [
+            Document(
+                document_id=f"PMID:{pmid}",
+                pmid=pmid,
+                title="PTEN regulates glioblastoma",
+                abstract="PTEN is important in glioblastoma.",
+                source="entrez",
+                year="2024",
+                metadata={
+                    "pubmed_record": {
+                        "pmid": pmid,
+                        "pmcid": "PMC1234567",
+                        "title": "PTEN regulates glioblastoma",
+                        "abstract": "PTEN is important in glioblastoma.",
+                        "year": "2024",
+                    },
+                    "pmcid": "PMC1234567",
+                },
+            )
+            for pmid in request.pmids
+        ]
+
+
+def _stub_orchestrator() -> FetchOrchestrator:
+    return FetchOrchestrator(sources=[_StubEntrezSource()])
+
+
 def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     config_path = tmp_path / "pipeline.toml"
     config_path.write_text(
@@ -31,6 +68,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
                 "[input]",
                 'mode = "pmids"',
                 'pmids = ["12345678"]',
+                'source = "entrez"',
                 "",
                 "[enrichment]",
                 'sources = ["elinks", "crossref"]',
@@ -56,13 +94,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
 
     payload = run_pipeline_from_config(
         config_path,
-        pmid_fetcher=lambda pmid: {
-            "pmid": pmid,
-            "pmcid": "PMC1234567",
-            "title": "PTEN regulates glioblastoma",
-            "abstract": "PTEN is important in glioblastoma.",
-            "year": "2024",
-        },
+        orchestrator_factory=_stub_orchestrator,
         bern2_request_fn=lambda document: {
             "annotations": [
                 {"mention": "PTEN", "span": {"begin": 0, "end": 4}, "type": "Gene", "id": "NCBIGene:5728"}
@@ -133,8 +165,9 @@ def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
     )
 
     monkeypatch.setattr(
-        "bio_annotation.pipeline_runner.run_pipeline_from_config",
+        "bio_annotation.cli.run_pipeline_from_config",
         lambda path: {
+            "stage": "corpus",
             "document_count": 1,
             "pipeline": {
                 "mode": "ingestion_and_annotation",

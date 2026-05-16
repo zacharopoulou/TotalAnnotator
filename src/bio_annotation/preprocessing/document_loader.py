@@ -11,6 +11,8 @@ from bio_annotation.schemas.document import Document
 
 
 PubMedFetcher = Callable[[str], dict[str, Any]]
+OrchestratorFactory = Callable[[], Any]
+"""Callable returning a fetch orchestrator (bio_annotation.fetch.default_fetch_orchestrator)."""
 
 
 def load_document_from_pmid(
@@ -145,22 +147,15 @@ def load_documents_from_text_table(
 def load_documents_from_config(
     config: PipelineConfig,
     *,
-    pmid_fetcher: PubMedFetcher | None = None,
+    orchestrator_factory: OrchestratorFactory | None = None,
 ) -> list[Document]:
+    """Load documents per input mode. PMID and PMID-file modes route through the fetch orchestrator."""
+
     mode = config.input_mode
-    if mode == "pmids":
-        return load_documents_from_pmids(
-            config.pmids,
-            fetcher=pmid_fetcher,
-            enrichment_sources=config.enrichment_sources,
-        )
-    if mode == "pmid_file":
-        if config.pmid_file is None:
-            raise ValueError("input.pmid_file must be set when input.mode = 'pmid_file'.")
-        return load_documents_from_pmid_file(
-            config.pmid_file,
-            fetcher=pmid_fetcher,
-            enrichment_sources=config.enrichment_sources,
+    if mode in {"pmids", "pmid_file"}:
+        return _load_documents_via_orchestrator(
+            config,
+            orchestrator_factory=orchestrator_factory,
         )
     if mode == "text_table":
         if config.text_file is None:
@@ -179,7 +174,98 @@ def load_documents_from_config(
     raise ValueError(f"Unsupported input mode: {mode}")
 
 
+def _load_documents_via_orchestrator(
+    config: PipelineConfig,
+    *,
+    orchestrator_factory: OrchestratorFactory | None,
+) -> list[Document]:
+    pmids = _resolve_pmids_from_config(config)
+    if not pmids:
+        return []
+    request = _build_orchestrator_request(config, pmids)
+    orchestrator = _build_orchestrator(
+        orchestrator_factory,
+        pubtator3_full_text=config.pubtator3_full_text,
+    )
+    fetch_sources = config.fetch_sources or ["pubtator3"]
+    if len(fetch_sources) == 1:
+        return orchestrator.fetch(request, prefer=fetch_sources[0])
+    return orchestrator.fetch(request, prefer=list(fetch_sources))
+
+
+def _resolve_pmids_from_config(config: PipelineConfig) -> list[str]:
+    if config.input_mode == "pmids":
+        return _dedupe_pmids(config.pmids)
+    if config.pmid_file is None:
+        raise ValueError("input.pmid_file must be set when input.mode = 'pmid_file'.")
+    raw = [
+        line.strip()
+        for line in config.pmid_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    return _dedupe_pmids(raw)
+
+
+def _build_orchestrator_request(config: PipelineConfig, pmids: list[str]) -> Any:
+    from bio_annotation.fetch import FetchInput
+
+    fields = (
+        frozenset(config.fetch_fields)
+        if config.fetch_fields is not None
+        else None
+    )
+    fields_per_source = (
+        {name: frozenset(values) for name, values in config.fetch_fields_per_source.items()}
+        if config.fetch_fields_per_source
+        else None
+    )
+    if len(pmids) == 1:
+        return FetchInput.from_pmid(
+            pmids[0],
+            fields=fields,
+            fields_per_source=fields_per_source,
+        )
+    return FetchInput.from_pmid_list(
+        pmids,
+        fields=fields,
+        fields_per_source=fields_per_source,
+    )
+
+
+def _build_orchestrator(
+    factory: OrchestratorFactory | None,
+    *,
+    pubtator3_full_text: bool,
+) -> Any:
+    if factory is not None:
+        return factory()
+    from bio_annotation.fetch import (
+        EntrezSource,
+        EuropePmcSource,
+        FetchOrchestrator,
+        PubTator3Source,
+    )
+
+    return FetchOrchestrator(
+        sources=[
+            PubTator3Source(full_text=pubtator3_full_text),
+            EntrezSource(),
+            EuropePmcSource(),
+        ]
+    )
+
+
 def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
+    base_fetch = {
+        "fetch_sources": list(config.fetch_sources),
+        "fetch_fields": list(config.fetch_fields) if config.fetch_fields is not None else None,
+        "fetch_fields_per_source": (
+            {k: list(v) for k, v in config.fetch_fields_per_source.items()}
+            if config.fetch_fields_per_source is not None
+            else None
+        ),
+        "pubtator3_full_text": config.pubtator3_full_text,
+    }
     if config.input_mode == "pmids":
         return {
             "mode": "pmids",
@@ -187,6 +273,7 @@ def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
             "pmid_file": None,
             "text_file": None,
             "corpus_path": None,
+            **base_fetch,
         }
     if config.input_mode == "pmid_file":
         return {
@@ -195,6 +282,7 @@ def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
             "pmid_file": str(config.pmid_file) if config.pmid_file is not None else None,
             "text_file": None,
             "corpus_path": None,
+            **base_fetch,
         }
     if config.input_mode == "text_table":
         return {
@@ -203,6 +291,7 @@ def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
             "pmid_file": None,
             "text_file": str(config.text_file) if config.text_file is not None else None,
             "corpus_path": None,
+            **base_fetch,
         }
     return {
         "mode": "corpus",
@@ -210,6 +299,7 @@ def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
         "pmid_file": None,
         "text_file": None,
         "corpus_path": str(config.corpus_path) if config.corpus_path is not None else None,
+        **base_fetch,
     }
 
 

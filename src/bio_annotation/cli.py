@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
@@ -165,6 +166,10 @@ def main(argv: list[str] | None = None) -> int:
                     "annotator_settings": config.annotator_settings,
                     "entity_types": config.entity_types,
                     "output_path": str(config.output_path) if config.output_path is not None else None,
+                    "fetch_sources": config.fetch_sources,
+                    "fetch_fields": config.fetch_fields,
+                    "fetch_fields_per_source": config.fetch_fields_per_source,
+                    "pubtator3_full_text": config.pubtator3_full_text,
                 },
                 indent=2,
             )

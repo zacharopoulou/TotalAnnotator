@@ -79,8 +79,11 @@ class PubTator3Client:
         *,
         format: str = DEFAULT_EXPORT_FORMAT,
         concepts: Iterable[str] | None = None,
+        full: bool = False,
     ) -> Any:
-        return self._fetch_publications("pmids", pmids, format=format, concepts=concepts)
+        if full and format == "pubtator":
+            raise ValueError("PubTator3 full-text export is only available in biocxml or biocjson formats.")
+        return self._fetch_publications("pmids", pmids, format=format, concepts=concepts, full=full)
 
     def fetch_publications_by_pmcids(
         self,
@@ -88,10 +91,11 @@ class PubTator3Client:
         *,
         format: str = DEFAULT_EXPORT_FORMAT,
         concepts: Iterable[str] | None = None,
+        full: bool = False,
     ) -> Any:
         if format not in {"biocxml", "biocjson"}:
             raise ValueError("PubTator3 PMCID export only supports biocxml or biocjson formats.")
-        return self._fetch_publications("pmcids", pmcids, format=format, concepts=concepts)
+        return self._fetch_publications("pmcids", pmcids, format=format, concepts=concepts, full=full)
 
     def submit_text_annotation(
         self,
@@ -166,6 +170,7 @@ class PubTator3Client:
         *,
         format: str,
         concepts: Iterable[str] | None,
+        full: bool = False,
     ) -> Any:
         cleaned_identifiers = _clean_identifiers(identifiers)
         if not cleaned_identifiers:
@@ -176,10 +181,10 @@ class PubTator3Client:
             raise ValueError("PubTator3 concepts filtering is not supported with biocjson export.")
 
         if len(cleaned_identifiers) <= self.get_batch_size:
-            payloads = [self._fetch_export_batch(identifier_type, cleaned_identifiers, format=format, concepts=cleaned_concepts)]
+            payloads = [self._fetch_export_batch(identifier_type, cleaned_identifiers, format=format, concepts=cleaned_concepts, full=full)]
         else:
             payloads = [
-                self._fetch_export_batch(identifier_type, batch, format=format, concepts=cleaned_concepts)
+                self._fetch_export_batch(identifier_type, batch, format=format, concepts=cleaned_concepts, full=full)
                 for batch in _chunked(cleaned_identifiers, self.post_batch_size)
             ]
 
@@ -194,11 +199,14 @@ class PubTator3Client:
         *,
         format: str,
         concepts: list[str],
+        full: bool = False,
     ) -> Any:
         endpoint = f"{self.base_url.rstrip('/')}/publications/export/{format}"
         params: dict[str, str] = {identifier_type: ",".join(identifiers)}
         if concepts:
             params["concepts"] = ",".join(concepts)
+        if full:
+            params["full"] = "true"
 
         if len(identifiers) <= self.get_batch_size:
             url = f"{endpoint}?{parse.urlencode(params)}"
