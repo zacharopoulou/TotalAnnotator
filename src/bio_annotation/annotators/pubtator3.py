@@ -25,15 +25,18 @@ def _parse_bioc_document(document: Document, doc_payload: dict[str, Any]) -> lis
     source_text = _document_annotation_text(document)
 
     for passage in doc_payload.get("passages", []):
+        coordinate_shift = _passage_coordinate_shift(document, passage)
         for record in passage.get("annotations", []):
             locations = record.get("locations", [])
             first_location = locations[0] if locations else {}
-            start = pick_first(first_location.get("offset"), record.get("start"))
+            raw_start = pick_first(first_location.get("offset"), record.get("start"))
             length = first_location.get("length")
-            end = pick_first(
+            raw_end = pick_first(
                 record.get("end"),
-                int(start) + int(length) if start is not None and length is not None else None,
+                int(raw_start) + int(length) if raw_start is not None and length is not None else None,
             )
+            start = _shift_offset(raw_start, coordinate_shift)
+            end = _shift_offset(raw_end, coordinate_shift)
 
             mention = pick_first(record.get("text"), record.get("span_text"))
             if mention is None and start is not None and end is not None:
@@ -179,6 +182,77 @@ def parse_pubtator3_response(document: Document, payload: Any) -> list[Annotatio
 
 def build_pubtator3_text_payload(document: Document) -> str:
     return _document_annotation_text(document)
+
+
+def _passage_coordinate_shift(document: Document, passage: dict[str, Any]) -> int:
+    source_start = _passage_source_start(passage)
+    canonical_start = _canonical_passage_start(document, passage)
+    if source_start is None or canonical_start is None:
+        return 0
+    return canonical_start - source_start
+
+
+def _passage_source_start(passage: dict[str, Any]) -> int | None:
+    for key in ("offset", "start", "begin"):
+        value = _to_int(passage.get(key))
+        if value is not None:
+            return value
+    offsets = passage.get("offsets")
+    if isinstance(offsets, list) and offsets:
+        first = offsets[0]
+        if isinstance(first, list) and first:
+            return _to_int(first[0])
+        if isinstance(first, dict):
+            return _to_int(first.get("start") or first.get("begin") or first.get("offset"))
+        return _to_int(first)
+    return None
+
+
+def _canonical_passage_start(document: Document, passage: dict[str, Any]) -> int | None:
+    passage_text = _passage_text(passage)
+    document_text = document.text
+    if passage_text:
+        index = document_text.find(passage_text)
+        if index >= 0:
+            return index
+
+    kind = _passage_kind(passage)
+    if kind == "title":
+        return 0
+    if kind == "abstract":
+        title = document.title or ""
+        return len(title) + 2 if title else 0
+    return None
+
+
+def _passage_text(passage: dict[str, Any]) -> str:
+    value = passage.get("text")
+    if isinstance(value, list):
+        return " ".join(str(item) for item in value if item is not None).strip()
+    return str(value or "").strip()
+
+
+def _passage_kind(passage: dict[str, Any]) -> str | None:
+    infons = passage.get("infons") if isinstance(passage.get("infons"), dict) else {}
+    raw = pick_first(passage.get("type"), passage.get("section_type"), infons.get("type"))
+    text = str(raw or "").lower()
+    if "title" in text:
+        return "title"
+    if "abstract" in text:
+        return "abstract"
+    return None
+
+
+def _shift_offset(value: Any, shift: int) -> int | None:
+    number = _to_int(value)
+    return number + shift if number is not None else None
+
+
+def _to_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _document_pmcid(document: Document) -> str | None:
