@@ -84,8 +84,8 @@ def annotate_with_flair(
     spans: Iterable[Any] | None = None,
     tagger: Any = None,
     model: str | None = None,
-    sentence_factory: Callable[[str], Any] | None = None,
     tagger_loader: Callable[[str], Any] | None = None,
+    sentence_factory: Callable[[str], Any] | None = None,
 ) -> list[Annotation]:
     if spans is not None:
         return parse_flair_spans(document, spans)
@@ -105,7 +105,6 @@ def annotate_with_flair(
             sentence = sentence_factory(document.text)
 
         tagger.predict(sentence)
-
         if hasattr(sentence, "get_labels"):
             return parse_flair_labels(document, sentence.get_labels())
         if hasattr(sentence, "get_spans"):
