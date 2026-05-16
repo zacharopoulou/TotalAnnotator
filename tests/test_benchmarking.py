@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from bio_annotation.benchmarking.config import benchmark_annotator_options
 from bio_annotation.benchmarking.metrics import evaluate_annotator
 from bio_annotation.benchmarking.ncbi import case_from_bigbio_row, load_ncbi_cases
 from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
@@ -100,6 +101,21 @@ def test_evaluate_annotator_reports_strict_and_lenient_scores() -> None:
     assert boundary.lenient.true_positive == 1
 
 
+def test_benchmark_annotator_options_include_runtime_defaults() -> None:
+    options = benchmark_annotator_options()
+
+    assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
+    assert options["flair"]["model"] == "hunflair2"
+    assert options["pubtator3"]["mode"] == "auto"
+
+
+def test_benchmark_annotator_options_allow_targeted_overrides() -> None:
+    options = benchmark_annotator_options({"flair": {"model": "custom-model"}})
+
+    assert options["flair"]["model"] == "custom-model"
+    assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
+
+
 def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> None:
     benchmark_path = tmp_path / "test.jsonl"
     output_dir = tmp_path / "outputs"
@@ -127,6 +143,7 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
 
     assert payload["document_count"] == 1
     assert payload["gold_count"] == 1
+    assert payload["annotator_options"]["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
     assert payload["metrics"][0]["strict"]["true_positive"] == 1
     assert (output_dir / "summary.json").exists()
     assert (output_dir / "metrics_by_annotator.tsv").exists()
