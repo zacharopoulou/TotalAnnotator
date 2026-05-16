@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from bio_annotation.benchmarking.config import benchmark_annotator_options
 from bio_annotation.benchmarking.metrics import evaluate_annotator
 from bio_annotation.benchmarking.ncbi import case_from_bigbio_row, load_ncbi_cases
+from bio_annotation.benchmarking.preflight import (
+    BenchmarkPreflightError,
+    preflight_benchmark_annotators,
+)
 from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
 from bio_annotation.schemas.entity import Annotation
 
@@ -116,6 +122,45 @@ def test_benchmark_annotator_options_allow_targeted_overrides() -> None:
     assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
 
 
+def test_preflight_reports_remote_and_loads_flair_once() -> None:
+    loaded_models: list[str] = []
+    sentinel_tagger = object()
+
+    def fake_loader(model: str) -> object:
+        loaded_models.append(model)
+        return sentinel_tagger
+
+    results, resources = preflight_benchmark_annotators(
+        ["bern2", "flair"],
+        benchmark_annotator_options(),
+        flair_tagger_loader=fake_loader,
+    )
+
+    assert loaded_models == ["hunflair2"]
+    assert resources["flair_tagger"] is sentinel_tagger
+    assert [result.name for result in results] == ["bern2", "flair"]
+    assert results[0].status == "configured"
+    assert results[1].status == "ready"
+
+
+def test_preflight_fails_once_with_clear_flair_context() -> None:
+    def missing_model_loader(model: str) -> object:
+        raise FileNotFoundError(f"missing {model}")
+
+    with pytest.raises(BenchmarkPreflightError) as exc_info:
+        preflight_benchmark_annotators(
+            ["flair"],
+            benchmark_annotator_options(),
+            flair_tagger_loader=missing_model_loader,
+        )
+
+    message = exc_info.value.result.message
+    assert "Benchmark config is being used" in message
+    assert "Flair is being called" in message
+    assert "model 'hunflair2'" in message
+    assert "not available in the local Flair cache/environment" in message
+
+
 def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> None:
     benchmark_path = tmp_path / "test.jsonl"
     output_dir = tmp_path / "outputs"
@@ -144,8 +189,37 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
     assert payload["document_count"] == 1
     assert payload["gold_count"] == 1
     assert payload["annotator_options"]["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
+    assert payload["preflight"][0]["name"] == "bern2"
     assert payload["metrics"][0]["strict"]["true_positive"] == 1
     assert (output_dir / "summary.json").exists()
     assert (output_dir / "metrics_by_annotator.tsv").exists()
     assert (output_dir / "gold.jsonl").exists()
     assert (output_dir / "predictions.jsonl").exists()
+    assert (output_dir / "preflight.tsv").exists()
+
+
+def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
+    benchmark_path = tmp_path / "test.jsonl"
+    benchmark_path.write_text(
+        json.dumps(_sample_ncbi_row()) + "\n" + json.dumps(_sample_ncbi_row()) + "\n",
+        encoding="utf-8",
+    )
+    loaded_models: list[str] = []
+
+    class FakeTagger:
+        def predict(self, sentence):
+            return None
+
+    def fake_loader(model: str) -> FakeTagger:
+        loaded_models.append(model)
+        return FakeTagger()
+
+    payload = run_ncbi_review_evaluation(
+        benchmark_path=benchmark_path,
+        annotators=["flair"],
+        flair_tagger_loader=fake_loader,
+    )
+
+    assert loaded_models == ["hunflair2"]
+    assert payload["document_count"] == 2
+    assert payload["preflight"][0]["status"] == "ready"
