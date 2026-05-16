@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable
 
@@ -188,8 +187,9 @@ def _write_predictions_jsonl(payload: dict[str, Any], path: Path) -> None:
 
 
 def _write_jsonl(path: Path, rows: Any) -> None:
+    iterable = rows if isinstance(rows, list) else []
     with path.open("w", encoding="utf-8") as handle:
-        for row in rows if isinstance(rows, list) else []:
+        for row in iterable:
             handle.write(json.dumps(row, ensure_ascii=False, default=str))
             handle.write("\n")
 
