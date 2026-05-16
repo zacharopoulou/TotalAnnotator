@@ -182,11 +182,15 @@ def build_pubtator3_text_payload(document: Document) -> str:
 
 
 def _document_pmcid(document: Document) -> str | None:
-    pubmed_record = document.metadata.get("pubmed_record") if isinstance(document.metadata, dict) else None
+    metadata = document.metadata if isinstance(document.metadata, dict) else {}
+    pubmed_record = metadata.get("pubmed_record")
     if isinstance(pubmed_record, dict):
         value = pubmed_record.get("pmcid")
         if value:
             return str(value)
+    value = metadata.get("pmcid")
+    if value:
+        return str(value)
     return None
 
 
@@ -218,10 +222,10 @@ def call_pubtator3(
         )
 
     if normalized_mode == "publication_only":
-        if document.source == "pubmed" and document.pmid:
+        if document.pmid:
             return active_client.fetch_publications_by_pmids([document.pmid], format=format)
 
-        pmcid = _document_pmcid(document) if document.source == "pubmed" else None
+        pmcid = _document_pmcid(document)
         if pmcid:
             return active_client.fetch_publications_by_pmcids([pmcid], format=format)
         return None
@@ -241,15 +245,14 @@ def call_pubtator3(
             progress_callback=progress_callback,
         )
 
-    if document.source == "pubmed":
-        publication_payload = call_pubtator3(
-            document,
-            client=active_client,
-            format=format,
-            mode="publication_only",
-        )
-        if publication_payload is not None:
-            return publication_payload
+    publication_payload = call_pubtator3(
+        document,
+        client=active_client,
+        format=format,
+        mode="publication_only",
+    )
+    if publication_payload is not None:
+        return publication_payload
 
     return call_pubtator3(
         document,
