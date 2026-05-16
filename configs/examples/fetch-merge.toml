@@ -1,4 +1,4 @@
-# Merge three fetch sources into one canonical Document per PMID.
+# Merge all fetch sources into one canonical Document per PMID.
 # Order in `source` is the merge order: the first non-empty value wins for
 # title/abstract/full_text/year. Metadata keys accumulate without overwriting,
 # so each source contributes its own payload (pubtator3_payload, pubmed_record,
