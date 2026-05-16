@@ -128,6 +128,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("outputs/benchmark-review/ncbi_disease"),
         help="Directory for JSONL/TSV review outputs.",
     )
+    review_parser.add_argument(
+        "--progress-interval",
+        type=positive_int,
+        default=25,
+        help="Print benchmark progress every N documents. Default: 25.",
+    )
     search_parser = subparsers.add_parser("search-pmids", help="Search PubMed and write matching PMIDs to a file.")
     search_parser.add_argument("--query", required=True, help="PubMed query string.")
     search_parser.add_argument(
@@ -254,6 +260,8 @@ def main(argv: list[str] | None = None) -> int:
                 annotators=annotators,
                 output_dir=args.output_dir,
                 entity_type=args.entity_type,
+                progress_callback=print_benchmark_progress,
+                progress_interval=args.progress_interval,
             )
         except BenchmarkPreflightError as exc:
             print("Benchmark preflight failed.", file=sys.stderr)
@@ -294,6 +302,10 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+def print_benchmark_progress(index: int, total: int, document_id: str) -> None:
+    print(f"Processed {index}/{total} benchmark documents; latest document: {document_id}", flush=True)
 
 
 def print_benchmark_review_summary(payload: dict[str, object], output_dir: Path) -> None:
