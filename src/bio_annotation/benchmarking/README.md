@@ -2,7 +2,7 @@
 
 This package contains the benchmark-review implementation for TotalAnnotator. It is intentionally separate from the main pipeline runner.
 
-The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, scoring, and reporting live here.
+The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, preflight checks, scoring, and reporting live here.
 
 ## Current benchmark
 
@@ -75,6 +75,31 @@ These defaults are copied into each review run and passed to the existing annota
 
 This separation is intentional: benchmark-review settings can evolve independently from the main corpus pipeline config.
 
+## Preflight checks
+
+Before processing benchmark documents, the runner performs preflight checks for the selected annotators.
+
+Current checks:
+
+- BERN2: confirms that a benchmark endpoint is configured.
+- PubTator3: confirms benchmark endpoint and mode settings.
+- Flair: loads the configured local model once before document iteration.
+
+This prevents repeated per-document failures such as:
+
+```text
+flair unavailable: [Errno 2] No such file or directory: '/homes/.../.flair/models/hunflair2'
+```
+
+If Flair is selected and the configured model cannot be loaded, the command stops before scoring and reports one clear message:
+
+```text
+Benchmark preflight failed.
+Benchmark config is being used. Flair is being called with model 'hunflair2', but the model is not available in the local Flair cache/environment. Original error: ...
+```
+
+When Flair preflight succeeds, the loaded tagger is reused across all benchmark documents.
+
 ## Running the benchmark review
 
 From the repository root:
@@ -110,6 +135,7 @@ The review command writes a compact set of files for inspection:
 
 ```text
 summary.json
+preflight.tsv
 metrics_by_annotator.tsv
 gold.jsonl
 predictions.jsonl
@@ -128,11 +154,24 @@ Full machine-readable run payload. It includes:
 - gold annotation count
 - annotator list
 - annotator runtime options
+- preflight results
 - strict and lenient metrics
 - per-document annotator statuses
 - loader warnings
 - gold annotations
 - predictions grouped by annotator
+
+### `preflight.tsv`
+
+One row per selected annotator that passed preflight. It records:
+
+```text
+name
+status
+message
+```
+
+If preflight fails, the run exits before writing benchmark outputs so the failure cannot be confused with a real zero-score evaluation.
 
 ### `metrics_by_annotator.tsv`
 
@@ -263,19 +302,20 @@ uv run pytest tests/test_benchmarking.py
 A successful expected result is:
 
 ```text
-6 passed
+9 passed
 ```
 
 For a real review run, inspect:
 
 ```text
+outputs/benchmark-review/ncbi_disease/preflight.tsv
 outputs/benchmark-review/ncbi_disease/metrics_by_annotator.tsv
 outputs/benchmark-review/ncbi_disease/loader_warnings.tsv
 outputs/benchmark-review/ncbi_disease/annotator_statuses.tsv
 outputs/benchmark-review/ncbi_disease/summary.json
 ```
 
-The warning and status files should be reviewed before drawing conclusions from F1 scores. `summary.json` should be checked to confirm the benchmark-owned `annotator_options` used for the run.
+The preflight, warning, and status files should be reviewed before drawing conclusions from F1 scores. `summary.json` should be checked to confirm the benchmark-owned `annotator_options` used for the run.
 
 ## Next implementation steps
 
