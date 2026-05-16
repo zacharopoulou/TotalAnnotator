@@ -41,10 +41,62 @@ class MatchCounts:
 
 
 @dataclass(slots=True)
+class NormalizationCounts:
+    span_matches: int = 0
+    correct: int = 0
+    incorrect: int = 0
+    missing_prediction_id: int = 0
+    missing_gold_id: int = 0
+
+    @property
+    def comparable_gold_spans(self) -> int:
+        return self.correct + self.incorrect + self.missing_prediction_id
+
+    @property
+    def prediction_id_spans(self) -> int:
+        return self.correct + self.incorrect + self.missing_gold_id
+
+    @property
+    def accuracy_on_matched_spans(self) -> float:
+        return self.correct / self.span_matches if self.span_matches else 0.0
+
+    @property
+    def accuracy_on_comparable_gold_spans(self) -> float:
+        denominator = self.comparable_gold_spans
+        return self.correct / denominator if denominator else 0.0
+
+    @property
+    def prediction_id_coverage_on_matched_spans(self) -> float:
+        return self.prediction_id_spans / self.span_matches if self.span_matches else 0.0
+
+    @property
+    def gold_id_coverage_on_matched_spans(self) -> float:
+        denominator = self.span_matches
+        return self.comparable_gold_spans / denominator if denominator else 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "span_matches": self.span_matches,
+            "correct": self.correct,
+            "incorrect": self.incorrect,
+            "missing_prediction_id": self.missing_prediction_id,
+            "missing_gold_id": self.missing_gold_id,
+            "comparable_gold_spans": self.comparable_gold_spans,
+            "prediction_id_spans": self.prediction_id_spans,
+            "accuracy_on_matched_spans": self.accuracy_on_matched_spans,
+            "accuracy_on_comparable_gold_spans": self.accuracy_on_comparable_gold_spans,
+            "prediction_id_coverage_on_matched_spans": self.prediction_id_coverage_on_matched_spans,
+            "gold_id_coverage_on_matched_spans": self.gold_id_coverage_on_matched_spans,
+        }
+
+
+@dataclass(slots=True)
 class EvaluationResult:
     annotator: str
     strict: MatchCounts
     lenient: MatchCounts
+    strict_normalization: NormalizationCounts
+    lenient_normalization: NormalizationCounts
     prediction_count: int
     gold_count: int
 
@@ -55,6 +107,8 @@ class EvaluationResult:
             "gold_count": self.gold_count,
             "strict": self.strict.to_dict(),
             "lenient": self.lenient.to_dict(),
+            "strict_normalization": self.strict_normalization.to_dict(),
+            "lenient_normalization": self.lenient_normalization.to_dict(),
         }
 
 
@@ -77,6 +131,16 @@ def evaluate_annotator(
         annotator=annotator,
         strict=_match_counts_by_document(filtered_predictions, filtered_gold, mode="strict"),
         lenient=_match_counts_by_document(filtered_predictions, filtered_gold, mode="lenient"),
+        strict_normalization=_normalization_counts_by_document(
+            filtered_predictions,
+            filtered_gold,
+            mode="strict",
+        ),
+        lenient_normalization=_normalization_counts_by_document(
+            filtered_predictions,
+            filtered_gold,
+            mode="lenient",
+        ),
         prediction_count=len(filtered_predictions),
         gold_count=len(filtered_gold),
     )
@@ -108,11 +172,12 @@ def _as_scored_prediction(item: Annotation | ScoredPrediction) -> ScoredPredicti
 
 
 def _prediction_document_id(annotation: Annotation) -> str:
-    metadata = annotation.metadata if isinstance(annotation.metadata, dict) else {}
-    for key in ("document_id", "doc_id", "source_document_id"):
-        value = metadata.get(key)
-        if value:
-            return str(value)
+    metadata = getattr(annotation, "metadata", None)
+    if isinstance(metadata, dict):
+        for key in ("document_id", "doc_id", "source_document_id"):
+            value = metadata.get(key)
+            if value:
+                return str(value)
     return ""
 
 
@@ -122,6 +187,42 @@ def _match_counts_by_document(
     *,
     mode: str,
 ) -> MatchCounts:
+    total = MatchCounts()
+    for predictions_for_document, gold_for_document in _iter_document_groups(
+        predictions,
+        gold_annotations,
+    ):
+        counts = _match_counts(predictions_for_document, gold_for_document, mode=mode)
+        total.true_positive += counts.true_positive
+        total.false_positive += counts.false_positive
+        total.false_negative += counts.false_negative
+    return total
+
+
+def _normalization_counts_by_document(
+    predictions: list[ScoredPrediction],
+    gold_annotations: list[GoldAnnotation],
+    *,
+    mode: str,
+) -> NormalizationCounts:
+    total = NormalizationCounts()
+    for predictions_for_document, gold_for_document in _iter_document_groups(
+        predictions,
+        gold_annotations,
+    ):
+        counts = _normalization_counts(predictions_for_document, gold_for_document, mode=mode)
+        total.span_matches += counts.span_matches
+        total.correct += counts.correct
+        total.incorrect += counts.incorrect
+        total.missing_prediction_id += counts.missing_prediction_id
+        total.missing_gold_id += counts.missing_gold_id
+    return total
+
+
+def _iter_document_groups(
+    predictions: list[ScoredPrediction],
+    gold_annotations: list[GoldAnnotation],
+) -> Iterable[tuple[list[Annotation], list[GoldAnnotation]]]:
     predictions_by_document: dict[str, list[Annotation]] = defaultdict(list)
     gold_by_document: dict[str, list[GoldAnnotation]] = defaultdict(list)
 
@@ -130,18 +231,8 @@ def _match_counts_by_document(
     for gold in gold_annotations:
         gold_by_document[gold.document_id].append(gold)
 
-    document_ids = set(predictions_by_document) | set(gold_by_document)
-    total = MatchCounts()
-    for document_id in document_ids:
-        counts = _match_counts(
-            predictions_by_document.get(document_id, []),
-            gold_by_document.get(document_id, []),
-            mode=mode,
-        )
-        total.true_positive += counts.true_positive
-        total.false_positive += counts.false_positive
-        total.false_negative += counts.false_negative
-    return total
+    for document_id in set(predictions_by_document) | set(gold_by_document):
+        yield predictions_by_document.get(document_id, []), gold_by_document.get(document_id, [])
 
 
 def _match_counts(
@@ -150,10 +241,47 @@ def _match_counts(
     *,
     mode: str,
 ) -> MatchCounts:
-    matched_gold: set[int] = set()
-    true_positive = 0
+    pairs = _match_pairs(predictions, gold_annotations, mode=mode)
+    true_positive = len(pairs)
+    return MatchCounts(
+        true_positive=true_positive,
+        false_positive=len(predictions) - true_positive,
+        false_negative=len(gold_annotations) - true_positive,
+    )
 
-    for prediction in predictions:
+
+def _normalization_counts(
+    predictions: list[Annotation],
+    gold_annotations: list[GoldAnnotation],
+    *,
+    mode: str,
+) -> NormalizationCounts:
+    counts = NormalizationCounts()
+    for prediction_index, gold_index in _match_pairs(predictions, gold_annotations, mode=mode):
+        counts.span_matches += 1
+        prediction_ids = _prediction_id_aliases(predictions[prediction_index].canonical_id)
+        gold_ids = _gold_id_aliases(gold_annotations[gold_index].normalized_ids)
+        if not gold_ids:
+            counts.missing_gold_id += 1
+        elif not prediction_ids:
+            counts.missing_prediction_id += 1
+        elif prediction_ids & gold_ids:
+            counts.correct += 1
+        else:
+            counts.incorrect += 1
+    return counts
+
+
+def _match_pairs(
+    predictions: list[Annotation],
+    gold_annotations: list[GoldAnnotation],
+    *,
+    mode: str,
+) -> list[tuple[int, int]]:
+    matched_gold: set[int] = set()
+    pairs: list[tuple[int, int]] = []
+
+    for prediction_index, prediction in enumerate(predictions):
         match_index = _first_unmatched_gold_index(
             prediction,
             gold_annotations,
@@ -163,15 +291,8 @@ def _match_counts(
         if match_index is None:
             continue
         matched_gold.add(match_index)
-        true_positive += 1
-
-    false_positive = len(predictions) - true_positive
-    false_negative = len(gold_annotations) - true_positive
-    return MatchCounts(
-        true_positive=true_positive,
-        false_positive=false_positive,
-        false_negative=false_negative,
-    )
+        pairs.append((prediction_index, match_index))
+    return pairs
 
 
 def _first_unmatched_gold_index(
@@ -201,9 +322,39 @@ def _overlap_match(prediction: Annotation, gold: GoldAnnotation) -> bool:
     return max(prediction.start, gold.start) < min(prediction.end, gold.end)
 
 
+def _prediction_id_aliases(value: str | None) -> set[str]:
+    if not value:
+        return set()
+    aliases: set[str] = set()
+    for part in str(value).replace("|", ";").replace(",", ";").split(";"):
+        aliases.update(_identifier_aliases(part))
+    return aliases
+
+
+def _gold_id_aliases(values: tuple[str, ...]) -> set[str]:
+    aliases: set[str] = set()
+    for value in values:
+        aliases.update(_identifier_aliases(value))
+    return aliases
+
+
+def _identifier_aliases(value: str | None) -> set[str]:
+    raw = str(value or "").strip()
+    if not raw or raw == "-":
+        return set()
+    normalized = raw.upper().replace(" ", "")
+    aliases = {normalized}
+    if ":" in normalized:
+        _, suffix = normalized.split(":", 1)
+        if suffix:
+            aliases.add(suffix)
+    return aliases
+
+
 __all__ = [
     "EvaluationResult",
     "MatchCounts",
+    "NormalizationCounts",
     "ScoredPrediction",
     "evaluate_annotator",
 ]
