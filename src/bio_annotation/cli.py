@@ -326,10 +326,22 @@ def print_benchmark_review_summary(payload: dict[str, object], output_dir: Path)
                 continue
             strict = item.get("strict") if isinstance(item.get("strict"), dict) else {}
             lenient = item.get("lenient") if isinstance(item.get("lenient"), dict) else {}
+            strict_norm = (
+                item.get("strict_normalization")
+                if isinstance(item.get("strict_normalization"), dict)
+                else {}
+            )
+            lenient_norm = (
+                item.get("lenient_normalization")
+                if isinstance(item.get("lenient_normalization"), dict)
+                else {}
+            )
             print(
                 f"{item.get('annotator')}: "
                 f"strict F1={float(strict.get('f1', 0.0)):.3f}, "
-                f"lenient F1={float(lenient.get('f1', 0.0)):.3f}"
+                f"lenient F1={float(lenient.get('f1', 0.0)):.3f}, "
+                f"strict norm acc={float(strict_norm.get('accuracy_on_matched_spans', 0.0)):.3f}, "
+                f"lenient norm acc={float(lenient_norm.get('accuracy_on_matched_spans', 0.0)):.3f}"
             )
 
 
