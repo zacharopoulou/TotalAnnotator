@@ -3,9 +3,19 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from bio_annotation.schemas.document import Document
+
+NCBI_DISEASE_ENTITY_TYPES = {
+    "disease",
+    "diseases",
+    "specificdisease",
+    "diseaseclass",
+    "modifier",
+    "compositediseasemention",
+    "compositemention",
+}
 
 
 @dataclass(slots=True)
@@ -19,6 +29,7 @@ class GoldAnnotation:
     end: int
     entity_type: str = "disease"
     normalized_ids: tuple[str, ...] = ()
+    raw_entity_type: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -29,6 +40,7 @@ class GoldAnnotation:
             "end": self.end,
             "entity_type": self.entity_type,
             "normalized_ids": list(self.normalized_ids),
+            "raw_entity_type": self.raw_entity_type,
         }
 
 
@@ -139,7 +151,7 @@ def _extract_title_abstract_and_shifts(row: dict[str, Any]) -> tuple[str, str, d
     abstract_parts: list[str] = []
     passage_shifts: dict[int, int] = {}
 
-    for passage_index, passage in enumerate(passages):
+    for passage in passages:
         if not isinstance(passage, dict):
             continue
         text = _join_text(passage.get("text"))
@@ -177,8 +189,12 @@ def _extract_gold_annotations(
     for index, entity in enumerate(entities):
         if not isinstance(entity, dict):
             continue
-        entity_type = _normalize_entity_type(entity.get("type"))
+        raw_entity_type = str(entity.get("type") or "").strip()
+        entity_type = _normalize_entity_type(raw_entity_type)
         if entity_type != "disease":
+            warnings.append(
+                f"entity {index} skipped unsupported type {raw_entity_type!r}"
+            )
             continue
         span_text = _join_text(entity.get("text"))
         start, end = _entity_offsets(entity)
@@ -201,6 +217,7 @@ def _extract_gold_annotations(
                 end=end,
                 entity_type=entity_type,
                 normalized_ids=_normalized_ids(entity.get("normalized")),
+                raw_entity_type=raw_entity_type or None,
             )
         )
     return gold, warnings
@@ -223,10 +240,12 @@ def _passage_type(passage: dict[str, Any]) -> str:
 def _first_offset(passage: dict[str, Any]) -> int | None:
     offsets = passage.get("offsets")
     if isinstance(offsets, list) and offsets:
-        try:
-            return int(offsets[0])
-        except (TypeError, ValueError):
-            return None
+        first = offsets[0]
+        if isinstance(first, list) and first:
+            return _to_int(first[0])
+        if isinstance(first, dict):
+            return _to_int(first.get("start") or first.get("begin"))
+        return _to_int(first)
     try:
         return int(passage["offset"])
     except (KeyError, TypeError, ValueError):
@@ -260,9 +279,7 @@ def _shift_offsets(start: int, end: int, passage_shifts: dict[int, int]) -> tupl
 
 def _normalize_entity_type(value: Any) -> str:
     text = str(value or "").strip().lower()
-    if text in {"disease", "diseases"}:
-        return "disease"
-    return text
+    return "disease" if text in NCBI_DISEASE_ENTITY_TYPES else text
 
 
 def _normalized_ids(value: Any) -> tuple[str, ...]:
@@ -292,6 +309,7 @@ def _to_int(value: Any) -> int | None:
 __all__ = [
     "BenchmarkCase",
     "GoldAnnotation",
+    "NCBI_DISEASE_ENTITY_TYPES",
     "case_from_bigbio_row",
     "default_ncbi_data_path",
     "load_ncbi_cases",
