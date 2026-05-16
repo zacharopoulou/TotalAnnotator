@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -57,10 +58,16 @@ class EvaluationResult:
         }
 
 
+@dataclass(slots=True)
+class ScoredPrediction:
+    document_id: str
+    annotation: Annotation
+
+
 def evaluate_annotator(
     *,
     annotator: str,
-    predictions: Iterable[Annotation],
+    predictions: Iterable[Annotation | ScoredPrediction],
     gold_annotations: Iterable[GoldAnnotation],
     entity_type: str = "disease",
 ) -> EvaluationResult:
@@ -68,23 +75,73 @@ def evaluate_annotator(
     filtered_gold = [gold for gold in gold_annotations if gold.entity_type == entity_type]
     return EvaluationResult(
         annotator=annotator,
-        strict=_match_counts(filtered_predictions, filtered_gold, mode="strict"),
-        lenient=_match_counts(filtered_predictions, filtered_gold, mode="lenient"),
+        strict=_match_counts_by_document(filtered_predictions, filtered_gold, mode="strict"),
+        lenient=_match_counts_by_document(filtered_predictions, filtered_gold, mode="lenient"),
         prediction_count=len(filtered_predictions),
         gold_count=len(filtered_gold),
     )
 
 
-def _filter_predictions(predictions: Iterable[Annotation], *, entity_type: str) -> list[Annotation]:
+def _filter_predictions(
+    predictions: Iterable[Annotation | ScoredPrediction],
+    *,
+    entity_type: str,
+) -> list[ScoredPrediction]:
     normalized_type = entity_type.strip().lower()
-    out: list[Annotation] = []
-    for annotation in predictions:
+    out: list[ScoredPrediction] = []
+    for item in predictions:
+        prediction = _as_scored_prediction(item)
+        annotation = prediction.annotation
         if annotation.start is None or annotation.end is None:
             continue
         if annotation.entity_type.strip().lower() != normalized_type:
             continue
-        out.append(annotation)
+        out.append(prediction)
     return out
+
+
+def _as_scored_prediction(item: Annotation | ScoredPrediction) -> ScoredPrediction:
+    if isinstance(item, ScoredPrediction):
+        return item
+    document_id = _prediction_document_id(item)
+    return ScoredPrediction(document_id=document_id, annotation=item)
+
+
+def _prediction_document_id(annotation: Annotation) -> str:
+    metadata = annotation.metadata if isinstance(annotation.metadata, dict) else {}
+    for key in ("document_id", "doc_id", "source_document_id"):
+        value = metadata.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def _match_counts_by_document(
+    predictions: list[ScoredPrediction],
+    gold_annotations: list[GoldAnnotation],
+    *,
+    mode: str,
+) -> MatchCounts:
+    predictions_by_document: dict[str, list[Annotation]] = defaultdict(list)
+    gold_by_document: dict[str, list[GoldAnnotation]] = defaultdict(list)
+
+    for prediction in predictions:
+        predictions_by_document[prediction.document_id].append(prediction.annotation)
+    for gold in gold_annotations:
+        gold_by_document[gold.document_id].append(gold)
+
+    document_ids = set(predictions_by_document) | set(gold_by_document)
+    total = MatchCounts()
+    for document_id in document_ids:
+        counts = _match_counts(
+            predictions_by_document.get(document_id, []),
+            gold_by_document.get(document_id, []),
+            mode=mode,
+        )
+        total.true_positive += counts.true_positive
+        total.false_positive += counts.false_positive
+        total.false_negative += counts.false_negative
+    return total
 
 
 def _match_counts(
@@ -144,4 +201,9 @@ def _overlap_match(prediction: Annotation, gold: GoldAnnotation) -> bool:
     return max(prediction.start, gold.start) < min(prediction.end, gold.end)
 
 
-__all__ = ["EvaluationResult", "MatchCounts", "evaluate_annotator"]
+__all__ = [
+    "EvaluationResult",
+    "MatchCounts",
+    "ScoredPrediction",
+    "evaluate_annotator",
+]
