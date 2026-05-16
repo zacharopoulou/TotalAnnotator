@@ -13,6 +13,8 @@ from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
+    load_documents_from_pmid_file,
+    load_documents_from_pmids,
     resolve_input_description,
     summarize_ingestion,
 )
@@ -26,15 +28,31 @@ def run_pipeline_from_config(
     config_path: Path,
     *,
     orchestrator_factory: Callable[[], Any] | None = None,
+    pmid_fetcher: Callable[[str], dict[str, Any]] | None = None,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
-    documents = load_documents_from_config(
-        config,
-        orchestrator_factory=orchestrator_factory,
-    )
+    if pmid_fetcher is not None and config.input_mode == "pmids":
+        documents = load_documents_from_pmids(
+            config.pmids,
+            fetcher=pmid_fetcher,
+            enrichment_sources=config.enrichment_sources,
+        )
+    elif pmid_fetcher is not None and config.input_mode == "pmid_file":
+        if config.pmid_file is None:
+            raise ValueError("input.pmid_file must be set when input.mode = 'pmid_file'.")
+        documents = load_documents_from_pmid_file(
+            config.pmid_file,
+            fetcher=pmid_fetcher,
+            enrichment_sources=config.enrichment_sources,
+        )
+    else:
+        documents = load_documents_from_config(
+            config,
+            orchestrator_factory=orchestrator_factory,
+        )
     payload = build_pipeline_output(
         documents,
         config,
@@ -78,10 +96,12 @@ def build_pipeline_output(
             print(f"flair unavailable: {exc}")
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
+    keyword_output: list[dict[str, Any]] = []
     annotation_summary = {
         "annotators_enabled": enabled_annotators,
         "document_count": len(documents),
         "annotation_count": 0,
+        "keyword_count": 0,
     }
 
     all_statuses: list[dict[str, Any]] = []
@@ -101,14 +121,14 @@ def build_pipeline_output(
             ),
             flair_tagger=flair_tagger,
         )
-<<<<<<< HEAD
-=======
         all_statuses.extend(statuses)
 
->>>>>>> 51a18c5 (Fix keyword output annotator summaries)
         annotations = flatten_annotations(results)
         annotations = filter_annotations_by_type(annotations, config.entity_types)
         annotation_summary["annotation_count"] += len(annotations)
+        document_keywords = build_keyword_annotations(document.document_id, annotations)
+        annotation_summary["keyword_count"] += len(document_keywords)
+        keyword_output.extend(document_keywords)
         if enabled_annotators:
             document_annotations.append(
                 {
@@ -145,6 +165,7 @@ def build_pipeline_output(
             all_statuses,
         ),
         "document_annotations": document_annotations,
+        "keywords": keyword_output,
         "annotations": annotations_output,
     }
 
@@ -484,9 +505,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
     return annotations
 
 
-<<<<<<< HEAD
-def filter_annotations_by_type(annotations: list[Annotation], entity_types: list[str]) -> list[Annotation]:
-=======
 def build_keyword_annotations(
     document_id: str,
     annotations: list[Annotation],
@@ -612,7 +630,6 @@ def filter_annotations_by_type(
     annotations: list[Annotation],
     entity_types: list[str],
 ) -> list[Annotation]:
->>>>>>> 51a18c5 (Fix keyword output annotator summaries)
     if not entity_types:
         return annotations
     allowed = set(entity_types)
@@ -853,13 +870,9 @@ def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
 def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
     model = settings.get("model")
     return {
-<<<<<<< HEAD
-        "model": model.strip() if isinstance(model, str) and model.strip() else "hunflair2",
-=======
         "model": model.strip()
         if isinstance(model, str) and model.strip()
         else None,
->>>>>>> 51a18c5 (Fix keyword output annotator summaries)
     }
 
 
