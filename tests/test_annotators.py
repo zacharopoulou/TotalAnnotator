@@ -178,6 +178,65 @@ def test_pubtator3_adapter_parses_bioc_json_with_absolute_offsets() -> None:
     assert annotations[1].entity_type == "disease"
 
 
+def test_pubtator3_adapter_remaps_publication_offsets_to_document_text() -> None:
+    document = Document(
+        document_id="9288106",
+        pmid="9288106",
+        title="Ataxia-telangiectasia causes cancer.",
+        abstract="A-T is a recessive multi-system disorder.",
+        source="benchmark:ncbi_disease",
+    )
+    source_abstract_start = len(document.title) + 1
+    canonical_abstract_start = len(document.title) + 2
+    response = {
+        "documents": [
+            {
+                "passages": [
+                    {
+                        "type": "title",
+                        "text": document.title,
+                        "offset": 0,
+                        "annotations": [
+                            {
+                                "text": "Ataxia-telangiectasia",
+                                "infons": {"type": "Disease", "identifier": "D001260"},
+                                "locations": [{"offset": 0, "length": 21}],
+                            }
+                        ],
+                    },
+                    {
+                        "type": "abstract",
+                        "text": document.abstract,
+                        "offset": source_abstract_start,
+                        "annotations": [
+                            {
+                                "text": "recessive multi-system disorder",
+                                "infons": {"type": "Disease", "identifier": "D030342"},
+                                "locations": [
+                                    {
+                                        "offset": source_abstract_start + 9,
+                                        "length": 31,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ]
+            }
+        ]
+    }
+
+    annotations = annotate_with_pubtator3(document, response=response)
+
+    assert annotations[0].span_text == "Ataxia-telangiectasia"
+    assert annotations[0].start == 0
+    assert annotations[0].end == 21
+    assert annotations[1].span_text == "recessive multi-system disorder"
+    assert annotations[1].start == canonical_abstract_start + 9
+    assert annotations[1].end == canonical_abstract_start + 40
+    assert document.text[annotations[1].start : annotations[1].end] == annotations[1].span_text
+
+
 def test_pubtator3_adapter_parses_pubtator3_wrapped_bioc_json() -> None:
     document = sample_document()
     response = {
