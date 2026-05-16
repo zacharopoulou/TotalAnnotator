@@ -2,7 +2,7 @@
 
 This package contains the benchmark-review implementation for TotalAnnotator. It is intentionally separate from the main pipeline runner.
 
-The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, scoring, and reporting live here.
+The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, scoring, and reporting live here.
 
 ## Current benchmark
 
@@ -34,6 +34,46 @@ The default scored entity type is:
 ```text
 disease
 ```
+
+## Benchmark-owned annotator configuration
+
+The benchmark review workflow does **not** read `configs/pipeline.toml`.
+
+Its annotator runtime defaults are owned by:
+
+```text
+src/bio_annotation/benchmarking/config.py
+```
+
+Current defaults:
+
+```python
+DEFAULT_BENCHMARK_ANNOTATORS = ["bern2", "pubtator3", "flair"]
+
+DEFAULT_BENCHMARK_ANNOTATOR_OPTIONS = {
+    "bern2": {
+        "runtime": "remote_api",
+        "base_url": "http://127.0.0.1:8888",
+        "endpoint": "http://bern2.korea.ac.kr/plain",
+    },
+    "flair": {
+        "runtime": "local_model",
+        "model": "hunflair2",
+    },
+    "pubtator3": {
+        "runtime": "remote_api",
+        "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
+        "format": "biocjson",
+        "timeout": 60,
+        "mode": "auto",
+        "bioconcept": "All",
+    },
+}
+```
+
+These defaults are copied into each review run and passed to the existing annotator runner. They are also written into `summary.json` under `annotator_options`, so every benchmark result records the runtime settings used to produce it.
+
+This separation is intentional: benchmark-review settings can evolve independently from the main corpus pipeline config.
 
 ## Running the benchmark review
 
@@ -87,6 +127,7 @@ Full machine-readable run payload. It includes:
 - document count
 - gold annotation count
 - annotator list
+- annotator runtime options
 - strict and lenient metrics
 - per-document annotator statuses
 - loader warnings
@@ -222,7 +263,7 @@ uv run pytest tests/test_benchmarking.py
 A successful expected result is:
 
 ```text
-4 passed
+6 passed
 ```
 
 For a real review run, inspect:
@@ -231,9 +272,10 @@ For a real review run, inspect:
 outputs/benchmark-review/ncbi_disease/metrics_by_annotator.tsv
 outputs/benchmark-review/ncbi_disease/loader_warnings.tsv
 outputs/benchmark-review/ncbi_disease/annotator_statuses.tsv
+outputs/benchmark-review/ncbi_disease/summary.json
 ```
 
-The warning and status files should be reviewed before drawing conclusions from F1 scores.
+The warning and status files should be reviewed before drawing conclusions from F1 scores. `summary.json` should be checked to confirm the benchmark-owned `annotator_options` used for the run.
 
 ## Next implementation steps
 
