@@ -155,12 +155,21 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     assert (output_dir / "config.toml").exists()
     assert (output_dir / "plain_text.tsv").exists()
     assert (output_dir / "results.json").exists()
+    assert (output_dir / "results.keywords.tsv").exists()
+    assert (output_dir / "results.keyword_annotator_evidence.tsv").exists()
+    assert (output_dir / "results.annotations.tsv").exists()
     assert (output_dir / "run_manifest.json").exists()
 
     manifest = json.loads((output_dir / "run_manifest.json").read_text(encoding="utf-8"))
     assert manifest["input_mode"] == "plain_text"
     assert manifest["plain_text_file"] == str(source_text)
     assert manifest["plain_text_path"].endswith("plain_text.tsv")
+    assert manifest["results_path"] == str(output_dir / "results.json")
+    assert manifest["tsv_paths"] == {
+        "Keywords TSV": str(output_dir / "results.keywords.tsv"),
+        "Keyword evidence TSV": str(output_dir / "results.keyword_annotator_evidence.tsv"),
+        "Annotations TSV": str(output_dir / "results.annotations.tsv"),
+    }
     assert manifest["annotators"] == ["pubtator3"]
     assert manifest["annotator_labels"] == ["PubTator3"]
     assert manifest["entity_types"] == ["gene", "disease"]
@@ -169,6 +178,9 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     assert manifest["annotation_count"] == 2
     assert payload["document_count"] == 2
     assert "Run complete" in messages
+    assert f"Keywords TSV: {output_dir / 'results.keywords.tsv'}" in messages
+    assert f"Keyword evidence TSV: {output_dir / 'results.keyword_annotator_evidence.tsv'}" in messages
+    assert f"Annotations TSV: {output_dir / 'results.annotations.tsv'}" in messages
 
 
 def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path) -> None:

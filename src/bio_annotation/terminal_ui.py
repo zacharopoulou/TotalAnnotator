@@ -17,7 +17,11 @@ from bio_annotation.entity_types import (
     ENTITY_TYPE_DISPLAY_NAMES,
 )
 from bio_annotation.pipeline_config import load_pipeline_config
-from bio_annotation.pipeline_runner import SUPPORTED_ANNOTATORS, run_pipeline_from_config
+from bio_annotation.pipeline_runner import (
+    SUPPORTED_ANNOTATORS,
+    run_pipeline_from_config,
+    write_pipeline_tsv_outputs,
+)
 from bio_annotation.terminal_text_input import (
     GENERATED_TEXT_DOCUMENT_ID,
     is_text_table_file,
@@ -76,12 +80,15 @@ def run_terminal_annotation_ui(
     output_fn("")
     output_fn("Running annotation...")
     payload = pipeline_run_fn(paths.config_path)
+    write_pipeline_tsv_outputs(payload, paths.results_path)
     write_json(paths.manifest_path, build_run_manifest(answers, paths, payload))
     output_fn("")
     output_fn("Run complete")
     output_fn(f"Documents: {payload.get('document_count', 0)}")
     output_fn(f"Annotations: {payload.get('annotation_summary', {}).get('annotation_count', 0)}")
     output_fn(f"Results: {paths.results_path}")
+    for label, path in terminal_ui_tsv_paths(paths).items():
+        output_fn(f"{label}: {path}")
     output_fn(f"Config: {paths.config_path}")
     output_fn(f"Manifest: {paths.manifest_path}")
     return payload
@@ -173,7 +180,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
 
 
 def build_run_manifest(answers: TerminalUIAnswers, paths: RunPaths, payload: dict[str, Any]) -> dict[str, Any]:
-    manifest = {"run_id": paths.run_id, "created_at": datetime.now(timezone.utc).isoformat(), "input_mode": answers.input_mode, "annotators": answers.annotators, "annotator_labels": [_annotator_label(a) for a in answers.annotators], "entity_types": answers.entity_types, "entity_type_labels": [_entity_type_label(e) for e in answers.entity_types], "config_path": str(paths.config_path), "results_path": str(paths.results_path), "manifest_path": str(paths.manifest_path), "document_count": payload.get("document_count", 0), "annotation_count": payload.get("annotation_summary", {}).get("annotation_count", 0)}
+    manifest = {"run_id": paths.run_id, "created_at": datetime.now(timezone.utc).isoformat(), "input_mode": answers.input_mode, "annotators": answers.annotators, "annotator_labels": [_annotator_label(a) for a in answers.annotators], "entity_types": answers.entity_types, "entity_type_labels": [_entity_type_label(e) for e in answers.entity_types], "config_path": str(paths.config_path), "results_path": str(paths.results_path), "tsv_paths": {key: str(path) for key, path in terminal_ui_tsv_paths(paths).items()}, "manifest_path": str(paths.manifest_path), "document_count": payload.get("document_count", 0), "annotation_count": payload.get("annotation_summary", {}).get("annotation_count", 0)}
     if answers.input_mode == "pmids":
         manifest.update({"pmids": answers.pmids, "pmids_count": len(answers.pmids)})
     elif answers.input_mode == "pmid_file":
@@ -183,6 +190,16 @@ def build_run_manifest(answers: TerminalUIAnswers, paths: RunPaths, payload: dic
         if not _uses_existing_text_table(answers):
             manifest["plain_text_document_id"] = GENERATED_TEXT_DOCUMENT_ID
     return manifest
+
+
+def terminal_ui_tsv_paths(paths: RunPaths) -> dict[str, Path]:
+    return {
+        "Keywords TSV": paths.results_path.with_name(f"{paths.results_path.stem}.keywords.tsv"),
+        "Keyword evidence TSV": paths.results_path.with_name(
+            f"{paths.results_path.stem}.keyword_annotator_evidence.tsv"
+        ),
+        "Annotations TSV": paths.results_path.with_name(f"{paths.results_path.stem}.annotations.tsv"),
+    }
 
 
 def write_plain_text_table(path: Path, *, document_id: str, title: str, abstract: str) -> None:
