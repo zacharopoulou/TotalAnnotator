@@ -2,7 +2,7 @@
 
 This package contains the benchmark-review implementation for TotalAnnotator. It is intentionally separate from the main pipeline runner.
 
-The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, preflight checks, scoring, and reporting live here.
+The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, preflight checks, scoring, error analysis, and reporting live here.
 
 ## Current benchmark
 
@@ -152,6 +152,9 @@ The review command writes a compact set of files for inspection:
 summary.json
 preflight.tsv
 metrics_by_annotator.tsv
+false_positives.tsv
+false_negatives.tsv
+boundary_errors.tsv
 gold.jsonl
 predictions.jsonl
 annotator_statuses.tsv
@@ -171,6 +174,7 @@ Full machine-readable run payload. It includes:
 - annotator runtime options
 - preflight results
 - strict and lenient metrics
+- error analysis grouped by annotator
 - per-document annotator statuses
 - loader warnings
 - gold annotations
@@ -209,6 +213,18 @@ lenient_precision
 lenient_recall
 lenient_f1
 ```
+
+### `false_positives.tsv`
+
+Predicted disease spans that do not exactly match or overlap a gold disease span in the same document. Each row includes the prediction span plus nearest gold span context.
+
+### `false_negatives.tsv`
+
+Gold disease spans that were not exactly matched or overlapped by a prediction in the same document. Each row includes the gold span plus nearest prediction context.
+
+### `boundary_errors.tsv`
+
+Predictions that overlap a gold disease span but have different strict boundaries. These are lenient true positives but strict errors. Each row includes both spans, raw NCBI gold type, normalized IDs, and overlap length.
 
 ### `gold.jsonl`
 
@@ -306,7 +322,6 @@ Current limitations:
 - only NCBI Disease is supported
 - only disease span scoring is implemented
 - normalization accuracy is not scored yet
-- false-positive and false-negative error tables are not yet exported separately
 - no consensus/agreement analysis is included yet
 - live annotator reliability depends on the configured services and remote APIs
 
@@ -321,7 +336,7 @@ uv run pytest tests/test_benchmarking.py
 A successful expected result is:
 
 ```text
-12 passed
+13 passed
 ```
 
 For a real review run, inspect:
@@ -329,19 +344,22 @@ For a real review run, inspect:
 ```text
 outputs/benchmark-review/ncbi_disease/preflight.tsv
 outputs/benchmark-review/ncbi_disease/metrics_by_annotator.tsv
+outputs/benchmark-review/ncbi_disease/false_positives.tsv
+outputs/benchmark-review/ncbi_disease/false_negatives.tsv
+outputs/benchmark-review/ncbi_disease/boundary_errors.tsv
 outputs/benchmark-review/ncbi_disease/loader_warnings.tsv
 outputs/benchmark-review/ncbi_disease/annotator_statuses.tsv
 outputs/benchmark-review/ncbi_disease/summary.json
 ```
 
-The preflight, warning, and status files should be reviewed before drawing conclusions from F1 scores. `summary.json` should be checked to confirm the benchmark-owned `annotator_options` used for the run.
+The preflight, warning, status, and error-analysis files should be reviewed before drawing conclusions from F1 scores. `summary.json` should be checked to confirm the benchmark-owned `annotator_options` used for the run.
 
 ## Next implementation steps
 
 Suggested next steps:
 
-1. Add false-positive, false-negative, and boundary-error exports.
-2. Add optional normalization matching for disease identifiers.
-3. Add consensus analysis across annotators.
+1. Add optional normalization matching for disease identifiers.
+2. Add consensus analysis across annotators.
+3. Add BERN2 retry/backoff for temporary remote API failures.
 4. Add a benchmark config file once more benchmarks exist.
 5. Add additional disease benchmarks to reduce overfitting to NCBI Disease.
