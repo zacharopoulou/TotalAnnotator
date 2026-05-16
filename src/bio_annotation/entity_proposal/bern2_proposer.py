@@ -82,8 +82,10 @@ def call_bern2(document: Document, endpoint: str | None = None, timeout: int = 3
     try:
         with request.urlopen(http_request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
-    except (error.URLError, json.JSONDecodeError):
-        return None
+    except error.URLError as exc:
+        raise ValueError(f"Bern2 request failed: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Bern2 returned invalid JSON: {exc}") from exc
 
 
 def annotate_with_bern2(

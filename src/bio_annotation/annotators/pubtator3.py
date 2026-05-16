@@ -6,8 +6,10 @@ from typing import Any, Callable
 
 from bio_annotation.clients.pubtator3 import (
     DEFAULT_EXPORT_FORMAT,
+    DEFAULT_TEXT_MAX_POLL_SECONDS,
     PUBTATOR3_API_BASE_URL,
     PubTator3Client,
+    PollProgressCallback,
 )
 from bio_annotation.entity_proposal._shared import make_annotation, pick_first
 from bio_annotation.schemas.document import Document
@@ -201,6 +203,8 @@ def call_pubtator3(
     poll_backoff: float = 1.5,
     max_poll_interval_seconds: float = 15.0,
     max_poll_attempts: int = 15,
+    max_poll_seconds: float = DEFAULT_TEXT_MAX_POLL_SECONDS,
+    progress_callback: PollProgressCallback | None = None,
 ) -> Any:
     active_client = client or PubTator3Client(
         base_url=endpoint or os.getenv("PUBTATOR3_API_URL", PUBTATOR3_API_BASE_URL),
@@ -233,6 +237,8 @@ def call_pubtator3(
             poll_interval=poll_interval_seconds,
             poll_backoff=poll_backoff,
             max_poll_interval=max_poll_interval_seconds,
+            max_poll_seconds=max_poll_seconds,
+            progress_callback=progress_callback,
         )
 
     if document.source == "pubmed":
@@ -255,6 +261,8 @@ def call_pubtator3(
         poll_backoff=poll_backoff,
         max_poll_interval_seconds=max_poll_interval_seconds,
         max_poll_attempts=max_poll_attempts,
+        max_poll_seconds=max_poll_seconds,
+        progress_callback=progress_callback,
     )
 
 
@@ -273,6 +281,8 @@ def annotate_with_pubtator3(
     poll_backoff: float = 1.5,
     max_poll_interval_seconds: float = 15.0,
     max_poll_attempts: int = 15,
+    max_poll_seconds: float = DEFAULT_TEXT_MAX_POLL_SECONDS,
+    progress_callback: PollProgressCallback | None = None,
 ) -> list[Annotation]:
     payload = response
     if payload is None and request_fn is not None:
@@ -290,6 +300,8 @@ def annotate_with_pubtator3(
             poll_backoff=poll_backoff,
             max_poll_interval_seconds=max_poll_interval_seconds,
             max_poll_attempts=max_poll_attempts,
+            max_poll_seconds=max_poll_seconds,
+            progress_callback=progress_callback,
         )
     return parse_pubtator3_response(document, payload)
 

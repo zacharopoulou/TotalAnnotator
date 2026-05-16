@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Callable, Iterable
 
 from bio_annotation.entity_proposal._shared import make_annotation
@@ -45,6 +46,13 @@ def parse_flair_spans(document: Document, spans: Iterable[Any]) -> list[Annotati
     return annotations
 
 
+@lru_cache(maxsize=4)
+def _load_flair_tagger(model: str) -> Any:
+    from flair.models import SequenceTagger
+
+    return SequenceTagger.load(model)
+
+
 def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annotation]:
     annotations: list[Annotation] = []
     for label in labels:
@@ -54,6 +62,7 @@ def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annota
         text = getattr(span, "text", None)
         if not text:
             continue
+
         annotations.append(
             make_annotation(
                 document=document,
@@ -65,6 +74,7 @@ def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annota
                 confidence=getattr(label, "score", None),
             )
         )
+
     return annotations
 
 
@@ -73,10 +83,16 @@ def annotate_with_flair(
     *,
     spans: Iterable[Any] | None = None,
     tagger: Any = None,
+    model: str | None = None,
+    tagger_loader: Callable[[str], Any] | None = None,
     sentence_factory: Callable[[str], Any] | None = None,
 ) -> list[Annotation]:
     if spans is not None:
         return parse_flair_spans(document, spans)
+
+    if tagger is None and model:
+        loader = tagger_loader or _load_flair_tagger
+        tagger = loader(model)
 
     if tagger is not None:
         if sentence_factory is None:
@@ -89,6 +105,10 @@ def annotate_with_flair(
             sentence = sentence_factory(document.text)
 
         tagger.predict(sentence)
-        return parse_flair_labels(document, sentence.get_labels())
+        if hasattr(sentence, "get_labels"):
+            return parse_flair_labels(document, sentence.get_labels())
+        if hasattr(sentence, "get_spans"):
+            return parse_flair_spans(document, sentence.get_spans("ner"))
+        return []
 
     return []
