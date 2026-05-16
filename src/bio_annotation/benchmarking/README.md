@@ -35,6 +35,19 @@ The default scored entity type is:
 disease
 ```
 
+NCBI Disease gold labels are normalized into this single scored type. The loader currently treats these benchmark labels as disease gold annotations:
+
+```text
+Disease
+SpecificDisease
+DiseaseClass
+Modifier
+CompositeDiseaseMention
+CompositeMention
+```
+
+The original benchmark label is preserved in each gold row as `raw_entity_type`.
+
 ## Benchmark-owned annotator configuration
 
 The benchmark review workflow does **not** read `configs/pipeline.toml`.
@@ -225,6 +238,8 @@ title + "\n\n" + abstract
 
 Gold offsets are shifted into this canonical coordinate space when the source row has separate title and abstract passages.
 
+The source benchmark frequently stores passage offsets as `[start, end]` pairs, for example `[[149, 1528]]`. The loader uses the first value as the passage start and computes the shift from source benchmark coordinates into canonical `Document.text` coordinates.
+
 The loader validates each gold span by checking that:
 
 ```text
@@ -306,7 +321,7 @@ uv run pytest tests/test_benchmarking.py
 A successful expected result is:
 
 ```text
-11 passed
+12 passed
 ```
 
 For a real review run, inspect:
