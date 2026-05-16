@@ -95,7 +95,7 @@ If Flair is selected and the configured model cannot be loaded, the command stop
 
 ```text
 Benchmark preflight failed.
-Benchmark config is being used. Flair is being called with model 'hunflair2', but the model is not available in the local Flair cache/environment. Original error: ...
+Benchmark config is being used. Flair is being called with model 'hunflair2', but the model is not available through Flair's classifier loader in the local environment. Original error: ...
 ```
 
 When Flair preflight succeeds, the loaded tagger is reused across all benchmark documents.
@@ -118,7 +118,8 @@ uv run totalannotator evaluate-ncbi-review \
   --split test \
   --annotators bern2,pubtator3,flair \
   --entity-type disease \
-  --output-dir outputs/benchmark-review/ncbi_disease
+  --output-dir outputs/benchmark-review/ncbi_disease \
+  --progress-interval 25
 ```
 
 Arguments:
@@ -128,6 +129,7 @@ Arguments:
 - `--annotators`: comma-separated annotator names. Default: `bern2,pubtator3,flair`.
 - `--entity-type`: entity type to score. Default: `disease`.
 - `--output-dir`: directory for review outputs. Default: `outputs/benchmark-review/ncbi_disease`.
+- `--progress-interval`: print progress every N documents. Default: `25`.
 
 ## Output files
 
@@ -235,6 +237,8 @@ If that check fails, the row is still loaded but a warning is written. Review `l
 
 The review evaluator currently reports two span-level metrics.
 
+All matching is grouped by benchmark document before scoring. A prediction from one document cannot match a gold annotation from another document, even if the offsets and span text are identical.
+
 ### Strict matching
 
 A prediction is correct only when all of these match:
@@ -250,7 +254,7 @@ Strict matching is the headline score because it is deterministic and conservati
 
 ### Lenient matching
 
-A prediction is correct when the predicted span overlaps an unmatched gold span:
+A prediction is correct when the predicted span overlaps an unmatched gold span from the same document:
 
 ```text
 max(pred_start, gold_start) < min(pred_end, gold_end)
@@ -302,7 +306,7 @@ uv run pytest tests/test_benchmarking.py
 A successful expected result is:
 
 ```text
-9 passed
+11 passed
 ```
 
 For a real review run, inspect:
