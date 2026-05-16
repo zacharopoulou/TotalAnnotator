@@ -54,8 +54,12 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
 
 
 ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
-    spec.canonical_entity_type: spec.source_entity_type
-    for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+    "gene": "Gene / protein",
+    "disease": "Disease",
+    "drug": "Chemical / drug",
+    "species": "Species",
+    "variant": "Variant / mutation",
+    "cell_line": "Cell line",
 }
 ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
     (entity_type, ENTITY_TYPE_DISPLAY_NAMES[entity_type])
