@@ -114,7 +114,14 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
                 raise ValueError("Plain text table files must use .csv or .tsv extension.")
         else:
             text_content = prompt_multiline_text(input_fn=input_fn, output_fn=output_fn)
-    annotators = _prompt_multi_choice(input_fn=input_fn, output_fn=output_fn, title="Choose annotators", choices=ANNOTATOR_CHOICES, default_values=["pubtator3"], validate_values=_validate_selected_annotators)
+    annotators = _prompt_multi_choice(
+        input_fn=input_fn,
+        output_fn=output_fn,
+        title="Choose annotators",
+        choices=ANNOTATOR_CHOICES,
+        default_values=[value for value, _ in ANNOTATOR_CHOICES],
+        validate_values=_validate_selected_annotators,
+    )
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
     return TerminalUIAnswers(mode, pmids, pmid_file, annotators, entity_types, plain_text_file=text_file, plain_text_source=text_source, plain_text_content=text_content)
 

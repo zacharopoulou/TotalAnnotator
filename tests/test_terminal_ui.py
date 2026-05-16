@@ -255,6 +255,44 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
     assert manifest["pmid_file"] == str(pmid_file.resolve())
 
 
+def test_run_terminal_annotation_ui_defaults_to_all_annotators(tmp_path) -> None:
+    output_dir = tmp_path / "out"
+    prompts = iter(
+        [
+            "1",  # PMIDs
+            "123",
+            "",  # all annotators
+            "",  # all entity types
+        ]
+    )
+    seen_prompts: list[str] = []
+
+    def fake_input(prompt: str) -> str:
+        seen_prompts.append(prompt)
+        return next(prompts)
+
+    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+        config = load_pipeline_config(config_path)
+        assert config.input_mode == "pmids"
+        assert config.annotators == ["pubtator3", "bern2", "flair"]
+        return {
+            "document_count": 1,
+            "annotation_summary": {"annotation_count": 0},
+            "documents": [],
+            "annotations": [],
+            "document_annotations": [],
+        }
+
+    run_terminal_annotation_ui(
+        runs_dir=output_dir,
+        input_fn=fake_input,
+        output_fn=lambda message: None,
+        pipeline_run_fn=fake_pipeline_run,
+    )
+
+    assert "Choose comma-separated numbers [default: 1, 2, 3]: " in seen_prompts
+
+
 def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path) -> None:
     source_text = tmp_path / "doc1.txt"
     source_text.write_text("PTEN is important in glioblastoma.", encoding="utf-8")
