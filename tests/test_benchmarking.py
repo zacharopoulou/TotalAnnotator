@@ -42,6 +42,50 @@ def _sample_ncbi_row(document_id: str = "12345678") -> dict[str, object]:
     }
 
 
+def _real_shape_ncbi_row() -> dict[str, object]:
+    return {
+        "id": "9949209",
+        "document_id": "9949209",
+        "passages": [
+            {
+                "id": "9949209_title",
+                "type": "title",
+                "text": ["Genetic mapping of the copper toxicosis locus."],
+                "offsets": [[0, 46]],
+            },
+            {
+                "id": "9949209_abstract",
+                "type": "abstract",
+                "text": ["Wilson disease causes hepatic copper accumulation."],
+                "offsets": [[47, 94]],
+            },
+        ],
+        "entities": [
+            {
+                "id": "9949209_OMIM:215600_0",
+                "type": "Modifier",
+                "text": ["copper toxicosis"],
+                "offsets": [[23, 39]],
+                "normalized": [{"db_name": "OMIM", "db_id": "215600"}],
+            },
+            {
+                "id": "9949209_D006527_1",
+                "type": "SpecificDisease",
+                "text": ["Wilson disease"],
+                "offsets": [[47, 61]],
+                "normalized": [{"db_name": "MESH", "db_id": "D006527"}],
+            },
+            {
+                "id": "9949209_D008107_2",
+                "type": "DiseaseClass",
+                "text": ["hepatic copper accumulation"],
+                "offsets": [[69, 96]],
+                "normalized": [{"db_name": "MESH", "db_id": "D008107"}],
+            },
+        ],
+    }
+
+
 def test_ncbi_loader_builds_canonical_document_and_shifts_offsets() -> None:
     case = case_from_bigbio_row(_sample_ncbi_row(), row_index=1)
 
@@ -56,6 +100,28 @@ def test_ncbi_loader_builds_canonical_document_and_shifts_offsets() -> None:
     assert gold.end == 32
     assert case.document.text[gold.start : gold.end] == "Glioblastoma"
     assert gold.normalized_ids == ("MESH:D005909",)
+
+
+def test_ncbi_loader_accepts_real_disease_subtypes_and_pair_offsets() -> None:
+    case = case_from_bigbio_row(_real_shape_ncbi_row(), row_index=1)
+
+    assert len(case.gold_annotations) == 3
+    assert [gold.raw_entity_type for gold in case.gold_annotations] == [
+        "Modifier",
+        "SpecificDisease",
+        "DiseaseClass",
+    ]
+    assert [gold.entity_type for gold in case.gold_annotations] == [
+        "disease",
+        "disease",
+        "disease",
+    ]
+    assert case.gold_annotations[0].start == 23
+    assert case.gold_annotations[0].end == 39
+    assert case.gold_annotations[1].start == 48
+    assert case.gold_annotations[1].end == 62
+    assert case.document.text[48:62] == "Wilson disease"
+    assert case.gold_annotations[2].normalized_ids == ("MESH:D008107",)
 
 
 def test_load_ncbi_cases_from_jsonl_path(tmp_path) -> None:
