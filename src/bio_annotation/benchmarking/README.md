@@ -175,7 +175,8 @@ Full machine-readable run payload. It includes:
 - annotator list
 - annotator runtime options
 - preflight results
-- strict and lenient metrics
+- strict and lenient span metrics
+- strict and lenient normalization metrics
 - error analysis grouped by annotator
 - per-document annotator statuses
 - loader warnings
@@ -196,7 +197,7 @@ If preflight fails, the run exits before writing benchmark outputs so the failur
 
 ### `metrics_by_annotator.tsv`
 
-One row per annotator. Columns include:
+One row per annotator. Columns include span metrics:
 
 ```text
 annotator
@@ -215,6 +216,31 @@ lenient_precision
 lenient_recall
 lenient_f1
 ```
+
+The same table also includes normalization metrics for strict and lenient span matches:
+
+```text
+strict_norm_span_matches
+strict_norm_correct
+strict_norm_incorrect
+strict_norm_missing_prediction_id
+strict_norm_missing_gold_id
+strict_norm_accuracy_on_matched_spans
+strict_norm_accuracy_on_comparable_gold_spans
+strict_norm_prediction_id_coverage_on_matched_spans
+strict_norm_gold_id_coverage_on_matched_spans
+lenient_norm_span_matches
+lenient_norm_correct
+lenient_norm_incorrect
+lenient_norm_missing_prediction_id
+lenient_norm_missing_gold_id
+lenient_norm_accuracy_on_matched_spans
+lenient_norm_accuracy_on_comparable_gold_spans
+lenient_norm_prediction_id_coverage_on_matched_spans
+lenient_norm_gold_id_coverage_on_matched_spans
+```
+
+Normalization scoring compares predicted `canonical_id` values against gold normalized IDs only after a span match has been made. Identifier matching is prefix-tolerant, so IDs such as `D005909` and `MESH:D005909` are considered equivalent.
 
 ### `false_positives.tsv`
 
@@ -268,11 +294,11 @@ If that check fails, the row is still loaded but a warning is written. Review `l
 
 ## Metrics
 
-The review evaluator currently reports two span-level metrics.
+The review evaluator reports span-level and normalization-level metrics.
 
 All matching is grouped by benchmark document before scoring. A prediction from one document cannot match a gold annotation from another document, even if the offsets and span text are identical.
 
-### Strict matching
+### Strict span matching
 
 A prediction is correct only when all of these match:
 
@@ -283,9 +309,9 @@ same start offset
 same end offset
 ```
 
-Strict matching is the headline score because it is deterministic and conservative.
+Strict matching is deterministic and conservative.
 
-### Lenient matching
+### Lenient span matching
 
 A prediction is correct when the predicted span overlaps an unmatched gold span from the same document:
 
@@ -294,6 +320,25 @@ max(pred_start, gold_start) < min(pred_end, gold_end)
 ```
 
 Lenient matching helps identify boundary disagreements. For example, a prediction of `cancer` inside a gold span `breast cancer` is not strict-correct, but it is lenient-correct.
+
+### Normalization scoring
+
+Normalization is scored after span matching. For each strict or lenient span match, the evaluator compares the predicted disease identifier against the gold normalized disease identifiers.
+
+The normalization counts are:
+
+- `span_matches`: number of matched spans considered for normalization.
+- `correct`: matched spans where predicted and gold IDs overlap.
+- `incorrect`: matched spans where both sides have IDs but they do not overlap.
+- `missing_prediction_id`: gold has an ID but the prediction does not.
+- `missing_gold_id`: prediction has an ID but gold does not.
+
+The main normalization accuracy columns are:
+
+- `accuracy_on_matched_spans`: correct ID matches divided by all matched spans.
+- `accuracy_on_comparable_gold_spans`: correct ID matches divided by matched spans where the gold has a normalized ID.
+- `prediction_id_coverage_on_matched_spans`: matched spans where the prediction provides an ID.
+- `gold_id_coverage_on_matched_spans`: matched spans where the gold provides an ID.
 
 ## Design boundaries
 
@@ -322,8 +367,6 @@ This is the first usable evaluation pass, not the final benchmark suite.
 Current limitations:
 
 - only NCBI Disease is supported
-- only disease span scoring is implemented
-- normalization accuracy is not scored yet
 - no consensus/agreement analysis is included yet
 - live annotator reliability depends on the configured services and remote APIs
 
@@ -356,8 +399,7 @@ The preflight, warning, status, and error-analysis files should be reviewed befo
 
 Suggested next steps:
 
-1. Add optional normalization matching for disease identifiers.
-2. Add consensus analysis across annotators.
-3. Add BERN2 retry/backoff for temporary remote API failures.
-4. Add a benchmark config file once more benchmarks exist.
-5. Add additional disease benchmarks to reduce overfitting to NCBI Disease.
+1. Add consensus analysis across annotators.
+2. Add BERN2 retry/backoff for temporary remote API failures.
+3. Add a benchmark config file once more benchmarks exist.
+4. Add additional disease benchmarks to reduce overfitting to NCBI Disease.
