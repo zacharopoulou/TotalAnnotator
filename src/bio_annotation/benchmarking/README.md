@@ -78,13 +78,15 @@ DEFAULT_BENCHMARK_ANNOTATOR_OPTIONS = {
         "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
         "format": "biocjson",
         "timeout": 60,
-        "mode": "auto",
+        "mode": "publication_only",
         "bioconcept": "All",
     },
 }
 ```
 
 These defaults are copied into each review run and passed to the existing annotator runner. They are also written into `summary.json` under `annotator_options`, so every benchmark result records the runtime settings used to produce it.
+
+PubTator3 is intentionally configured as `publication_only` for this benchmark. NCBI Disease rows carry PubMed IDs, so PubTator3 should use the publication export API by PMID rather than raw-text annotation jobs. The PubTator3 adapter routes publication calls by available PMID/PMCID, not by `Document.source`, so benchmark documents such as `source="benchmark:ncbi_disease"` still use PMID export.
 
 This separation is intentional: benchmark-review settings can evolve independently from the main corpus pipeline config.
 
@@ -330,14 +332,10 @@ Current limitations:
 After changing this package, run:
 
 ```bash
-uv run pytest tests/test_benchmarking.py
+uv run pytest tests/test_benchmarking.py tests/test_annotators.py
 ```
 
-A successful expected result is:
-
-```text
-13 passed
-```
+A successful expected result includes the standalone benchmark tests and PubTator3 routing tests.
 
 For a real review run, inspect:
 
