@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,11 @@ def write_review_plots(payload: dict[str, Any], output_dir: Path) -> None:
     _plot_metrics_overview(payload, plots_dir / "metrics_overview.png", plt)
     _plot_coverage_groups(payload, plots_dir / "coverage_groups.png", plt)
     _plot_normalization_accuracy(payload, plots_dir / "normalization_accuracy.png", plt)
-    _plot_consensus_gold_coverage(payload, plots_dir / "consensus_gold_coverage.png", plt)
+    _plot_annotator_combination_performance(
+        payload,
+        plots_dir / "annotator_combination_performance.png",
+        plt,
+    )
 
 
 def _plot_metrics_overview(payload: dict[str, Any], path: Path, plt: Any) -> None:
@@ -122,6 +127,7 @@ def _plot_coverage_groups(payload: dict[str, Any], path: Path, plt: Any) -> None
     ax.bar(labels, values)
     ax.set_title("NCBI Disease gold coverage groups")
     ax.set_ylabel("Gold annotations")
+    ax.set_xticks(list(range(len(labels))))
     ax.set_xticklabels(labels, rotation=30, ha="right")
     ax.grid(axis="y", alpha=0.3)
     for index, value in enumerate(values):
@@ -131,44 +137,86 @@ def _plot_coverage_groups(payload: dict[str, Any], path: Path, plt: Any) -> None
     plt.close(fig)
 
 
-def _plot_consensus_gold_coverage(payload: dict[str, Any], path: Path, plt: Any) -> None:
+def _plot_annotator_combination_performance(payload: dict[str, Any], path: Path, plt: Any) -> None:
     gold_keys, coverage = _gold_coverage(payload)
     annotators = _annotators(payload)
     if not gold_keys or not annotators:
         fig, ax = plt.subplots(figsize=(8, 3))
-        ax.text(0.5, 0.5, "No gold coverage data", ha="center", va="center")
+        ax.text(0.5, 0.5, "No annotator combination data", ha="center", va="center")
         ax.axis("off")
         fig.tight_layout()
         fig.savefig(path, dpi=160)
         plt.close(fig)
         return
 
-    sorted_keys = sorted(
-        gold_keys,
-        key=lambda key: (
-            sum(coverage.get(key, {}).get(annotator, 0) for annotator in annotators),
-            key,
-        ),
-    )
-    matrix = [
-        [coverage.get(key, {}).get(annotator, 0) for annotator in annotators]
-        for key in sorted_keys
-    ]
+    rows = _combination_rows(gold_keys, coverage, annotators)
+    labels = [row["label"] for row in rows]
+    lenient_rates = [row["lenient_rate"] for row in rows]
+    strict_rates = [row["strict_rate"] for row in rows]
+    norm_rates = [row["norm_rate"] for row in rows]
 
-    height = max(5, min(14, 0.08 * len(sorted_keys) + 2))
-    fig, ax = plt.subplots(figsize=(7, height))
-    image = ax.imshow(matrix, aspect="auto", interpolation="nearest", vmin=0, vmax=3)
-    ax.set_title("Gold disease coverage by annotator")
-    ax.set_xticks(list(range(len(annotators))))
-    ax.set_xticklabels(annotators, rotation=30, ha="right")
-    ax.set_ylabel("Gold annotations, sorted by coverage")
-    ax.set_yticks([])
-    colorbar = fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
-    colorbar.set_ticks([0, 1, 2, 3])
-    colorbar.set_ticklabels(["miss", "lenient", "strict", "norm ok"])
+    x_positions = list(range(len(rows)))
+    width = 0.25
+    fig, ax = plt.subplots(figsize=(max(10, 1.2 * len(rows)), 5.5))
+    ax.bar([x - width for x in x_positions], lenient_rates, width, label="Entity found, lenient")
+    ax.bar(x_positions, strict_rates, width, label="Entity found, strict")
+    ax.bar([x + width for x in x_positions], norm_rates, width, label="Strict + normalized")
+    ax.set_title("Annotator combination coverage of NCBI Disease gold entities")
+    ax.set_ylabel("Gold coverage rate")
+    ax.set_ylim(0, 1.05)
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(labels, rotation=35, ha="right")
+    ax.legend(fontsize=8)
+    ax.grid(axis="y", alpha=0.3)
+    for index, row in enumerate(rows):
+        ax.text(index + width, row["norm_rate"], str(row["norm_count"]), ha="center", va="bottom", fontsize=7)
     fig.tight_layout()
     fig.savefig(path, dpi=160)
     plt.close(fig)
+
+
+def _combination_rows(
+    gold_keys: list[tuple[str, int, int]],
+    coverage: dict[tuple[str, int, int], dict[str, int]],
+    annotators: list[str],
+) -> list[dict[str, Any]]:
+    total = len(gold_keys)
+    rows: list[dict[str, Any]] = []
+    for size in range(1, len(annotators) + 1):
+        for combo in combinations(annotators, size):
+            lenient_count = 0
+            strict_count = 0
+            norm_count = 0
+            for key in gold_keys:
+                best_state = max(coverage.get(key, {}).get(annotator, 0) for annotator in combo)
+                if best_state >= 1:
+                    lenient_count += 1
+                if best_state >= 2:
+                    strict_count += 1
+                if best_state >= 3:
+                    norm_count += 1
+            rows.append(
+                {
+                    "label": "+".join(combo),
+                    "size": size,
+                    "lenient_count": lenient_count,
+                    "strict_count": strict_count,
+                    "norm_count": norm_count,
+                    "lenient_rate": lenient_count / total if total else 0.0,
+                    "strict_rate": strict_count / total if total else 0.0,
+                    "norm_rate": norm_count / total if total else 0.0,
+                }
+            )
+    return sorted(
+        rows,
+        key=lambda row: (
+            row["norm_rate"],
+            row["strict_rate"],
+            row["lenient_rate"],
+            -row["size"],
+            row["label"],
+        ),
+    )
 
 
 def _metric_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
