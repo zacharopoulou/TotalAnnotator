@@ -12,6 +12,7 @@ from bio_annotation.benchmarking.config import (
 from bio_annotation.benchmarking.errors import build_error_analysis
 from bio_annotation.benchmarking.metrics import ScoredPrediction, evaluate_annotator
 from bio_annotation.benchmarking.ncbi import BenchmarkCase, GoldAnnotation, load_ncbi_cases
+from bio_annotation.benchmarking.plots import write_review_plots
 from bio_annotation.benchmarking.preflight import (
     preflight_benchmark_annotators,
 )
@@ -155,6 +156,7 @@ def write_review_outputs(payload: dict[str, Any], output_dir: Path) -> None:
     _write_statuses_tsv(payload, output_dir / "annotator_statuses.tsv")
     _write_warnings_tsv(payload, output_dir / "loader_warnings.tsv")
     _write_preflight_tsv(payload, output_dir / "preflight.tsv")
+    write_review_plots(payload, output_dir)
 
 
 def _flatten_gold(cases: list[BenchmarkCase]) -> list[GoldAnnotation]:
