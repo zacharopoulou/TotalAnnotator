@@ -222,26 +222,55 @@ The same table also includes normalization metrics for strict and lenient span m
 
 ```text
 strict_norm_span_matches
-strict_norm_correct
+strict_norm_any_correct
+strict_norm_all_gold_ids_recovered
+strict_norm_partially_correct
 strict_norm_incorrect
 strict_norm_missing_prediction_id
 strict_norm_missing_gold_id
-strict_norm_accuracy_on_matched_spans
-strict_norm_accuracy_on_comparable_gold_spans
+strict_norm_any_accuracy_on_matched_spans
+strict_norm_any_accuracy_on_comparable_gold_spans
+strict_norm_all_gold_ids_accuracy_on_matched_spans
+strict_norm_all_gold_ids_accuracy_on_comparable_gold_spans
 strict_norm_prediction_id_coverage_on_matched_spans
 strict_norm_gold_id_coverage_on_matched_spans
 lenient_norm_span_matches
-lenient_norm_correct
+lenient_norm_any_correct
+lenient_norm_all_gold_ids_recovered
+lenient_norm_partially_correct
 lenient_norm_incorrect
 lenient_norm_missing_prediction_id
 lenient_norm_missing_gold_id
-lenient_norm_accuracy_on_matched_spans
-lenient_norm_accuracy_on_comparable_gold_spans
+lenient_norm_any_accuracy_on_matched_spans
+lenient_norm_any_accuracy_on_comparable_gold_spans
+lenient_norm_all_gold_ids_accuracy_on_matched_spans
+lenient_norm_all_gold_ids_accuracy_on_comparable_gold_spans
 lenient_norm_prediction_id_coverage_on_matched_spans
 lenient_norm_gold_id_coverage_on_matched_spans
 ```
 
-Normalization scoring compares predicted `canonical_id` values against gold normalized IDs only after a span match has been made. Identifier matching is prefix-tolerant, so IDs such as `D005909` and `MESH:D005909` are considered equivalent.
+Normalization scoring compares predicted `canonical_id` values against gold normalized IDs only after a span match has been made. Identifier matching canonicalizes common database aliases, including `MIM` to `OMIM` and case variants of `MESH`/`MeSH`.
+
+Two normalization interpretations are reported:
+
+- `any_correct`: at least one predicted ID overlaps at least one gold ID. This answers whether the annotator found at least one correct concept for the span.
+- `all_gold_ids_recovered`: all gold IDs for the span are present among predicted IDs. This is stricter and matters for NCBI Disease mentions that include both MeSH and OMIM identifiers.
+
+For example:
+
+```text
+gold:      MESH:D001260 + OMIM:208900
+prediction: mesh:D001260
+```
+
+This is counted as `any_correct` but not `all_gold_ids_recovered`.
+
+```text
+gold:      MESH:D001260 + OMIM:208900
+prediction: ['mesh:D001260', 'mim:208900']
+```
+
+This is counted as both `any_correct` and `all_gold_ids_recovered`.
 
 ### `false_positives.tsv`
 
@@ -273,9 +302,9 @@ annotator_combination_performance.png
 ```
 
 - `metrics_overview.png`: grouped bar chart of strict and lenient span F1 per annotator.
-- `coverage_groups.png`: gold annotation coverage counts, including missed-by-all, found-by-one, found-by-two, found-by-three, strictly-found-by-all, and normalization-correct-by-all.
-- `normalization_accuracy.png`: normalization accuracy and ID coverage per annotator.
-- `annotator_combination_performance.png`: union coverage for every annotator subset. It compares single annotators, annotator pairs, and all annotators together for lenient entity coverage, strict entity coverage, and strict-plus-correct-normalization coverage. This plot is intended to show whether one annotator, a pair, or the full combination is best for entity identification and normalization.
+- `coverage_groups.png`: gold annotation coverage counts, including missed-by-all, found-by-one, found-by-two, found-by-three, strictly-found-by-all, and all-gold-IDs-by-all.
+- `normalization_accuracy.png`: any-ID and all-gold-ID normalization accuracy per annotator.
+- `annotator_combination_performance.png`: union coverage for every annotator subset. It compares single annotators, annotator pairs, and all annotators together for lenient entity coverage, strict entity coverage, and strict-plus-all-gold-ID coverage. This plot is intended to show whether one annotator, a pair, or the full combination is best for entity identification and complete normalization.
 
 ### `gold.jsonl`
 
@@ -351,15 +380,19 @@ Normalization is scored after span matching. For each strict or lenient span mat
 The normalization counts are:
 
 - `span_matches`: number of matched spans considered for normalization.
-- `correct`: matched spans where predicted and gold IDs overlap.
+- `any_correct`: matched spans where predicted and gold IDs overlap by at least one ID.
+- `all_gold_ids_recovered`: matched spans where every gold ID is present in the predicted ID set.
+- `partially_correct`: matched spans where at least one ID is correct but at least one gold ID is missing.
 - `incorrect`: matched spans where both sides have IDs but they do not overlap.
 - `missing_prediction_id`: gold has an ID but the prediction does not.
 - `missing_gold_id`: prediction has an ID but gold does not.
 
 The main normalization accuracy columns are:
 
-- `accuracy_on_matched_spans`: correct ID matches divided by all matched spans.
-- `accuracy_on_comparable_gold_spans`: correct ID matches divided by matched spans where the gold has a normalized ID.
+- `any_accuracy_on_matched_spans`: any-correct ID matches divided by all matched spans.
+- `any_accuracy_on_comparable_gold_spans`: any-correct ID matches divided by matched spans where the gold has a normalized ID.
+- `all_gold_ids_accuracy_on_matched_spans`: complete gold ID recovery divided by all matched spans.
+- `all_gold_ids_accuracy_on_comparable_gold_spans`: complete gold ID recovery divided by matched spans where the gold has a normalized ID.
 - `prediction_id_coverage_on_matched_spans`: matched spans where the prediction provides an ID.
 - `gold_id_coverage_on_matched_spans`: matched spans where the gold provides an ID.
 
