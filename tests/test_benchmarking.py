@@ -44,6 +44,31 @@ def _sample_ncbi_row(document_id: str = "12345678") -> dict[str, object]:
     }
 
 
+def _multi_id_ncbi_row(document_id: str = "multi-doc") -> dict[str, object]:
+    return {
+        "document_id": document_id,
+        "passages": [
+            {
+                "type": "title",
+                "text": ["Ataxia-telangiectasia study"],
+                "offsets": [0],
+            }
+        ],
+        "entities": [
+            {
+                "id": "T1",
+                "type": "SpecificDisease",
+                "text": ["Ataxia-telangiectasia"],
+                "offsets": [[0, 21]],
+                "normalized": [
+                    {"db_name": "MESH", "db_id": "D001260"},
+                    {"db_name": "OMIM", "db_id": "208900"},
+                ],
+            }
+        ],
+    }
+
+
 def _real_shape_ncbi_row() -> dict[str, object]:
     return {
         "id": "9949209",
@@ -204,9 +229,60 @@ def test_evaluate_annotator_reports_normalization_scores() -> None:
 
     assert result.strict_normalization.span_matches == 1
     assert result.strict_normalization.correct == 1
+    assert result.strict_normalization.all_gold_ids_recovered == 1
     assert result.strict_normalization.incorrect == 0
     assert result.strict_normalization.accuracy_on_matched_spans == 1.0
+    assert result.strict_normalization.all_gold_ids_accuracy_on_matched_spans == 1.0
     assert result.lenient_normalization.correct == 1
+
+
+def test_evaluate_annotator_distinguishes_any_id_from_all_gold_ids() -> None:
+    case = case_from_bigbio_row(_multi_id_ncbi_row(), row_index=1)
+    partial_prediction = ScoredPrediction(
+        document_id=case.document.document_id,
+        annotation=Annotation(
+            annotation_id="pred-partial",
+            source="fake",
+            span_text="Ataxia-telangiectasia",
+            start=0,
+            end=21,
+            entity_type="disease",
+            canonical_id="mesh:D001260",
+        ),
+    )
+    complete_prediction = ScoredPrediction(
+        document_id=case.document.document_id,
+        annotation=Annotation(
+            annotation_id="pred-complete",
+            source="fake",
+            span_text="Ataxia-telangiectasia",
+            start=0,
+            end=21,
+            entity_type="disease",
+            canonical_id="['mesh:D001260', 'mim:208900']",
+        ),
+    )
+
+    partial = evaluate_annotator(
+        annotator="fake",
+        predictions=[partial_prediction],
+        gold_annotations=case.gold_annotations,
+    )
+    complete = evaluate_annotator(
+        annotator="fake",
+        predictions=[complete_prediction],
+        gold_annotations=case.gold_annotations,
+    )
+
+    assert partial.strict_normalization.correct == 1
+    assert partial.strict_normalization.partially_correct == 1
+    assert partial.strict_normalization.all_gold_ids_recovered == 0
+    assert partial.strict_normalization.accuracy_on_matched_spans == 1.0
+    assert partial.strict_normalization.all_gold_ids_accuracy_on_matched_spans == 0.0
+    assert complete.strict_normalization.correct == 1
+    assert complete.strict_normalization.partially_correct == 0
+    assert complete.strict_normalization.all_gold_ids_recovered == 1
+    assert complete.strict_normalization.all_gold_ids_accuracy_on_matched_spans == 1.0
 
 
 def test_evaluate_annotator_counts_incorrect_and_missing_normalization() -> None:
@@ -265,6 +341,7 @@ def test_evaluate_annotator_counts_incorrect_and_missing_normalization() -> None
     assert result.strict.true_positive == 3
     assert result.strict_normalization.span_matches == 3
     assert result.strict_normalization.correct == 1
+    assert result.strict_normalization.all_gold_ids_recovered == 1
     assert result.strict_normalization.incorrect == 1
     assert result.strict_normalization.missing_prediction_id == 1
     assert result.strict_normalization.accuracy_on_matched_spans == pytest.approx(1 / 3)
@@ -436,6 +513,7 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
     assert payload["preflight"][0]["name"] == "bern2"
     assert payload["metrics"][0]["strict"]["true_positive"] == 1
     assert payload["metrics"][0]["strict_normalization"]["correct"] == 1
+    assert payload["metrics"][0]["strict_normalization"]["all_gold_ids_recovered"] == 1
     assert payload["error_analysis"]["bern2"]["false_positives"] == []
     assert payload["error_analysis"]["bern2"]["false_negatives"] == []
     assert payload["error_analysis"]["bern2"]["boundary_errors"] == []
@@ -450,9 +528,11 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
 
     with (output_dir / "metrics_by_annotator.tsv").open("r", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle, delimiter="\t"))
-    assert rows[0]["strict_norm_correct"] == "1"
-    assert rows[0]["lenient_norm_correct"] == "1"
-    assert "strict_norm_accuracy_on_matched_spans" in rows[0]
+    assert rows[0]["strict_norm_any_correct"] == "1"
+    assert rows[0]["strict_norm_all_gold_ids_recovered"] == "1"
+    assert rows[0]["lenient_norm_any_correct"] == "1"
+    assert "strict_norm_any_accuracy_on_matched_spans" in rows[0]
+    assert "strict_norm_all_gold_ids_accuracy_on_matched_spans" in rows[0]
 
 
 def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
