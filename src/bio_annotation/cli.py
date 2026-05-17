@@ -340,8 +340,10 @@ def print_benchmark_review_summary(payload: dict[str, object], output_dir: Path)
                 f"{item.get('annotator')}: "
                 f"strict F1={float(strict.get('f1', 0.0)):.3f}, "
                 f"lenient F1={float(lenient.get('f1', 0.0)):.3f}, "
-                f"strict norm acc={float(strict_norm.get('accuracy_on_matched_spans', 0.0)):.3f}, "
-                f"lenient norm acc={float(lenient_norm.get('accuracy_on_matched_spans', 0.0)):.3f}"
+                f"strict any-ID={float(strict_norm.get('accuracy_on_matched_spans', 0.0)):.3f}, "
+                f"strict all-gold-ID={float(strict_norm.get('all_gold_ids_accuracy_on_matched_spans', 0.0)):.3f}, "
+                f"lenient any-ID={float(lenient_norm.get('accuracy_on_matched_spans', 0.0)):.3f}, "
+                f"lenient all-gold-ID={float(lenient_norm.get('all_gold_ids_accuracy_on_matched_spans', 0.0)):.3f}"
             )
 
 
