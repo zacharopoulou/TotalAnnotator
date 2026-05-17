@@ -44,19 +44,39 @@ def _plot_metrics_overview(payload: dict[str, Any], path: Path, plt: Any) -> Non
     annotators = [str(row.get("annotator", "")) for row in metrics]
     strict_f1 = [_metric_value(row, "strict", "f1") for row in metrics]
     lenient_f1 = [_metric_value(row, "lenient", "f1") for row in metrics]
+    strict_counts = [
+        _match_count_label(row, "strict")
+        for row in metrics
+    ]
+    lenient_counts = [
+        _match_count_label(row, "lenient")
+        for row in metrics
+    ]
 
     x_positions = list(range(len(annotators)))
     width = 0.35
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar([x - width / 2 for x in x_positions], strict_f1, width, label="Strict F1")
-    ax.bar([x + width / 2 for x in x_positions], lenient_f1, width, label="Lenient F1")
-    ax.set_title("NCBI Disease span performance")
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    strict_bars = ax.bar(
+        [x - width / 2 for x in x_positions],
+        strict_f1,
+        width,
+        label="Strict F1",
+    )
+    lenient_bars = ax.bar(
+        [x + width / 2 for x in x_positions],
+        lenient_f1,
+        width,
+        label="Lenient F1",
+    )
+    ax.set_title(f"NCBI Disease span performance, n={payload.get('gold_count', 0)} gold mentions")
     ax.set_ylabel("F1")
-    ax.set_ylim(0, 1.05)
+    ax.set_ylim(0, 1.12)
     ax.set_xticks(x_positions)
-    ax.set_xticklabels(annotators, rotation=30, ha="right")
-    ax.legend()
+    ax.set_xticklabels(annotators, rotation=25, ha="right")
+    ax.legend(loc="upper center", ncols=2)
     ax.grid(axis="y", alpha=0.3)
+    _label_rate_bars(ax, strict_bars, strict_f1, strict_counts)
+    _label_rate_bars(ax, lenient_bars, lenient_f1, lenient_counts)
     fig.tight_layout()
     fig.savefig(path, dpi=160)
     plt.close(fig)
@@ -65,37 +85,57 @@ def _plot_metrics_overview(payload: dict[str, Any], path: Path, plt: Any) -> Non
 def _plot_normalization_accuracy(payload: dict[str, Any], path: Path, plt: Any) -> None:
     metrics = _metric_rows(payload)
     annotators = [str(row.get("annotator", "")) for row in metrics]
-    strict_any_norm = [
-        _metric_value(row, "strict_normalization", "accuracy_on_matched_spans")
+    all_gold_ids = [
+        int(_metric_value(row, "strict_normalization", "all_gold_ids_recovered"))
         for row in metrics
     ]
-    strict_all_norm = [
-        _metric_value(row, "strict_normalization", "all_gold_ids_accuracy_on_matched_spans")
+    partial = [
+        int(_metric_value(row, "strict_normalization", "partially_correct"))
         for row in metrics
     ]
-    lenient_any_norm = [
-        _metric_value(row, "lenient_normalization", "accuracy_on_matched_spans")
+    incorrect = [
+        int(_metric_value(row, "strict_normalization", "incorrect"))
         for row in metrics
     ]
-    lenient_all_norm = [
-        _metric_value(row, "lenient_normalization", "all_gold_ids_accuracy_on_matched_spans")
+    missing_id = [
+        int(_metric_value(row, "strict_normalization", "missing_prediction_id"))
+        for row in metrics
+    ]
+    strict_matches = [
+        int(_metric_value(row, "strict_normalization", "span_matches"))
         for row in metrics
     ]
 
     x_positions = list(range(len(annotators)))
-    width = 0.2
-    fig, ax = plt.subplots(figsize=(9, 5))
-    ax.bar([x - 1.5 * width for x in x_positions], strict_any_norm, width, label="Strict any-ID acc")
-    ax.bar([x - 0.5 * width for x in x_positions], strict_all_norm, width, label="Strict all-gold-ID acc")
-    ax.bar([x + 0.5 * width for x in x_positions], lenient_any_norm, width, label="Lenient any-ID acc")
-    ax.bar([x + 1.5 * width for x in x_positions], lenient_all_norm, width, label="Lenient all-gold-ID acc")
-    ax.set_title("NCBI Disease normalization performance")
-    ax.set_ylabel("Rate")
-    ax.set_ylim(0, 1.05)
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    bottom = [0] * len(annotators)
+    for values, label in [
+        (all_gold_ids, "All gold IDs recovered"),
+        (partial, "Some correct ID, not all"),
+        (incorrect, "Wrong ID"),
+        (missing_id, "No predicted ID"),
+    ]:
+        ax.bar(x_positions, values, bottom=bottom, label=label)
+        bottom = [old + value for old, value in zip(bottom, values)]
+
+    ax.set_title("NCBI Disease strict normalization outcomes")
+    ax.set_ylabel("Strictly matched gold mentions")
     ax.set_xticks(x_positions)
-    ax.set_xticklabels(annotators, rotation=30, ha="right")
-    ax.legend(fontsize=8)
+    ax.set_xticklabels(annotators, rotation=25, ha="right")
+    ax.legend(fontsize=8, loc="upper center", ncols=2)
     ax.grid(axis="y", alpha=0.3)
+    for index, total in enumerate(strict_matches):
+        rate = all_gold_ids[index] / total if total else 0.0
+        ax.text(
+            index,
+            total,
+            f"{all_gold_ids[index]}/{total}\n{rate:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    ymax = max(strict_matches + [1]) * 1.16
+    ax.set_ylim(0, ymax)
     fig.tight_layout()
     fig.savefig(path, dpi=160)
     plt.close(fig)
@@ -104,43 +144,52 @@ def _plot_normalization_accuracy(payload: dict[str, Any], path: Path, plt: Any) 
 def _plot_coverage_groups(payload: dict[str, Any], path: Path, plt: Any) -> None:
     gold_keys, coverage = _gold_coverage(payload)
     annotators = _annotators(payload)
-    annotator_count = len(annotators)
     counts = {
-        "missed_by_all": 0,
-        "found_by_1_annotator": 0,
-        "found_by_2_annotators": 0,
-        "found_by_3_annotators": 0,
-        "strictly_found_by_all": 0,
-        "all_gold_ids_by_all": 0,
+        "missed by all": 0,
+        "found by 1 only": 0,
+        "found by 2 only": 0,
+        "found by all\nnot all strict": 0,
+        "strict by all\nnot all IDs": 0,
+        "strict + all IDs\nby all": 0,
     }
 
     for key in gold_keys:
         states = [coverage.get(key, {}).get(annotator, 0) for annotator in annotators]
         found = sum(1 for state in states if state >= 1)
         if found == 0:
-            counts["missed_by_all"] += 1
+            counts["missed by all"] += 1
         elif found == 1:
-            counts["found_by_1_annotator"] += 1
+            counts["found by 1 only"] += 1
         elif found == 2:
-            counts["found_by_2_annotators"] += 1
-        elif found >= 3:
-            counts["found_by_3_annotators"] += 1
-        if annotator_count and all(state >= 2 for state in states):
-            counts["strictly_found_by_all"] += 1
-        if annotator_count and all(state >= 3 for state in states):
-            counts["all_gold_ids_by_all"] += 1
+            counts["found by 2 only"] += 1
+        elif not all(state >= 2 for state in states):
+            counts["found by all\nnot all strict"] += 1
+        elif not all(state >= 3 for state in states):
+            counts["strict by all\nnot all IDs"] += 1
+        else:
+            counts["strict + all IDs\nby all"] += 1
 
     labels = list(counts)
     values = [counts[label] for label in labels]
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.bar(labels, values)
-    ax.set_title("NCBI Disease gold coverage groups")
-    ax.set_ylabel("Gold annotations")
+    total = sum(values)
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    bars = ax.bar(labels, values)
+    ax.set_title(f"NCBI Disease mutually exclusive gold coverage groups, n={total}")
+    ax.set_ylabel("Gold mentions")
     ax.set_xticks(list(range(len(labels))))
-    ax.set_xticklabels(labels, rotation=30, ha="right")
+    ax.set_xticklabels(labels, rotation=25, ha="right")
     ax.grid(axis="y", alpha=0.3)
-    for index, value in enumerate(values):
-        ax.text(index, value, str(value), ha="center", va="bottom", fontsize=8)
+    for bar, value in zip(bars, values):
+        percent = value / total if total else 0.0
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value,
+            f"{value}\n{percent:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    ax.set_ylim(0, max(values + [1]) * 1.18)
     fig.tight_layout()
     fig.savefig(path, dpi=160)
     plt.close(fig)
@@ -166,19 +215,35 @@ def _plot_annotator_combination_performance(payload: dict[str, Any], path: Path,
 
     x_positions = list(range(len(rows)))
     width = 0.25
-    fig, ax = plt.subplots(figsize=(max(10, 1.2 * len(rows)), 5.5))
-    ax.bar([x - width for x in x_positions], lenient_rates, width, label="Entity found, lenient")
-    ax.bar(x_positions, strict_rates, width, label="Entity found, strict")
-    ax.bar([x + width for x in x_positions], norm_rates, width, label="Strict + all gold IDs")
-    ax.set_title("Annotator combination coverage of NCBI Disease gold entities")
+    fig, ax = plt.subplots(figsize=(max(11, 1.3 * len(rows)), 6))
+    lenient_bars = ax.bar(
+        [x - width for x in x_positions],
+        lenient_rates,
+        width,
+        label="Entity found, lenient",
+    )
+    strict_bars = ax.bar(
+        x_positions,
+        strict_rates,
+        width,
+        label="Entity found, strict",
+    )
+    norm_bars = ax.bar(
+        [x + width for x in x_positions],
+        norm_rates,
+        width,
+        label="Strict + all gold IDs",
+    )
+    ax.set_title(f"Annotator combinations: union coverage of {len(gold_keys)} NCBI Disease gold mentions")
     ax.set_ylabel("Gold coverage rate")
-    ax.set_ylim(0, 1.05)
+    ax.set_ylim(0, 1.14)
     ax.set_xticks(x_positions)
     ax.set_xticklabels(labels, rotation=35, ha="right")
-    ax.legend(fontsize=8)
+    ax.legend(fontsize=8, loc="upper center", ncols=3)
     ax.grid(axis="y", alpha=0.3)
-    for index, row in enumerate(rows):
-        ax.text(index + width, row["norm_rate"], str(row["norm_count"]), ha="center", va="bottom", fontsize=7)
+    _label_rate_bars(ax, lenient_bars, lenient_rates, [str(row["lenient_count"]) for row in rows], fontsize=7)
+    _label_rate_bars(ax, strict_bars, strict_rates, [str(row["strict_count"]) for row in rows], fontsize=7)
+    _label_rate_bars(ax, norm_bars, norm_rates, [str(row["norm_count"]) for row in rows], fontsize=7)
     fig.tight_layout()
     fig.savefig(path, dpi=160)
     plt.close(fig)
@@ -219,13 +284,48 @@ def _combination_rows(
     return sorted(
         rows,
         key=lambda row: (
-            row["norm_rate"],
-            row["strict_rate"],
-            row["lenient_rate"],
-            -row["size"],
+            row["size"],
+            -row["norm_rate"],
+            -row["strict_rate"],
+            -row["lenient_rate"],
             row["label"],
         ),
     )
+
+
+def _label_rate_bars(
+    ax: Any,
+    bars: Any,
+    rates: list[float],
+    counts: list[str],
+    *,
+    fontsize: int = 8,
+) -> None:
+    for bar, rate, count in zip(bars, rates, counts):
+        if rate <= 0:
+            label = f"{count}\n0%" if count != "0" else "0"
+            y = 0.01
+        else:
+            label = f"{rate:.1%}\n{count}"
+            y = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            y,
+            label,
+            ha="center",
+            va="bottom",
+            fontsize=fontsize,
+        )
+
+
+def _match_count_label(row: dict[str, Any], group: str) -> str:
+    counts = row.get(group)
+    if not isinstance(counts, dict):
+        return ""
+    tp = int(float(counts.get("true_positive", 0) or 0))
+    fp = int(float(counts.get("false_positive", 0) or 0))
+    fn = int(float(counts.get("false_negative", 0) or 0))
+    return f"TP {tp}\nFP {fp} FN {fn}"
 
 
 def _metric_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
