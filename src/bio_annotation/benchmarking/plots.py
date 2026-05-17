@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import ast
 from itertools import combinations
 from pathlib import Path
 from typing import Any
+
+_DATABASE_ALIASES = {
+    "MESH": "MESH",
+    "MSH": "MESH",
+    "ME": "MESH",
+    "OMIM": "OMIM",
+    "MIM": "OMIM",
+}
 
 
 def write_review_plots(payload: dict[str, Any], output_dir: Path) -> None:
@@ -56,30 +65,30 @@ def _plot_metrics_overview(payload: dict[str, Any], path: Path, plt: Any) -> Non
 def _plot_normalization_accuracy(payload: dict[str, Any], path: Path, plt: Any) -> None:
     metrics = _metric_rows(payload)
     annotators = [str(row.get("annotator", "")) for row in metrics]
-    strict_norm = [
+    strict_any_norm = [
         _metric_value(row, "strict_normalization", "accuracy_on_matched_spans")
         for row in metrics
     ]
-    lenient_norm = [
+    strict_all_norm = [
+        _metric_value(row, "strict_normalization", "all_gold_ids_accuracy_on_matched_spans")
+        for row in metrics
+    ]
+    lenient_any_norm = [
         _metric_value(row, "lenient_normalization", "accuracy_on_matched_spans")
         for row in metrics
     ]
-    strict_coverage = [
-        _metric_value(row, "strict_normalization", "prediction_id_coverage_on_matched_spans")
-        for row in metrics
-    ]
-    lenient_coverage = [
-        _metric_value(row, "lenient_normalization", "prediction_id_coverage_on_matched_spans")
+    lenient_all_norm = [
+        _metric_value(row, "lenient_normalization", "all_gold_ids_accuracy_on_matched_spans")
         for row in metrics
     ]
 
     x_positions = list(range(len(annotators)))
     width = 0.2
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.bar([x - 1.5 * width for x in x_positions], strict_norm, width, label="Strict norm acc")
-    ax.bar([x - 0.5 * width for x in x_positions], lenient_norm, width, label="Lenient norm acc")
-    ax.bar([x + 0.5 * width for x in x_positions], strict_coverage, width, label="Strict ID coverage")
-    ax.bar([x + 1.5 * width for x in x_positions], lenient_coverage, width, label="Lenient ID coverage")
+    ax.bar([x - 1.5 * width for x in x_positions], strict_any_norm, width, label="Strict any-ID acc")
+    ax.bar([x - 0.5 * width for x in x_positions], strict_all_norm, width, label="Strict all-gold-ID acc")
+    ax.bar([x + 0.5 * width for x in x_positions], lenient_any_norm, width, label="Lenient any-ID acc")
+    ax.bar([x + 1.5 * width for x in x_positions], lenient_all_norm, width, label="Lenient all-gold-ID acc")
     ax.set_title("NCBI Disease normalization performance")
     ax.set_ylabel("Rate")
     ax.set_ylim(0, 1.05)
@@ -102,7 +111,7 @@ def _plot_coverage_groups(payload: dict[str, Any], path: Path, plt: Any) -> None
         "found_by_2_annotators": 0,
         "found_by_3_annotators": 0,
         "strictly_found_by_all": 0,
-        "normalization_correct_by_all": 0,
+        "all_gold_ids_by_all": 0,
     }
 
     for key in gold_keys:
@@ -119,7 +128,7 @@ def _plot_coverage_groups(payload: dict[str, Any], path: Path, plt: Any) -> None
         if annotator_count and all(state >= 2 for state in states):
             counts["strictly_found_by_all"] += 1
         if annotator_count and all(state >= 3 for state in states):
-            counts["normalization_correct_by_all"] += 1
+            counts["all_gold_ids_by_all"] += 1
 
     labels = list(counts)
     values = [counts[label] for label in labels]
@@ -160,7 +169,7 @@ def _plot_annotator_combination_performance(payload: dict[str, Any], path: Path,
     fig, ax = plt.subplots(figsize=(max(10, 1.2 * len(rows)), 5.5))
     ax.bar([x - width for x in x_positions], lenient_rates, width, label="Entity found, lenient")
     ax.bar(x_positions, strict_rates, width, label="Entity found, strict")
-    ax.bar([x + width for x in x_positions], norm_rates, width, label="Strict + normalized")
+    ax.bar([x + width for x in x_positions], norm_rates, width, label="Strict + all gold IDs")
     ax.set_title("Annotator combination coverage of NCBI Disease gold entities")
     ax.set_ylabel("Gold coverage rate")
     ax.set_ylim(0, 1.05)
@@ -273,7 +282,7 @@ def _gold_coverage(payload: dict[str, Any]) -> tuple[list[tuple[str, int, int]],
                 if prediction_start == key[1] and prediction_end == key[2]:
                     state = 2
                     prediction_ids = _id_aliases(prediction.get("canonical_id"))
-                    if gold_ids and prediction_ids and gold_ids & prediction_ids:
+                    if gold_ids and prediction_ids and gold_ids <= prediction_ids:
                         state = 3
                 elif max(prediction_start, key[1]) < min(prediction_end, key[2]):
                     state = 1
@@ -305,23 +314,54 @@ def _has_offsets(row: dict[str, Any]) -> bool:
 
 
 def _id_aliases(value: Any) -> set[str]:
-    if value is None:
-        return set()
-    if isinstance(value, list):
-        values = [str(item) for item in value]
-    else:
-        values = str(value).strip("[]").replace("|", ";").replace(",", ";").split(";")
     aliases: set[str] = set()
-    for item in values:
-        normalized = str(item).strip().strip("'\"").upper().replace(" ", "")
-        if not normalized or normalized == "-":
-            continue
-        aliases.add(normalized)
-        if ":" in normalized:
-            suffix = normalized.split(":", 1)[1]
-            if suffix:
-                aliases.add(suffix)
+    for item in _iter_identifier_values(value):
+        aliases.update(_identifier_aliases(item))
     return aliases
+
+
+def _iter_identifier_values(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if item]
+    raw = str(value).strip()
+    if not raw:
+        return []
+    if raw.startswith("[") and raw.endswith("]"):
+        try:
+            parsed = ast.literal_eval(raw)
+        except (SyntaxError, ValueError):
+            parsed = None
+        if isinstance(parsed, (list, tuple, set)):
+            return [str(item) for item in parsed if item]
+    return [
+        part.strip().strip("'\"")
+        for part in raw.strip("[]").replace("|", ";").replace(",", ";").split(";")
+        if part.strip().strip("'\"")
+    ]
+
+
+def _identifier_aliases(value: str | None) -> set[str]:
+    raw = str(value or "").strip().strip("'\"")
+    if not raw or raw == "-":
+        return set()
+    canonical = _canonical_identifier(raw)
+    aliases = {canonical}
+    if ":" in canonical:
+        suffix = canonical.split(":", 1)[1]
+        if suffix:
+            aliases.add(suffix)
+    return aliases
+
+
+def _canonical_identifier(value: str) -> str:
+    normalized = value.upper().replace(" ", "")
+    if ":" not in normalized:
+        return normalized
+    prefix, suffix = normalized.split(":", 1)
+    canonical_prefix = _DATABASE_ALIASES.get(prefix, prefix)
+    return f"{canonical_prefix}:{suffix}" if suffix else canonical_prefix
 
 
 __all__ = ["write_review_plots"]
