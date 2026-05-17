@@ -179,8 +179,9 @@ def test_write_review_outputs_creates_plots(tmp_path) -> None:
         "metrics_overview.png",
         "coverage_groups.png",
         "normalization_accuracy.png",
-        "consensus_gold_coverage.png",
+        "annotator_combination_performance.png",
     ]:
         path = plots_dir / filename
         assert path.exists()
         assert path.stat().st_size > 0
+    assert not (plots_dir / "consensus_gold_coverage.png").exists()
