@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "flair==0.15.1",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
