@@ -2,7 +2,7 @@
 
 This package contains the benchmark-review implementation for TotalAnnotator. It is intentionally separate from the main pipeline runner.
 
-The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, preflight checks, scoring, error analysis, and reporting live here.
+The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, preflight checks, scoring, error analysis, plotting, and reporting live here.
 
 ## Current benchmark
 
@@ -161,6 +161,7 @@ gold.jsonl
 predictions.jsonl
 annotator_statuses.tsv
 loader_warnings.tsv
+plots/
 ```
 
 ### `summary.json`
@@ -253,6 +254,28 @@ Gold disease spans that were not exactly matched or overlapped by a prediction i
 ### `boundary_errors.tsv`
 
 Predictions that overlap a gold disease span but have different strict boundaries. These are lenient true positives but strict errors. Each row includes both spans, raw NCBI gold type, normalized IDs, and overlap length.
+
+### `plots/`
+
+The benchmark run writes four PNG plots under:
+
+```text
+outputs/benchmark-review/ncbi_disease/plots/
+```
+
+Generated plots:
+
+```text
+metrics_overview.png
+coverage_groups.png
+normalization_accuracy.png
+consensus_gold_coverage.png
+```
+
+- `metrics_overview.png`: grouped bar chart of strict and lenient span F1 per annotator.
+- `coverage_groups.png`: gold annotation coverage counts, including missed-by-all, found-by-one, found-by-two, found-by-three, strictly-found-by-all, and normalization-correct-by-all.
+- `normalization_accuracy.png`: normalization accuracy and ID coverage per annotator.
+- `consensus_gold_coverage.png`: heatmap of each gold disease annotation against each annotator, where values distinguish missed, lenient match, strict match, and normalization-correct strict match.
 
 ### `gold.jsonl`
 
@@ -367,7 +390,6 @@ This is the first usable evaluation pass, not the final benchmark suite.
 Current limitations:
 
 - only NCBI Disease is supported
-- no consensus/agreement analysis is included yet
 - live annotator reliability depends on the configured services and remote APIs
 
 ## Recommended validation
@@ -375,10 +397,10 @@ Current limitations:
 After changing this package, run:
 
 ```bash
-uv run pytest tests/test_benchmarking.py tests/test_annotators.py
+uv run pytest tests/test_benchmarking.py tests/test_annotators.py tests/test_benchmark_plots.py
 ```
 
-A successful expected result includes the standalone benchmark tests and PubTator3 routing tests.
+A successful expected result includes the standalone benchmark tests, PubTator3 routing tests, and plot generation tests.
 
 For a real review run, inspect:
 
@@ -388,18 +410,21 @@ outputs/benchmark-review/ncbi_disease/metrics_by_annotator.tsv
 outputs/benchmark-review/ncbi_disease/false_positives.tsv
 outputs/benchmark-review/ncbi_disease/false_negatives.tsv
 outputs/benchmark-review/ncbi_disease/boundary_errors.tsv
+outputs/benchmark-review/ncbi_disease/plots/metrics_overview.png
+outputs/benchmark-review/ncbi_disease/plots/coverage_groups.png
+outputs/benchmark-review/ncbi_disease/plots/normalization_accuracy.png
+outputs/benchmark-review/ncbi_disease/plots/consensus_gold_coverage.png
 outputs/benchmark-review/ncbi_disease/loader_warnings.tsv
 outputs/benchmark-review/ncbi_disease/annotator_statuses.tsv
 outputs/benchmark-review/ncbi_disease/summary.json
 ```
 
-The preflight, warning, status, and error-analysis files should be reviewed before drawing conclusions from F1 scores. `summary.json` should be checked to confirm the benchmark-owned `annotator_options` used for the run.
+The preflight, warning, status, error-analysis, and plot files should be reviewed before drawing conclusions from F1 scores. `summary.json` should be checked to confirm the benchmark-owned `annotator_options` used for the run.
 
 ## Next implementation steps
 
 Suggested next steps:
 
-1. Add consensus analysis across annotators.
-2. Add BERN2 retry/backoff for temporary remote API failures.
-3. Add a benchmark config file once more benchmarks exist.
-4. Add additional disease benchmarks to reduce overfitting to NCBI Disease.
+1. Add BERN2 retry/backoff for temporary remote API failures.
+2. Add a benchmark config file once more benchmarks exist.
+3. Add additional disease benchmarks to reduce overfitting to NCBI Disease.
