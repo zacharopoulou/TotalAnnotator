@@ -8,6 +8,14 @@ from typing import Any, Iterable
 from bio_annotation.benchmarking.ncbi import GoldAnnotation
 from bio_annotation.schemas.entity import Annotation
 
+_DATABASE_ALIASES = {
+    "MESH": "MESH",
+    "MSH": "MESH",
+    "ME": "MESH",
+    "OMIM": "OMIM",
+    "MIM": "OMIM",
+}
+
 
 @dataclass(slots=True)
 class MatchCounts:
@@ -48,6 +56,8 @@ class NormalizationCounts:
     incorrect: int = 0
     missing_prediction_id: int = 0
     missing_gold_id: int = 0
+    all_gold_ids_recovered: int = 0
+    partially_correct: int = 0
 
     @property
     def comparable_gold_spans(self) -> int:
@@ -67,6 +77,15 @@ class NormalizationCounts:
         return self.correct / denominator if denominator else 0.0
 
     @property
+    def all_gold_ids_accuracy_on_matched_spans(self) -> float:
+        return self.all_gold_ids_recovered / self.span_matches if self.span_matches else 0.0
+
+    @property
+    def all_gold_ids_accuracy_on_comparable_gold_spans(self) -> float:
+        denominator = self.comparable_gold_spans
+        return self.all_gold_ids_recovered / denominator if denominator else 0.0
+
+    @property
     def prediction_id_coverage_on_matched_spans(self) -> float:
         return self.prediction_id_spans / self.span_matches if self.span_matches else 0.0
 
@@ -82,10 +101,14 @@ class NormalizationCounts:
             "incorrect": self.incorrect,
             "missing_prediction_id": self.missing_prediction_id,
             "missing_gold_id": self.missing_gold_id,
+            "all_gold_ids_recovered": self.all_gold_ids_recovered,
+            "partially_correct": self.partially_correct,
             "comparable_gold_spans": self.comparable_gold_spans,
             "prediction_id_spans": self.prediction_id_spans,
             "accuracy_on_matched_spans": self.accuracy_on_matched_spans,
             "accuracy_on_comparable_gold_spans": self.accuracy_on_comparable_gold_spans,
+            "all_gold_ids_accuracy_on_matched_spans": self.all_gold_ids_accuracy_on_matched_spans,
+            "all_gold_ids_accuracy_on_comparable_gold_spans": self.all_gold_ids_accuracy_on_comparable_gold_spans,
             "prediction_id_coverage_on_matched_spans": self.prediction_id_coverage_on_matched_spans,
             "gold_id_coverage_on_matched_spans": self.gold_id_coverage_on_matched_spans,
         }
@@ -217,6 +240,8 @@ def _normalization_counts_by_document(
         total.incorrect += counts.incorrect
         total.missing_prediction_id += counts.missing_prediction_id
         total.missing_gold_id += counts.missing_gold_id
+        total.all_gold_ids_recovered += counts.all_gold_ids_recovered
+        total.partially_correct += counts.partially_correct
     return total
 
 
@@ -268,6 +293,10 @@ def _normalization_counts(
             counts.missing_prediction_id += 1
         elif prediction_ids & gold_ids:
             counts.correct += 1
+            if gold_ids <= prediction_ids:
+                counts.all_gold_ids_recovered += 1
+            else:
+                counts.partially_correct += 1
         else:
             counts.incorrect += 1
     return counts
@@ -365,13 +394,26 @@ def _identifier_aliases(value: str | None) -> set[str]:
     raw = str(value or "").strip().strip("'\"")
     if not raw or raw == "-":
         return set()
-    normalized = raw.upper().replace(" ", "")
-    aliases = {normalized}
-    if ":" in normalized:
-        _, suffix = normalized.split(":", 1)
+
+    canonical = _canonical_identifier(raw)
+    if not canonical:
+        return set()
+
+    aliases = {canonical}
+    if ":" in canonical:
+        _, suffix = canonical.split(":", 1)
         if suffix:
             aliases.add(suffix)
     return aliases
+
+
+def _canonical_identifier(value: str) -> str:
+    normalized = value.upper().replace(" ", "")
+    if ":" not in normalized:
+        return normalized
+    prefix, suffix = normalized.split(":", 1)
+    canonical_prefix = _DATABASE_ALIASES.get(prefix, prefix)
+    return f"{canonical_prefix}:{suffix}" if suffix else canonical_prefix
 
 
 __all__ = [
