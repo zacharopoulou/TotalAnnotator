@@ -269,13 +269,13 @@ Generated plots:
 metrics_overview.png
 coverage_groups.png
 normalization_accuracy.png
-consensus_gold_coverage.png
+annotator_combination_performance.png
 ```
 
 - `metrics_overview.png`: grouped bar chart of strict and lenient span F1 per annotator.
 - `coverage_groups.png`: gold annotation coverage counts, including missed-by-all, found-by-one, found-by-two, found-by-three, strictly-found-by-all, and normalization-correct-by-all.
 - `normalization_accuracy.png`: normalization accuracy and ID coverage per annotator.
-- `consensus_gold_coverage.png`: heatmap of each gold disease annotation against each annotator, where values distinguish missed, lenient match, strict match, and normalization-correct strict match.
+- `annotator_combination_performance.png`: union coverage for every annotator subset. It compares single annotators, annotator pairs, and all annotators together for lenient entity coverage, strict entity coverage, and strict-plus-correct-normalization coverage. This plot is intended to show whether one annotator, a pair, or the full combination is best for entity identification and normalization.
 
 ### `gold.jsonl`
 
@@ -413,7 +413,7 @@ outputs/benchmark-review/ncbi_disease/boundary_errors.tsv
 outputs/benchmark-review/ncbi_disease/plots/metrics_overview.png
 outputs/benchmark-review/ncbi_disease/plots/coverage_groups.png
 outputs/benchmark-review/ncbi_disease/plots/normalization_accuracy.png
-outputs/benchmark-review/ncbi_disease/plots/consensus_gold_coverage.png
+outputs/benchmark-review/ncbi_disease/plots/annotator_combination_performance.png
 outputs/benchmark-review/ncbi_disease/loader_warnings.tsv
 outputs/benchmark-review/ncbi_disease/annotator_statuses.tsv
 outputs/benchmark-review/ncbi_disease/summary.json
