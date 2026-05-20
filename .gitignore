@@ -24,3 +24,6 @@ benchmarks/data/ncbi/validation.jsonl
 # Can be regenerated locally with benchmarks/scripts/bc5cdr.py
 benchmarks/data/bc5cdr/train.jsonl
 benchmarks/data/bc5cdr/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/gnormplus.py
+benchmarks/data/gnormplus/train.jsonl
