@@ -4,12 +4,15 @@ from dataclasses import dataclass
 import json
 from io import StringIO
 from contextlib import redirect_stdout
+from urllib import error
+from urllib import request
+import pytest
 
 import pytest
 
 from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
-from bio_annotation.annotators.bern2 import annotate_with_bern2
+from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
 from bio_annotation.schemas.document import Document
@@ -33,9 +36,9 @@ def test_bern2_adapter_normalizes_records() -> None:
                 "mention": "PTEN",
                 "span": {"begin": 0, "end": 4},
                 "type": "Gene",
-                "id": "NCBIGene:5728",
+                "id": ["NCBIGene:5728"],
                 "normalizedName": "PTEN",
-                "probability": 0.98,
+                "prob": 0.98,
             },
             {
                 "mention": "glioblastoma",
@@ -52,7 +55,21 @@ def test_bern2_adapter_normalizes_records() -> None:
     assert annotations[0].source == "bern2"
     assert annotations[0].entity_type == "gene"
     assert annotations[0].canonical_id == "NCBIGene:5728"
+    assert annotations[0].confidence == 0.98
     assert annotations[1].entity_type == "disease"
+
+
+def test_bern2_call_surfaces_connection_failures(monkeypatch) -> None:
+    document = sample_document()
+
+    class FakeOpener:
+        def open(self, http_request: request.Request, timeout: int) -> object:
+            raise error.URLError("connection refused")
+
+    monkeypatch.setattr(request, "build_opener", lambda *args: FakeOpener())
+
+    with pytest.raises(RuntimeError, match="BERN2 request failed"):
+        call_bern2(document, endpoint="http://127.0.0.1:8888/plain")
 
 
 @dataclass
@@ -69,7 +86,7 @@ class FakeSpan:
     labels: list[FakeLabel]
 
 
-def test_flair_adapter_normalizes_spans() -> None:
+def test_flair_adapter_preserves_unsupported_span_labels() -> None:
     document = sample_document()
     spans = [
         FakeSpan(
@@ -84,7 +101,7 @@ def test_flair_adapter_normalizes_spans() -> None:
 
     assert len(annotations) == 1
     assert annotations[0].source == "flair"
-    assert annotations[0].entity_type == "mirna"
+    assert annotations[0].entity_type == "micro_rna"
     assert annotations[0].confidence == 0.87
 
 
