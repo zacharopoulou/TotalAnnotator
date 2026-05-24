@@ -16,8 +16,54 @@ from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 
+# PubTator3 publication-mode offsets are anchored to "title\nbody" (single
+# newline). Use the same scheme for text-mode submissions so offsets returned
+# by either path line up with the canonical text built in the web UI renderer.
 def _document_annotation_text(document: Document) -> str:
-    return document.text.strip()
+    title = (document.title or "").strip()
+    if document.full_text:
+        body = document.full_text.strip()
+    else:
+        body = (document.abstract or "").strip()
+    if title and body:
+        return f"{title}\n{body}"
+    return title or body
+
+
+# Auto-mode fallback hinges on this. PubTator3 publication-mode can return a
+# non-None payload that contains zero annotations (PMID known, nothing tagged),
+# in which case we want to retry via text mode instead of returning empty.
+def _payload_has_annotations(payload: Any) -> bool:
+    if payload is None:
+        return False
+    if isinstance(payload, dict):
+        documents = payload.get("documents") or payload.get("PubTator3") or []
+        if isinstance(documents, list):
+            for doc in documents:
+                if not isinstance(doc, dict):
+                    continue
+                for passage in doc.get("passages", []):
+                    if isinstance(passage, dict) and passage.get("annotations"):
+                        return True
+            return False
+        if "passages" in payload:
+            for passage in payload.get("passages", []):
+                if isinstance(passage, dict) and passage.get("annotations"):
+                    return True
+            return False
+        if "denotations" in payload:
+            return bool(payload.get("denotations"))
+        return False
+    if isinstance(payload, list):
+        return any(_payload_has_annotations(item) for item in payload)
+    if isinstance(payload, str):
+        for line in payload.splitlines():
+            if not line.strip() or "|t|" in line or "|a|" in line:
+                continue
+            if "\t" in line:
+                return True
+        return False
+    return False
 
 
 def _parse_bioc_document(document: Document, doc_payload: dict[str, Any]) -> list[Annotation]:
@@ -251,10 +297,10 @@ def call_pubtator3(
         format=format,
         mode="publication_only",
     )
-    if publication_payload is not None:
+    if _payload_has_annotations(publication_payload):
         return publication_payload
 
-    return call_pubtator3(
+    text_payload = call_pubtator3(
         document,
         client=active_client,
         format=format,
@@ -267,6 +313,9 @@ def call_pubtator3(
         max_poll_seconds=max_poll_seconds,
         progress_callback=progress_callback,
     )
+    if text_payload is not None:
+        return text_payload
+    return publication_payload
 
 
 def annotate_with_pubtator3(

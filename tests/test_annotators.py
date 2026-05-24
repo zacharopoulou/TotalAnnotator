@@ -286,7 +286,7 @@ def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
     assert annotations[0].source == "pubtator3"
     assert annotations[0].entity_type == "gene"
     assert annotations[0].canonical_id == "5728"
-    assert client.payloads == [document.text]
+    assert client.payloads == ["PTEN regulates glioblastoma\nPTEN is important in glioblastoma."]
     assert client.options[0]["bioconcept"] == "All"
 
 
@@ -306,19 +306,28 @@ def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -
 
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             self.pmids.append(pmids)
-            return {"documents": []}
+            return {
+                "documents": [
+                    {
+                        "id": pmids[0],
+                        "passages": [
+                            {"annotations": [{"text": "PTEN", "infons": {"type": "Gene", "identifier": "5728"}}]}
+                        ],
+                    }
+                ]
+            }
 
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMCID lookup should not be used when PMID is present")
 
         def annotate_text(self, payload: str, **kwargs: object) -> str:
             self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for PMID documents in auto mode")
+            raise AssertionError("raw text annotation should not be used when publication export already returned annotations")
 
     client = FakeClient()
     payload = call_pubtator3(document, client=client, mode="auto")
 
-    assert payload == {"documents": []}
+    assert isinstance(payload, dict) and payload.get("documents")
     assert client.pmids == [["12345678"]]
     assert client.text_payloads == []
 
@@ -342,18 +351,61 @@ def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -
 
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             self.pmcids.append(pmcids)
-            return {"documents": []}
+            return {
+                "documents": [
+                    {
+                        "id": pmcids[0],
+                        "passages": [
+                            {"annotations": [{"text": "PTEN", "infons": {"type": "Gene", "identifier": "5728"}}]}
+                        ],
+                    }
+                ]
+            }
 
         def annotate_text(self, payload: str, **kwargs: object) -> str:
             self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for PMCID documents in auto mode")
+            raise AssertionError("raw text annotation should not be used when publication export already returned annotations")
 
     client = FakeClient()
     payload = call_pubtator3(document, client=client, mode="auto")
 
-    assert payload == {"documents": []}
+    assert isinstance(payload, dict) and payload.get("documents")
     assert client.pmcids == [["PMC1234567"]]
     assert client.text_payloads == []
+
+
+def test_pubtator3_auto_falls_back_to_raw_text_when_publication_returns_no_annotations() -> None:
+    document = Document(
+        document_id="PMID:33849366",
+        pmid="33849366",
+        title="Investigating NDMA in metformin tablets",
+        abstract="NDMA traces were undetectable in MET tablets.",
+        source="pubmed",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.pmids: list[list[str]] = []
+            self.text_payloads: list[str] = []
+
+        def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            self.pmids.append(pmids)
+            return {"documents": [{"id": pmids[0], "passages": [{"annotations": []}]}]}
+
+        def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMCID lookup should not be used when PMID is present")
+
+        def annotate_text(self, payload: str, **kwargs: object) -> str:
+            self.text_payloads.append(payload)
+            return '{"text":"' + payload + '","denotations":[{"obj":"Chemical:D004128","span":{"begin":15,"end":19}}]}'
+
+    client = FakeClient()
+    payload = call_pubtator3(document, client=client, mode="auto")
+
+    assert isinstance(payload, str)
+    assert "denotations" in payload
+    assert client.pmids == [["33849366"]]
+    assert len(client.text_payloads) == 1
 
 
 def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers() -> None:
@@ -382,7 +434,7 @@ def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers()
     payload = call_pubtator3(document, client=client, mode="auto")
 
     assert payload == '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
-    assert client.payloads == [document.text]
+    assert client.payloads == ["PTEN regulates glioblastoma\nPTEN is important in glioblastoma."]
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
