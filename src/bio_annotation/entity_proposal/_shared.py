@@ -43,6 +43,35 @@ def resolve_offsets(document: Document, span_text: str, start: Any, end: Any) ->
     return index, index + len(span_text)
 
 
+# Document.text joins title and body with "\n\n" (two newlines), but the
+# web UI renderer and PubTator3's BioC payloads both use a single "\n".
+# BERN2 and Flair receive Document.text, so their abstract offsets are
+# one character past the canonical position. This helper shifts those
+# offsets back so highlights line up.
+def shift_to_pubtator_offsets(
+    document: Document, start: Any, end: Any
+) -> tuple[Any, Any]:
+    if start is None:
+        return start, end
+    title = (document.title or "").strip()
+    if not title:
+        return start, end
+    body_start_in_input = len(title) + 2
+    try:
+        start_int = int(start)
+    except (TypeError, ValueError):
+        return start, end
+    if start_int < body_start_in_input:
+        return start, end
+    new_end = end
+    if end is not None:
+        try:
+            new_end = int(end) - 1
+        except (TypeError, ValueError):
+            new_end = end
+    return start_int - 1, new_end
+
+
 def sanitize_identifier(value: Any) -> str | None:
     if value is None:
         return None

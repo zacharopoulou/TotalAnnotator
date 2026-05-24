@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import make_annotation, shift_to_pubtator_offsets
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -31,14 +31,19 @@ def parse_flair_spans(document: Document, spans: Iterable[Any]) -> list[Annotati
         if not text:
             continue
 
+        normalized_start, normalized_end = shift_to_pubtator_offsets(
+            document,
+            getattr(span, "start_position", None),
+            getattr(span, "end_position", None),
+        )
         annotations.append(
             make_annotation(
                 document=document,
                 source="flair",
                 span_text=text,
                 entity_type=label,
-                start=getattr(span, "start_position", None),
-                end=getattr(span, "end_position", None),
+                start=normalized_start,
+                end=normalized_end,
                 confidence=score,
             )
         )
@@ -63,14 +68,19 @@ def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annota
         if not text:
             continue
 
+        normalized_start, normalized_end = shift_to_pubtator_offsets(
+            document,
+            getattr(span, "start_position", None),
+            getattr(span, "end_position", None),
+        )
         annotations.append(
             make_annotation(
                 document=document,
                 source="flair",
                 span_text=text,
                 entity_type=getattr(label, "value", None),
-                start=getattr(span, "start_position", None),
-                end=getattr(span, "end_position", None),
+                start=normalized_start,
+                end=normalized_end,
                 confidence=getattr(label, "score", None),
             )
         )
