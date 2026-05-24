@@ -115,6 +115,8 @@ def group_annotations_by_span(annotations: list[dict[str, Any]]) -> list[dict[st
 
     Returns rows for a comparison table. Each row has the keyword and a
     dict of annotator -> list of (entity_type, canonical_id, canonical_name).
+    Within each source, hits with identical (entity_type, canonical_id,
+    canonical_name) are collapsed to one row carrying a `mentions` count.
     """
     groups: dict[str, dict[str, Any]] = {}
     for annotation in annotations:
@@ -146,7 +148,7 @@ def group_annotations_by_span(annotations: list[dict[str, Any]]) -> list[dict[st
 
     rows = []
     for bucket in groups.values():
-        by_source = dict(bucket["by_source"])
+        by_source = {source: _dedupe_hits(hits) for source, hits in bucket["by_source"].items()}
         rows.append(
             {
                 "keyword": bucket["keyword"],
@@ -157,3 +159,26 @@ def group_annotations_by_span(annotations: list[dict[str, Any]]) -> list[dict[st
         )
     rows.sort(key=lambda row: (row["first_offset"], row["keyword"].casefold()))
     return rows
+
+
+def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse hits with identical (entity_type, canonical_id, canonical_name).
+
+    Keeps the highest confidence and tracks how many mentions collapsed.
+    Order is preserved by first occurrence so the UI stays stable.
+    """
+    deduped: dict[tuple[Any, Any, Any], dict[str, Any]] = {}
+    for hit in hits:
+        key = (hit.get("entity_type"), hit.get("canonical_id"), hit.get("canonical_name"))
+        existing = deduped.get(key)
+        if existing is None:
+            deduped[key] = {**hit, "mentions": 1}
+            continue
+        existing["mentions"] += 1
+        new_conf = hit.get("confidence")
+        old_conf = existing.get("confidence")
+        if isinstance(new_conf, (int, float)) and (
+            not isinstance(old_conf, (int, float)) or new_conf > old_conf
+        ):
+            existing["confidence"] = new_conf
+    return list(deduped.values())

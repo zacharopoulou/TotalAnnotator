@@ -25,7 +25,7 @@
     flair: "Flair / HunFlair",
   };
 
-  function databaseLink(canonicalId) {
+  function databaseLink(canonicalId, entityType) {
     if (!canonicalId) return null;
     const id = String(canonicalId).trim();
     const meshMatch = id.match(/^mesh:(.+)$/i);
@@ -42,14 +42,14 @@
         url: `https://www.ncbi.nlm.nih.gov/gene/${encodeURIComponent(geneMatch[1])}`,
       };
     }
-    const taxMatch = id.match(/^ncbi[_-]?taxonomy:(.+)$/i);
+    const taxMatch = id.match(/^(?:ncbi[_-]?taxonomy|ncbitaxon|taxonomy|taxon):(.+)$/i);
     if (taxMatch) {
       return {
         label: "View in NCBI Taxonomy",
         url: `https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=${encodeURIComponent(taxMatch[1])}`,
       };
     }
-    const snpMatch = id.match(/^dbsnp:(.+)$/i);
+    const snpMatch = id.match(/^(?:dbsnp|rs):(.+)$/i);
     if (snpMatch) {
       return {
         label: "View in dbSNP",
@@ -78,11 +78,17 @@
         url: `https://www.cellosaurus.org/${encodeURIComponent(cvcl)}`,
       };
     }
-    const omimMatch = id.match(/^omim:(.+)$/i);
+    const omimMatch = id.match(/^(?:omim|mim):(.+)$/i);
     if (omimMatch) {
       return {
         label: "View in OMIM",
         url: `https://www.omim.org/entry/${encodeURIComponent(omimMatch[1])}`,
+      };
+    }
+    if (entityType === "species" && /^\d+$/.test(id)) {
+      return {
+        label: "View in NCBI Taxonomy",
+        url: `https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=${encodeURIComponent(id)}`,
       };
     }
     return null;
@@ -115,7 +121,7 @@
     return ENTITY_TYPE_LABELS[type] || type || "Entity";
   }
 
-  function renderSourceRow(name, hits) {
+  function renderSourceRow(name, hits, entityType) {
     const row = document.createElement("div");
     row.className = "entity-popup-source";
 
@@ -128,14 +134,36 @@
     list.className = "entity-popup-source-hits";
     for (const hit of hits) {
       const li = document.createElement("li");
-      const parts = [];
-      if (hit.canonical_id) parts.push(`ID: ${hit.canonical_id}`);
-      if (hit.canonical_name) parts.push(`name: ${hit.canonical_name}`);
-      if (typeof hit.confidence === "number") {
-        parts.push(`confidence: ${hit.confidence.toFixed(3)}`);
+      if (hit.canonical_id) {
+        const idLink = databaseLink(hit.canonical_id, entityType);
+        li.appendChild(document.createTextNode("ID: "));
+        if (idLink) {
+          const anchor = document.createElement("a");
+          anchor.href = idLink.url;
+          anchor.target = "_blank";
+          anchor.rel = "noopener";
+          anchor.textContent = hit.canonical_id;
+          li.appendChild(anchor);
+        } else {
+          li.appendChild(document.createTextNode(hit.canonical_id));
+        }
       }
-      if (parts.length === 0) parts.push("matched");
-      li.textContent = parts.join(" · ");
+      const tail = [];
+      if (hit.canonical_name) tail.push(`name: ${hit.canonical_name}`);
+      if (typeof hit.confidence === "number") {
+        tail.push(`confidence: ${hit.confidence.toFixed(3)}`);
+      }
+      const mentions = typeof hit.mentions === "number" ? hit.mentions : 1;
+      if (mentions > 1) {
+        tail.push(`${mentions} mentions`);
+      }
+      if (!hit.canonical_id && tail.length === 0) {
+        tail.push("matched");
+      }
+      if (tail.length > 0) {
+        const prefix = hit.canonical_id ? " · " : "";
+        li.appendChild(document.createTextNode(prefix + tail.join(" · ")));
+      }
       list.appendChild(li);
     }
     row.appendChild(list);
@@ -158,7 +186,7 @@
     appendInfo("Keyword", data.keyword);
     appendInfo("Canonical name", data.canonical_name);
 
-    const link = databaseLink(data.canonical_id);
+    const link = databaseLink(data.canonical_id, data.entity_type);
     appendInfo(
       "Canonical id",
       data.canonical_id,
@@ -174,7 +202,7 @@
       sourcesEl.appendChild(note);
     } else {
       for (const sourceName of sortedSources) {
-        sourcesEl.appendChild(renderSourceRow(sourceName, sources[sourceName]));
+        sourcesEl.appendChild(renderSourceRow(sourceName, sources[sourceName], data.entity_type));
       }
     }
 
