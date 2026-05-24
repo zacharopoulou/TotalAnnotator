@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TotalAnnotator</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  <h1>TotalAnnotator</h1>
+  <p>Enter PubMed IDs and choose annotators to run.</p>
+  <form action="/annotate" method="post">
+    <h3>PMIDs (comma or space separated)</h3>
+    <input type="text" name="pmids" placeholder="36403686, 12345678" size="60" required>
+
+    <h3>Annotators</h3>
+    {% for value, label in annotators %}
+      <label><input type="checkbox" name="annotators" value="{{ value }}" checked> {{ label }}</label><br>
+    {% endfor %}
+
+    <h3>Entity types (leave all unchecked to include every type)</h3>
+    {% for value, label in entity_types %}
+      <label><input type="checkbox" name="entity_types" value="{{ value }}"> {{ label }}</label><br>
+    {% endfor %}
+
+    <br>
+    <button type="submit">Annotate</button>
+  </form>
+</body>
+</html>

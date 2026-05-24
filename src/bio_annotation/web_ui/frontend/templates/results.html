@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TotalAnnotator results</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <h1>TotalAnnotator</h1>
+    <nav><a href="/">New annotation</a></nav>
+  </header>
+
+  <main>
+    <section class="summary">
+      <p><strong>{{ total_annotations }}</strong> total annotations across {{ documents|length }} document(s).</p>
+      <p>Annotators used: {{ annotators_used|join(", ") }}.</p>
+      <p class="meta">Results saved to: <code>{{ results_path }}</code></p>
+    </section>
+
+    <section class="legend">
+      <span class="legend-item"><mark class="entity entity-gene">Gene / protein</mark></span>
+      <span class="legend-item"><mark class="entity entity-disease">Disease</mark></span>
+      <span class="legend-item"><mark class="entity entity-drug">Chemical / drug</mark></span>
+      <span class="legend-item"><mark class="entity entity-species">Species</mark></span>
+      <span class="legend-item"><mark class="entity entity-variant">Variant / mutation</mark></span>
+      <span class="legend-item"><mark class="entity entity-cell_line">Cell line</mark></span>
+    </section>
+
+    {% for view in documents %}
+    <article class="document">
+      <h2>{{ view.document.title }}</h2>
+      <p class="meta">
+        {% if view.document.pmid %}
+        PMID:
+        <a href="https://pubmed.ncbi.nlm.nih.gov/{{ view.document.pmid }}/" target="_blank" rel="noopener">{{ view.document.pmid }}</a>
+        |
+        {% endif %}
+        {{ view.annotation_count }} annotations on this document
+      </p>
+
+      <h3>Annotated text</h3>
+      <p class="hint">Highlights show entities found by any annotator. Click a highlight for full details across all annotators.</p>
+      <div class="annotated-text">
+        {{ view.highlighted_html|safe }}
+      </div>
+
+      <h3>Comparison across annotators</h3>
+      <p class="hint">Each row is a unique keyword found by at least one annotator.</p>
+      <table class="comparison">
+        <thead>
+          <tr>
+            <th>Keyword</th>
+            <th>PubTator3</th>
+            <th>BERN2</th>
+            <th>Flair / HunFlair</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in view.comparison_rows %}
+          <tr>
+            <td><code>{{ row.keyword }}</code></td>
+            <td>
+              {% if "pubtator3" in row.by_source %}
+                {% set hit = row.by_source["pubtator3"][0] %}
+                <span class="entity-type">{{ hit.entity_type or "?" }}</span>
+                {% if hit.canonical_id %}<br><small>{{ hit.canonical_id }}</small>{% endif %}
+                {% if hit.canonical_name %}<br><small>{{ hit.canonical_name }}</small>{% endif %}
+              {% else %}<span class="absent">.</span>{% endif %}
+            </td>
+            <td>
+              {% if "bern2" in row.by_source %}
+                {% set hit = row.by_source["bern2"][0] %}
+                <span class="entity-type">{{ hit.entity_type or "?" }}</span>
+                {% if hit.canonical_id %}<br><small>{{ hit.canonical_id }}</small>{% endif %}
+              {% else %}<span class="absent">.</span>{% endif %}
+            </td>
+            <td>
+              {% if "flair" in row.by_source %}
+                {% set hit = row.by_source["flair"][0] %}
+                <span class="entity-type">{{ hit.entity_type or "?" }}</span>
+              {% else %}<span class="absent">.</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </article>
+    {% endfor %}
+  </main>
+
+  <div id="entity-popup" class="entity-popup-overlay hidden" aria-hidden="true">
+    <div class="entity-popup-card" role="dialog" aria-modal="true" aria-labelledby="entity-popup-title">
+      <div class="entity-popup-header">
+        <h3 id="entity-popup-title">Entity</h3>
+        <button class="entity-popup-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="entity-popup-body">
+        <dl class="entity-popup-info"></dl>
+        <h4>Found by</h4>
+        <div class="entity-popup-sources"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', path='main.js') }}"></script>
+</body>
+</html>
