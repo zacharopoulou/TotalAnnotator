@@ -88,6 +88,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("outputs/runs"),
         help="Directory where reproducible UI runs are saved.",
     )
+    web_parser = subparsers.add_parser(
+        "web",
+        help="Launch the web annotation UI.",
+    )
+    web_parser.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1).")
+    web_parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000).")
+    web_parser.add_argument("--reload", action="store_true", help="Enable auto-reload on code changes (dev).")
     inspect_parser = subparsers.add_parser("inspect-config", help="Show parsed pipeline config values.")
     inspect_parser.add_argument(
         "--config",
@@ -161,6 +168,17 @@ def main(argv: list[str] | None = None) -> int:
         except (RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
+        return 0
+
+    if args.command == "web":
+        import uvicorn
+
+        uvicorn.run(
+            "bio_annotation.web_ui.backend.app:app",
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+        )
         return 0
 
     if args.command == "inspect-config":
