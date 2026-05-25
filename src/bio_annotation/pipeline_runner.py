@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import csv
 import json
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -902,8 +903,6 @@ def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
 
 
 def _load_flair_tagger(model: str) -> Any:
-    import logging
-
     import flair
     from flair.nn import Classifier
 
