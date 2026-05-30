@@ -44,6 +44,15 @@ def test_normalize_entity_type_uses_explicit_table_rows() -> None:
     assert normalize_entity_type("chemical_entity") == "chemical_entity"
 
 
+def test_normalize_entity_type_maps_pubtator3_raw_labels() -> None:
+    assert normalize_entity_type("Chemical") == "drug"
+    assert normalize_entity_type("Mutation") == "variant"
+    assert normalize_entity_type("CellLine") == "cell_line"
+    assert normalize_entity_type("ProteinMutation") == "variant"
+    assert normalize_entity_type("DNAMutation") == "variant"
+    assert normalize_entity_type("SNP") == "variant"
+
+
 def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> None:
     assert ANNOTATOR_CAPABILITIES["pubtator3"].tasks == ("NER", "NEN")
     assert ANNOTATOR_CAPABILITIES["bern2"].tasks == ("NER", "NEN")
