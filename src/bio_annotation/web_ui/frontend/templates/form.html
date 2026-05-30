@@ -7,10 +7,28 @@
 </head>
 <body>
   <h1>TotalAnnotator</h1>
-  <p>Enter PubMed IDs and choose annotators to run.</p>
-  <form action="/annotate" method="post">
-    <h3>PMIDs (comma or space separated)</h3>
-    <input type="text" name="pmids" placeholder="36403686, 12345678" size="60" required>
+  <p>Choose an input source, annotators, and entity types.</p>
+  <form action="/annotate" method="post" enctype="multipart/form-data">
+    <h3>What do you want to annotate?</h3>
+    <label><input type="radio" name="input_mode" value="pmids" checked> PubMed articles by PMID</label><br>
+    <label><input type="radio" name="input_mode" value="pmid_file"> PubMed articles from a PMID file</label><br>
+    <label><input type="radio" name="input_mode" value="plain_text"> Plain text</label><br>
+
+    <div class="input-section" data-input-mode="pmids">
+      <h3>PMIDs (comma or space separated)</h3>
+      <input type="text" name="pmids" placeholder="36403686, 12345678" size="60">
+    </div>
+
+    <div class="input-section" data-input-mode="pmid_file" hidden>
+      <h3>PMID file (one PMID per line, or comma/space separated)</h3>
+      <input type="file" name="pmid_file" accept=".txt,text/plain">
+    </div>
+
+    <div class="input-section" data-input-mode="plain_text" hidden>
+      <h3>Plain text</h3>
+      <p class="hint">Paste the title and abstract (or any free text). It will be annotated as a single document.</p>
+      <textarea name="plain_text" rows="8" cols="80" placeholder="Paste title and abstract here..."></textarea>
+    </div>
 
     <h3>Annotators</h3>
     {% for value, label in annotators %}
@@ -25,5 +43,22 @@
     <br>
     <button type="submit">Annotate</button>
   </form>
+
+  <script>
+    (() => {
+      const radios = document.querySelectorAll('input[name="input_mode"]');
+      const sections = document.querySelectorAll('.input-section');
+      function update() {
+        const selected = document.querySelector('input[name="input_mode"]:checked').value;
+        for (const section of sections) {
+          section.hidden = section.dataset.inputMode !== selected;
+        }
+      }
+      for (const radio of radios) {
+        radio.addEventListener('change', update);
+      }
+      update();
+    })();
+  </script>
 </body>
 </html>

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -56,21 +56,26 @@ def get_form(request: Request) -> HTMLResponse:
 
 
 @app.post("/annotate", response_class=HTMLResponse)
-def post_annotate(
+async def post_annotate(
     request: Request,
-    pmids: Annotated[str, Form()],
+    input_mode: Annotated[str, Form()] = "pmids",
+    pmids: Annotated[str, Form()] = "",
+    pmid_file: Annotated[UploadFile | None, Form()] = None,
+    plain_text: Annotated[str, Form()] = "",
     annotators: Annotated[list[str] | None, Form()] = None,
     entity_types: Annotated[list[str] | None, Form()] = None,
 ) -> HTMLResponse:
     selected_annotators = annotators or [value for value, _ in ANNOTATOR_CHOICES]
-    answers = TerminalUIAnswers(
-        input_mode="pmids",
-        pmids=parse_pmids(pmids),
-        pmid_file=None,
+    paths = create_run_paths(RUNS_DIR)
+    answers = await _build_answers(
+        input_mode=input_mode,
+        pmids=pmids,
+        pmid_file=pmid_file,
+        plain_text=plain_text,
         annotators=selected_annotators,
         entity_types=entity_types or [],
+        paths=paths,
     )
-    paths = create_run_paths(RUNS_DIR)
     prepare_input_files(answers, paths)
     write_terminal_ui_config(answers, paths.config_path, paths)
     payload = run_pipeline_from_config(paths.config_path)
@@ -117,3 +122,52 @@ def post_annotate(
             "results_path": str(paths.results_path),
         },
     )
+
+
+async def _build_answers(
+    *,
+    input_mode: str,
+    pmids: str,
+    pmid_file: UploadFile | None,
+    plain_text: str,
+    annotators: list[str],
+    entity_types: list[str],
+    paths,
+) -> TerminalUIAnswers:
+    if input_mode == "pmids":
+        parsed = parse_pmids(pmids)
+        if not parsed:
+            raise HTTPException(status_code=400, detail="Enter at least one PMID.")
+        return TerminalUIAnswers(
+            input_mode="pmids",
+            pmids=parsed,
+            pmid_file=None,
+            annotators=annotators,
+            entity_types=entity_types,
+        )
+    if input_mode == "pmid_file":
+        if pmid_file is None or not pmid_file.filename:
+            raise HTTPException(status_code=400, detail="Choose a PMID file to upload.")
+        contents = await pmid_file.read()
+        paths.pmids_path.parent.mkdir(parents=True, exist_ok=True)
+        paths.pmids_path.write_bytes(contents)
+        return TerminalUIAnswers(
+            input_mode="pmid_file",
+            pmids=[],
+            pmid_file=paths.pmids_path,
+            annotators=annotators,
+            entity_types=entity_types,
+        )
+    if input_mode == "plain_text":
+        if not plain_text.strip():
+            raise HTTPException(status_code=400, detail="Paste some text to annotate.")
+        return TerminalUIAnswers(
+            input_mode="plain_text",
+            pmids=[],
+            pmid_file=None,
+            annotators=annotators,
+            entity_types=entity_types,
+            plain_text_source="manual_text",
+            plain_text_content=plain_text,
+        )
+    raise HTTPException(status_code=400, detail=f"Unsupported input mode: {input_mode}")
