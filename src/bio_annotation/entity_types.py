@@ -71,6 +71,20 @@ ENTITY_TYPE_ALIASES: dict[str, str] = {
 }
 ENTITY_TYPE_ALIASES.update({canonical: canonical for canonical in ENTITY_TYPE_DISPLAY_NAMES})
 
+# Raw labels that annotators emit directly, beyond the human-friendly
+# source_entity_type strings used in the specs above. PubTator3 sends bare
+# "Chemical", "Mutation", "CellLine", etc. Without these aliases, those
+# annotations stay as unknown canonical types and lose their type color.
+ENTITY_TYPE_ALIASES.update({
+    "chemical": "drug",
+    "mutation": "variant",
+    "cellline": "cell_line",
+    "proteinmutation": "variant",
+    "dnamutation": "variant",
+    "snp": "variant",
+    "dnaacidchange": "variant",
+})
+
 
 ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
     "pubtator3": AnnotatorCapability(
