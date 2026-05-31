@@ -5,7 +5,11 @@ import os
 from typing import Any, Callable
 from urllib import error, parse, request
 
-from bio_annotation.entity_proposal._shared import make_annotation, pick_first
+from bio_annotation.entity_proposal._shared import (
+    make_annotation,
+    pick_first,
+    shift_to_pubtator_offsets,
+)
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -40,6 +44,9 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
         if not mention:
             continue
 
+        raw_start = pick_first(record.get("start"), span.get("begin"), span.get("start"))
+        raw_end = pick_first(record.get("end"), span.get("end"))
+        shifted_start, shifted_end = shift_to_pubtator_offsets(document, raw_start, raw_end)
         annotations.append(
             make_annotation(
                 document=document,
@@ -50,8 +57,8 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
                     record.get("entity_type"),
                     record.get("obj"),
                 ),
-                start=pick_first(record.get("start"), span.get("begin"), span.get("start")),
-                end=pick_first(record.get("end"), span.get("end")),
+                start=shifted_start,
+                end=shifted_end,
                 canonical_id=pick_first(
                     _first_identifier(record.get("id")),
                     record.get("db_id"),
