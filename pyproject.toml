@@ -32,6 +32,9 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"bio_annotation.report" = ["template.html"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 markers = [
