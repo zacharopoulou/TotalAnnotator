@@ -8,9 +8,11 @@ from typing import Any
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "template.html"
 
-# Annotators are ordered by how much we trust their canonical names.
-# When two annotators overlap on the same span the lower priority wins
-# the highlight and supplies the popup's primary canonical id/name.
+# Trust ranking for picking ONE annotator when several tag the same span.
+# Lower number = more trusted. The most-trusted annotator's annotation
+# wins the visible highlight and supplies the popup's primary canonical
+# id/name. The other annotators' results are still listed in "Found by".
+# PubTator3 is best at normalisation, BERN2 second, Flair last (no IDs).
 _SOURCE_PRIORITY: dict[str, int] = {"pubtator3": 0, "bern2": 1, "flair": 2}
 
 _ANNOTATOR_LABELS: dict[str, str] = {
@@ -26,7 +28,24 @@ _ENTITY_TYPE_LABELS: dict[str, str] = {
     "species": "Species",
     "variant": "Variant / mutation",
     "cell_line": "Cell line",
+    # BERN2-only categories that don't have a canonical equivalent on the
+    # other annotators. Kept as their own buckets rather than merged.
+    "dna": "DNA segment",
+    "rna": "RNA / miRNA",
+    "cell_type": "Cell type",
 }
+
+
+# Per-annotator placeholders that look like an ID but actually mean
+# "no normalized concept found". Treat them as empty.
+_NULL_CANONICAL_IDS: frozenset[str] = frozenset({"cui-less", "-", ""})
+
+
+def _is_real_canonical_id(value: Any) -> bool:
+    if value is None:
+        return False
+    text = str(value).strip().lower()
+    return text not in _NULL_CANONICAL_IDS
 
 
 # Mirror of the JS `databaseLink` so the comparison table can hyperlink IDs
@@ -112,7 +131,12 @@ def _render_body(payload: dict[str, Any]) -> str:
             css_class="stats-run",
         ))
     parts.append("</section>")
-    parts.append(_render_legend())
+    parts.append(_render_legend(annotations))
+
+    if annotations:
+        parts.append(_render_type_histogram(annotations))
+    if len(documents) > 1:
+        parts.append(_render_documents_overview(documents, annotations))
 
     for document in documents:
         parts.append(_render_document(document, annotations))
@@ -184,10 +208,15 @@ def _render_stats_panel(
             f'<span class="stats-type-total">{total}</span></summary>'
         )
         parts.append('<ul class="stats-list">')
+        max_count = rows[0][1] if rows else 1
         for keyword, count in rows[:limit_per_type]:
+            width_pct = max(6, int(round(100 * count / max_count))) if max_count else 0
             parts.append(
-                f'<li><span class="stats-keyword">{escape(keyword)}</span>'
-                f'<span class="stats-count">{count}</span></li>'
+                f'<li>'
+                f'<span class="stats-keyword">{escape(keyword)}</span>'
+                f'<span class="stats-bar-track"><span class="stats-bar-fill" style="width:{width_pct}%"></span></span>'
+                f'<span class="stats-count">{count}</span>'
+                f'</li>'
             )
         if len(rows) > limit_per_type:
             remaining = len(rows) - limit_per_type
@@ -197,11 +226,118 @@ def _render_stats_panel(
     return "\n".join(parts)
 
 
-def _render_legend() -> str:
-    items = [
-        f'<span class="legend-chip legend-chip-{key}">{escape(label)}</span>'
-        for key, label in _ENTITY_TYPE_LABELS.items()
+def _render_type_histogram(annotations: list[dict[str, Any]]) -> str:
+    counts: dict[str, int] = {}
+    for annotation in annotations:
+        entity_type = (annotation.get("entity_type") or "unknown").lower()
+        counts[entity_type] = counts.get(entity_type, 0) + 1
+    if not counts:
+        return ""
+    ordered = [
+        key for key in ("disease", "drug", "gene", "species", "variant", "cell_line")
+        if key in counts
     ]
+    ordered += sorted(key for key in counts if key not in ordered)
+    max_count = max(counts.values())
+
+    parts = ['<section class="chart-card">',
+             '<h4>Entity type distribution</h4>',
+             '<ul class="type-histogram">']
+    for entity_type in ordered:
+        count = counts[entity_type]
+        label = _ENTITY_TYPE_LABELS.get(entity_type, entity_type.replace("_", " ").title())
+        width = max(4, int(round(100 * count / max_count)))
+        parts.append(
+            f'<li class="hist-row hist-row-{escape(entity_type)}">'
+            f'<span class="hist-label">{escape(label)}</span>'
+            f'<span class="hist-track"><span class="hist-fill" style="width:{width}%"></span></span>'
+            f'<span class="hist-count">{count}</span>'
+            f'</li>'
+        )
+    parts.append('</ul></section>')
+    return "\n".join(parts)
+
+
+def _render_documents_overview(
+    documents: list[dict[str, Any]], annotations: list[dict[str, Any]]
+) -> str:
+    by_doc: dict[Any, dict[str, int]] = {}
+    for annotation in annotations:
+        document_id = annotation.get("document_id")
+        entity_type = (annotation.get("entity_type") or "unknown").lower()
+        by_doc.setdefault(document_id, {})[entity_type] = (
+            by_doc.setdefault(document_id, {}).get(entity_type, 0) + 1
+        )
+
+    doc_totals = [
+        (doc, sum(by_doc.get(doc.get("document_id"), {}).values()))
+        for doc in documents
+    ]
+    max_total = max((total for _, total in doc_totals), default=0)
+    if max_total == 0:
+        return ""
+
+    type_order = ("disease", "drug", "gene", "species", "variant", "cell_line")
+
+    parts = ['<section class="chart-card">',
+             '<h4>Annotations per document</h4>',
+             '<ul class="doc-overview">']
+    for document, total in doc_totals:
+        doc_id = str(document.get("document_id") or "")
+        pmid = document.get("pmid")
+        title = (document.get("title") or doc_id or "Document")
+        truncated = title if len(title) <= 70 else title[:67] + "..."
+        link_text = f"PMID {pmid}" if pmid else doc_id or "Document"
+        anchor = _anchor_for(doc_id)
+        type_counts = by_doc.get(document.get("document_id"), {})
+        ordered_types = [t for t in type_order if t in type_counts]
+        ordered_types += [t for t in type_counts if t not in ordered_types]
+
+        segments: list[str] = []
+        running_total = sum(type_counts.values())
+        for entity_type in ordered_types:
+            seg_count = type_counts[entity_type]
+            seg_width = 100 * seg_count / running_total if running_total else 0
+            segments.append(
+                f'<span class="doc-seg doc-seg-{escape(entity_type)}" '
+                f'style="width:{seg_width:.2f}%" '
+                f'title="{escape(_ENTITY_TYPE_LABELS.get(entity_type, entity_type))}: {seg_count}"></span>'
+            )
+        bar_width = max(8, int(round(100 * total / max_total)))
+        parts.append(
+            f'<li class="doc-row">'
+            f'<a class="doc-link" href="#{escape(anchor, quote=True)}">{escape(link_text)}</a>'
+            f'<span class="doc-title">{escape(truncated)}</span>'
+            f'<span class="doc-track"><span class="doc-bar" style="width:{bar_width}%">{"".join(segments)}</span></span>'
+            f'<span class="doc-count">{total}</span>'
+            f'</li>'
+        )
+    parts.append('</ul></section>')
+    return "\n".join(parts)
+
+
+def _anchor_for(document_id: str) -> str:
+    return "doc-" + "".join(ch if ch.isalnum() else "-" for ch in document_id).strip("-").lower()
+
+
+def _render_legend(annotations: list[dict[str, Any]] | None = None) -> str:
+    """Render legend chips. If annotations are passed, only show the types
+    actually present in this run; otherwise show every known type."""
+    if annotations is not None:
+        present = {
+            (a.get("entity_type") or "unknown").lower()
+            for a in annotations
+        }
+        items = [
+            f'<span class="legend-chip legend-chip-{key}">{escape(label)}</span>'
+            for key, label in _ENTITY_TYPE_LABELS.items()
+            if key in present
+        ]
+    else:
+        items = [
+            f'<span class="legend-chip legend-chip-{key}">{escape(label)}</span>'
+            for key, label in _ENTITY_TYPE_LABELS.items()
+        ]
     items.append('<span class="legend-chip legend-chip-unmatched">No canonical id</span>')
     return '<div class="legend">' + "".join(items) + "</div>"
 
@@ -232,7 +368,8 @@ def _render_document(document: dict[str, Any], all_annotations: list[dict[str, A
         if pmid else ""
     )
 
-    parts: list[str] = ['<article class="document">']
+    anchor = _anchor_for(str(document_id or ""))
+    parts: list[str] = [f'<article class="document" id="{escape(anchor, quote=True)}">']
     parts.append(f"<h2>{title_html}</h2>")
     parts.append(
         f'<p class="meta">{pmid_html}'
@@ -329,7 +466,7 @@ def _render_hits_cell(hits: list[dict[str, Any]]) -> str:
     for hit in hits:
         entity_type = (hit.get("entity_type") or "").lower() or "unknown"
         label = _ENTITY_TYPE_LABELS.get(entity_type, entity_type)
-        canonical_id = hit.get("canonical_id")
+        canonical_id = hit.get("canonical_id") if _is_real_canonical_id(hit.get("canonical_id")) else None
         canonical_name = hit.get("canonical_name")
         mentions = hit.get("mentions")
         line = f'<div class="entity-type">{escape(str(label))}</div>'
@@ -382,7 +519,7 @@ def render_highlighted_text(
     matched_positions: set[tuple[Any, Any]] = {
         (a.get("start"), a.get("end"))
         for a in annotations
-        if a.get("canonical_id")
+        if _is_real_canonical_id(a.get("canonical_id"))
     }
 
     sorted_annotations = sorted(
@@ -415,7 +552,8 @@ def render_highlighted_text(
         rendered_span = escape(text[start:end])
         entity_type = (annotation.get("entity_type") or "unknown").lower()
         source = annotation.get("source") or "unknown"
-        canonical_id = annotation.get("canonical_id") or ""
+        raw_canonical_id = annotation.get("canonical_id")
+        canonical_id = raw_canonical_id if _is_real_canonical_id(raw_canonical_id) else ""
         canonical_name = annotation.get("canonical_name") or ""
         keyword_key = (annotation.get("span_text") or text[start:end]).strip().casefold()
         cross_hit = cross_annotator_lookup.get(keyword_key) if cross_annotator_lookup else None
@@ -483,9 +621,10 @@ def group_annotations_by_span(annotations: list[dict[str, Any]]) -> list[dict[st
 
 
 def _hit_record(annotation: dict[str, Any]) -> dict[str, Any]:
+    canonical_id = annotation.get("canonical_id")
     return {
         "entity_type": annotation.get("entity_type"),
-        "canonical_id": annotation.get("canonical_id"),
+        "canonical_id": canonical_id if _is_real_canonical_id(canonical_id) else None,
         "canonical_name": annotation.get("canonical_name"),
         "start": annotation.get("start"),
         "end": annotation.get("end"),
