@@ -576,6 +576,10 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     if (entityType === "species" && /^\d+$/.test(id)) {
       return { url: `https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=${encodeURIComponent(id)}` };
     }
+    const obo = id.match(/^(cl|go|doid|uberon|bto|fma|pato):(.+)$/i);
+    if (obo) {
+      return { url: `http://purl.obolibrary.org/obo/${obo[1].toUpperCase()}_${encodeURIComponent(obo[2])}` };
+    }
     return null;
   }
 

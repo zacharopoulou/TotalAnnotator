@@ -81,6 +81,12 @@ def _database_link(canonical_id: str | None, entity_type: str | None) -> str | N
         return f"https://www.omim.org/entry/{raw.split(':', 1)[1]}"
     if entity_type == "species" and raw.isdigit():
         return f"https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id={raw}"
+    # OBO ontologies: Cell Ontology, Gene Ontology, Disease Ontology, etc.
+    # Resolve via the canonical PURL which redirects to the OLS landing page.
+    for obo_prefix in ("cl", "go", "doid", "uberon", "bto", "fma", "pato"):
+        if lowered.startswith(obo_prefix + ":"):
+            term = raw.split(":", 1)[1]
+            return f"http://purl.obolibrary.org/obo/{obo_prefix.upper()}_{term}"
     return None
 
 
