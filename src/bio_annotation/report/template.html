@@ -86,6 +86,9 @@ a:hover { border-bottom-color: var(--accent); }
 .legend-chip-species   { background: #cfdbe9; color: #2b4565; }
 .legend-chip-variant   { background: #e8d5dc; color: #6b3147; }
 .legend-chip-cell_line { background: #d8cfe6; color: #3f315e; }
+.legend-chip-dna       { background: #d4e0d0; color: #3d5436; }
+.legend-chip-rna       { background: #c5d6c2; color: #36513a; }
+.legend-chip-cell_type { background: #d0c6dd; color: #4a3a73; }
 .legend-chip-unmatched { background: #fbeb8a; color: #5c4910; }
 
 .hint {
@@ -130,12 +133,16 @@ mark.entity {
   transition: border-bottom-color 120ms;
 }
 mark.entity:hover { border-bottom-color: rgba(31, 29, 43, 0.4); }
+mark.entity           { background: transparent; }
 mark.entity-gene      { background: #d9e7d5; color: #2d4a26; }
 mark.entity-disease   { background: #efd6d4; color: #6e2b2b; }
 mark.entity-drug      { background: #e2d4b1; color: #5c4818; }
 mark.entity-species   { background: #cfdbe9; color: #2b4565; }
 mark.entity-variant   { background: #e8d5dc; color: #6b3147; }
 mark.entity-cell_line { background: #d8cfe6; color: #3f315e; }
+mark.entity-dna       { background: #d4e0d0; color: #3d5436; }
+mark.entity-rna       { background: #c5d6c2; color: #36513a; }
+mark.entity-cell_type { background: #d0c6dd; color: #4a3a73; }
 mark.entity-unknown   { background: #e6e3ec; color: var(--text-muted); }
 mark.entity-unmatched { background: #fbeb8a; color: #5c4910; border-bottom: 1px dashed #b8941c; }
 mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -198,11 +205,11 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-size: 0.92em;
 }
 .stats-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1em;
-  padding: 0.18em 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px max-content;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.22em 0;
 }
 .stats-keyword {
   color: var(--text);
@@ -210,12 +217,146 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.stats-bar-track {
+  height: 5px;
+  background: var(--border-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  width: 100%;
+}
+.stats-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-soft);
+  border-radius: 3px;
+  transition: width 200ms;
+}
+.stats-group-disease .stats-bar-fill   { background: #c47474; }
+.stats-group-drug .stats-bar-fill      { background: #b59a55; }
+.stats-group-gene .stats-bar-fill      { background: #6f8e63; }
+.stats-group-species .stats-bar-fill   { background: #6a85a8; }
+.stats-group-variant .stats-bar-fill   { background: #ad6f87; }
+.stats-group-cell_line .stats-bar-fill { background: #8771a8; }
+.stats-group-dna .stats-bar-fill       { background: #6e8867; }
+.stats-group-rna .stats-bar-fill       { background: #4f7350; }
+.stats-group-cell_type .stats-bar-fill { background: #8771a8; }
 .stats-count {
   color: var(--text-soft);
   font-variant-numeric: tabular-nums;
   font-size: 0.85em;
+  text-align: right;
+  min-width: 1.5em;
 }
 .stats-more { color: var(--text-soft); font-style: italic; font-size: 0.85em; padding-top: 0.4em; }
+
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.3em 1.6em 1.5em;
+  margin-bottom: 1.5em;
+  box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
+}
+.chart-card h4 { margin: 0 0 1em 0; }
+
+.type-histogram { list-style: none; margin: 0; padding: 0; }
+.hist-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 50px;
+  align-items: center;
+  gap: 0.9em;
+  padding: 0.35em 0;
+}
+.hist-label {
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.hist-row-disease .hist-label   { color: #8c3a3a; }
+.hist-row-drug .hist-label      { color: #846213; }
+.hist-row-gene .hist-label      { color: #3a5b32; }
+.hist-row-species .hist-label   { color: #34557a; }
+.hist-row-variant .hist-label   { color: #7e3a55; }
+.hist-row-cell_line .hist-label { color: #4a3a73; }
+.hist-track {
+  height: 10px;
+  background: var(--border-soft);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.hist-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  transition: width 250ms ease-out;
+}
+.hist-row-disease .hist-fill   { background: #c47474; }
+.hist-row-drug .hist-fill      { background: #b59a55; }
+.hist-row-gene .hist-fill      { background: #6f8e63; }
+.hist-row-species .hist-fill   { background: #6a85a8; }
+.hist-row-variant .hist-fill   { background: #ad6f87; }
+.hist-row-cell_line .hist-fill { background: #8771a8; }
+.hist-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+  font-weight: 600;
+}
+
+.doc-overview { list-style: none; margin: 0; padding: 0; }
+.doc-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(160px, 30%) 50px;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.45em 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-link {
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.doc-title {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+.doc-track {
+  height: 12px;
+  background: var(--border-soft);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.doc-bar {
+  display: flex;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.doc-seg { display: block; height: 100%; }
+.doc-seg-disease   { background: #c47474; }
+.doc-seg-drug      { background: #b59a55; }
+.doc-seg-gene      { background: #6f8e63; }
+.doc-seg-species   { background: #6a85a8; }
+.doc-seg-variant   { background: #ad6f87; }
+.doc-seg-cell_line { background: #8771a8; }
+.doc-seg-rna       { background: #5e8b8f; }
+.doc-seg-dna       { background: #88a0a3; }
+.doc-seg-cell_type { background: #ae7c92; }
+.doc-seg-unknown   { background: var(--text-soft); }
+.doc-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
 
 .comparison-section { margin-top: 1.5em; }
 .comparison-section summary {
