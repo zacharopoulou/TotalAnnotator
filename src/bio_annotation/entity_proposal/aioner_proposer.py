@@ -94,9 +94,10 @@ def call_aioner(
     if not model:
         raise RuntimeError(f"AIONER model path is not configured. {SETUP_HINT}")
 
-    repo_path = Path(repo)
+    repo_path = Path(repo).resolve()
+    model_path = Path(model).resolve()
     script = repo_path / "src" / "AIONER_Run.py"
-    vocab_path = Path(vocab) if vocab else repo_path / "vocab" / "AIO_label.vocab"
+    vocab_path = Path(vocab).resolve() if vocab else repo_path / "vocab" / "AIO_label.vocab"
     if not script.exists():
         raise RuntimeError(f"AIONER run script not found at {script}. {SETUP_HINT}")
 
@@ -119,7 +120,7 @@ def call_aioner(
             "-i",
             str(in_dir) + os.sep,
             "-m",
-            str(model),
+            str(model_path),
             "-v",
             str(vocab_path),
             "-e",
