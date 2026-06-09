@@ -2454,6 +2454,9 @@ wheels = [
 name = "totalannotator"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "matplotlib" },
+]
 
 [package.optional-dependencies]
 all = [
@@ -2480,6 +2483,7 @@ dev = [
 requires-dist = [
     { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
     { name = "flair", marker = "extra == 'flair'", specifier = "==0.15.1" },
+    { name = "matplotlib", specifier = ">=3.8" },
     { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
     { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
     { name = "totalannotator", extras = ["flair", "benchmarks"], marker = "extra == 'all'" },

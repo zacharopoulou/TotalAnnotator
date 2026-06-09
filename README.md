@@ -21,6 +21,7 @@ TotalAnnotator supports:
 - canonical JSON output plus TSV files for spreadsheet-friendly review
 - reproducible TOML configs for every terminal UI run
 - direct config-based pipeline runs for scripted workflows
+- standalone NCBI Disease benchmark review for comparing disease annotations across annotators
 
 ## Install
 
@@ -75,6 +76,26 @@ Use a different run directory with:
 ```bash
 uv run totalannotator annotate --runs-dir outputs/my-run
 ```
+
+## Benchmark Review
+
+TotalAnnotator also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
+
+The first supported benchmark is NCBI Disease, focused on disease spans from `bern2`, `pubtator3`, and `flair`.
+
+Run the benchmark review with:
+
+```bash
+uv run totalannotator evaluate-ncbi-review
+```
+
+The default output directory is:
+
+```bash
+outputs/benchmark-review/ncbi_disease
+```
+
+For full details on benchmark loading, offset handling, strict and lenient metrics, output files, and current limitations, see [src/bio_annotation/benchmarking/README.md](src/bio_annotation/benchmarking/README.md).
 
 ## Run Outputs
 

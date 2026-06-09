@@ -8,8 +8,6 @@ from urllib import error
 from urllib import request
 import pytest
 
-import pytest
-
 from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
@@ -195,6 +193,65 @@ def test_pubtator3_adapter_parses_bioc_json_with_absolute_offsets() -> None:
     assert annotations[1].entity_type == "disease"
 
 
+def test_pubtator3_adapter_remaps_publication_offsets_to_document_text() -> None:
+    document = Document(
+        document_id="9288106",
+        pmid="9288106",
+        title="Ataxia-telangiectasia causes cancer.",
+        abstract="A-T is a recessive multi-system disorder.",
+        source="benchmark:ncbi_disease",
+    )
+    source_abstract_start = len(document.title) + 1
+    canonical_abstract_start = len(document.title) + 2
+    response = {
+        "documents": [
+            {
+                "passages": [
+                    {
+                        "type": "title",
+                        "text": document.title,
+                        "offset": 0,
+                        "annotations": [
+                            {
+                                "text": "Ataxia-telangiectasia",
+                                "infons": {"type": "Disease", "identifier": "D001260"},
+                                "locations": [{"offset": 0, "length": 21}],
+                            }
+                        ],
+                    },
+                    {
+                        "type": "abstract",
+                        "text": document.abstract,
+                        "offset": source_abstract_start,
+                        "annotations": [
+                            {
+                                "text": "recessive multi-system disorder",
+                                "infons": {"type": "Disease", "identifier": "D030342"},
+                                "locations": [
+                                    {
+                                        "offset": source_abstract_start + 9,
+                                        "length": 31,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ]
+            }
+        ]
+    }
+
+    annotations = annotate_with_pubtator3(document, response=response)
+
+    assert annotations[0].span_text == "Ataxia-telangiectasia"
+    assert annotations[0].start == 0
+    assert annotations[0].end == 21
+    assert annotations[1].span_text == "recessive multi-system disorder"
+    assert annotations[1].start == canonical_abstract_start + 9
+    assert annotations[1].end == canonical_abstract_start + 40
+    assert document.text[annotations[1].start : annotations[1].end] == annotations[1].span_text
+
+
 def test_pubtator3_adapter_parses_pubtator3_wrapped_bioc_json() -> None:
     document = sample_document()
     response = {
@@ -288,6 +345,39 @@ def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
     assert annotations[0].canonical_id == "5728"
     assert client.payloads == [document.text]
     assert client.options[0]["bioconcept"] == "All"
+
+
+def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
+    document = Document(
+        document_id="9949209",
+        pmid="9949209",
+        title="Genetic mapping of the copper toxicosis locus.",
+        abstract="Wilson disease causes hepatic copper accumulation.",
+        source="benchmark:ncbi_disease",
+    )
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.pmids: list[list[str]] = []
+            self.text_payloads: list[str] = []
+
+        def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            self.pmids.append(pmids)
+            return {"documents": []}
+
+        def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
+            raise AssertionError("PMCID lookup should not be used when PMID is present")
+
+        def annotate_text(self, payload: str, **kwargs: object) -> str:
+            self.text_payloads.append(payload)
+            raise AssertionError("raw text annotation should not be used for benchmark PMID documents")
+
+    client = FakeClient()
+    payload = call_pubtator3(document, client=client, mode="publication_only")
+
+    assert payload == {"documents": []}
+    assert client.pmids == [["9949209"]]
+    assert client.text_payloads == []
 
 
 def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -> None:

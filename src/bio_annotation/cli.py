@@ -7,6 +7,8 @@ from pathlib import Path
 
 from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
+from bio_annotation.benchmarking.preflight import BenchmarkPreflightError
+from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
@@ -109,6 +111,39 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("configs/pipeline.toml"),
         help="Pipeline config path.",
     )
+    review_parser = subparsers.add_parser(
+        "evaluate-ncbi-review",
+        help="Run the standalone NCBI Disease benchmark-review evaluator.",
+    )
+    review_parser.add_argument(
+        "--benchmark-path",
+        type=Path,
+        default=None,
+        help="Optional path to an NCBI Disease JSONL split. Default: benchmarks/data/ncbi/<split>.jsonl.",
+    )
+    review_parser.add_argument("--split", default="test", help="NCBI split name. Default: test.")
+    review_parser.add_argument(
+        "--annotators",
+        default="bern2,pubtator3,flair",
+        help="Comma-separated annotators to evaluate. Default: bern2,pubtator3,flair.",
+    )
+    review_parser.add_argument(
+        "--entity-type",
+        default="disease",
+        help="Entity type to score. Default: disease.",
+    )
+    review_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("outputs/benchmark-review/ncbi_disease"),
+        help="Directory for JSONL/TSV review outputs.",
+    )
+    review_parser.add_argument(
+        "--progress-interval",
+        type=positive_int,
+        default=25,
+        help="Print benchmark progress every N documents. Default: 25.",
+    )
     search_parser = subparsers.add_parser("search-pmids", help="Search PubMed and write matching PMIDs to a file.")
     search_parser.add_argument("--query", required=True, help="PubMed query string.")
     search_parser.add_argument(
@@ -148,6 +183,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Inspect config: uv run totalannotator inspect-config")
         print("Preview documents: uv run totalannotator load-documents")
         print("Run config: uv run totalannotator run-config")
+        print("Review benchmark: uv run totalannotator evaluate-ncbi-review")
         print("Search PMIDs: uv run totalannotator search-pmids --query '...' --output data/inputs/query_pmids.txt")
         return 0
 
@@ -234,6 +270,28 @@ def main(argv: list[str] | None = None) -> int:
         print_run_config_summary(payload, config.output_path)
         return 0
 
+    if args.command == "evaluate-ncbi-review":
+        try:
+            annotators = [item.strip() for item in args.annotators.split(",") if item.strip()]
+            payload = run_ncbi_review_evaluation(
+                benchmark_path=args.benchmark_path,
+                split=args.split,
+                annotators=annotators,
+                output_dir=args.output_dir,
+                entity_type=args.entity_type,
+                progress_callback=print_benchmark_progress,
+                progress_interval=args.progress_interval,
+            )
+        except BenchmarkPreflightError as exc:
+            print("Benchmark preflight failed.", file=sys.stderr)
+            print(exc.result.message, file=sys.stderr)
+            return 1
+        except (FileNotFoundError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print_benchmark_review_summary(payload, args.output_dir)
+        return 0
+
     if args.command == "search-pmids":
         try:
             pmids = search_pubmed_pmids(
@@ -263,6 +321,49 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+def print_benchmark_progress(index: int, total: int, document_id: str) -> None:
+    print(f"Processed {index}/{total} benchmark documents; latest document: {document_id}", flush=True)
+
+
+def print_benchmark_review_summary(payload: dict[str, object], output_dir: Path) -> None:
+    print("NCBI Disease benchmark review completed.")
+    preflight = payload.get("preflight")
+    if isinstance(preflight, list):
+        print("Preflight:")
+        for item in preflight:
+            if isinstance(item, dict):
+                print(f"  - {item.get('name')}: {item.get('status')} — {item.get('message')}")
+    print(f"Documents: {payload.get('document_count', 0)}")
+    print(f"Gold annotations: {payload.get('gold_count', 0)}")
+    print(f"Output directory: {output_dir.as_posix()}")
+    metrics = payload.get("metrics")
+    if isinstance(metrics, list):
+        for item in metrics:
+            if not isinstance(item, dict):
+                continue
+            strict = item.get("strict") if isinstance(item.get("strict"), dict) else {}
+            lenient = item.get("lenient") if isinstance(item.get("lenient"), dict) else {}
+            strict_norm = (
+                item.get("strict_normalization")
+                if isinstance(item.get("strict_normalization"), dict)
+                else {}
+            )
+            lenient_norm = (
+                item.get("lenient_normalization")
+                if isinstance(item.get("lenient_normalization"), dict)
+                else {}
+            )
+            print(
+                f"{item.get('annotator')}: "
+                f"strict F1={float(strict.get('f1', 0.0)):.3f}, "
+                f"lenient F1={float(lenient.get('f1', 0.0)):.3f}, "
+                f"strict any-ID={float(strict_norm.get('accuracy_on_matched_spans', 0.0)):.3f}, "
+                f"strict all-gold-ID={float(strict_norm.get('all_gold_ids_accuracy_on_matched_spans', 0.0)):.3f}, "
+                f"lenient any-ID={float(lenient_norm.get('accuracy_on_matched_spans', 0.0)):.3f}, "
+                f"lenient all-gold-ID={float(lenient_norm.get('all_gold_ids_accuracy_on_matched_spans', 0.0)):.3f}"
+            )
 
 
 def print_run_config_summary(payload: dict[str, object], output_path: Path | None) -> None:

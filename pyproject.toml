@@ -9,6 +9,7 @@ description = "Config-first biomedical literature pipeline for corpora, annotato
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
