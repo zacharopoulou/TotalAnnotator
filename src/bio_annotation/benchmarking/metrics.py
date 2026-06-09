@@ -293,7 +293,10 @@ def _normalization_counts(
             counts.missing_prediction_id += 1
         elif prediction_ids & gold_ids:
             counts.correct += 1
-            if gold_ids <= prediction_ids:
+            if _all_gold_ids_recovered(
+                prediction_ids,
+                gold_annotations[gold_index].normalized_ids,
+            ):
                 counts.all_gold_ids_recovered += 1
             else:
                 counts.partially_correct += 1
@@ -365,6 +368,15 @@ def _gold_id_aliases(values: tuple[str, ...]) -> set[str]:
         for item in _iter_identifier_values(value):
             aliases.update(_identifier_aliases(item))
     return aliases
+
+
+def _all_gold_ids_recovered(prediction_ids: set[str], gold_values: tuple[str, ...]) -> bool:
+    for value in gold_values:
+        for item in _iter_identifier_values(value):
+            aliases = _identifier_aliases(item)
+            if aliases and not prediction_ids & aliases:
+                return False
+    return True
 
 
 def _iter_identifier_values(value: Any) -> Iterable[str]:

@@ -2456,6 +2456,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "flair" },
+    { name = "matplotlib" },
 ]
 
 [package.optional-dependencies]
@@ -2474,6 +2475,7 @@ dev = [
 requires-dist = [
     { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
     { name = "flair", specifier = "==0.15.1" },
+    { name = "matplotlib", specifier = ">=3.8" },
     { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
     { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
 ]

@@ -14,6 +14,7 @@ from bio_annotation.pipeline_runner import (
     _read_flair_options,
     _read_pubtator3_options,
     build_keyword_annotations,
+    filter_annotations_by_type,
     run_pipeline_from_config,
     run_selected_annotators,
     run_selected_annotators_with_status,
@@ -536,3 +537,28 @@ def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence(
         "BERN:glioblastoma",
         "MESH:D005909",
     }
+
+
+def test_filter_annotations_by_type_normalizes_entity_labels() -> None:
+    annotations = [
+        Annotation(
+            annotation_id="bern2:1",
+            source="bern2",
+            span_text="PTEN",
+            start=0,
+            end=4,
+            entity_type="Gene",
+        ),
+        Annotation(
+            annotation_id="bern2:2",
+            source="bern2",
+            span_text="glioblastoma",
+            start=15,
+            end=27,
+            entity_type="Disease",
+        ),
+    ]
+
+    filtered = filter_annotations_by_type(annotations, ["gene"])
+
+    assert [annotation.entity_type for annotation in filtered] == ["Gene"]

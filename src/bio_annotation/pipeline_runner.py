@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import csv
 import json
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any, Callable
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
+from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
@@ -637,8 +639,12 @@ def filter_annotations_by_type(
 ) -> list[Annotation]:
     if not entity_types:
         return annotations
-    allowed = set(entity_types)
-    return [annotation for annotation in annotations if annotation.entity_type in allowed]
+    allowed = {normalize_entity_type(entity_type) for entity_type in entity_types}
+    return [
+        annotation
+        for annotation in annotations
+        if normalize_entity_type(annotation.entity_type) in allowed
+    ]
 
 
 def document_to_dict(document: Document) -> dict[str, Any]:
@@ -897,8 +903,10 @@ def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
 
 
 def _load_flair_tagger(model: str) -> Any:
+    import flair
     from flair.nn import Classifier
 
+    flair.logger.setLevel(logging.WARNING)
     return Classifier.load(model)
 
 

@@ -17,6 +17,17 @@ data/processed/
 data/inputs/query_*.txt
 data/corpora/query_*.json
 
-# Can be regenerated locally with benchmarks/scripts/ncbi.py ,will happen with the rest accordingly
+# Can be regenerated locally with benchmarks/scripts/ncbi.py
 benchmarks/data/ncbi/train.jsonl
 benchmarks/data/ncbi/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bc5cdr.py
+benchmarks/data/bc5cdr/train.jsonl
+benchmarks/data/bc5cdr/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/gnormplus.py
+benchmarks/data/gnormplus/train.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bc2gm.py
+benchmarks/data/bc2gm/train.jsonl
+benchmarks/data/bc2gm/validation.jsonl

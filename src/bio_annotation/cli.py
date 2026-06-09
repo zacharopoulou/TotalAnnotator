@@ -9,12 +9,12 @@ from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.benchmarking.preflight import BenchmarkPreflightError
 from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
-from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
 from bio_annotation.preprocessing.document_loader import load_documents_from_config
 from bio_annotation.schemas.document import Document
+from bio_annotation.terminal_ui import run_terminal_annotation_ui
 
 
 def build_demo_document() -> Document:
@@ -80,6 +80,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("info", help="Show a short project summary.")
     subparsers.add_parser("demo", help="Run a local mocked annotation demo.")
+    annotate_parser = subparsers.add_parser(
+        "annotate",
+        help="Launch the primary terminal annotation UI.",
+    )
+    annotate_parser.add_argument(
+        "--runs-dir",
+        type=Path,
+        default=Path("outputs/runs"),
+        help="Directory where reproducible UI runs are saved.",
+    )
     inspect_parser = subparsers.add_parser("inspect-config", help="Show parsed pipeline config values.")
     inspect_parser.add_argument(
         "--config",
@@ -167,8 +177,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in (None, "info"):
         print("TotalAnnotator")
-        print("Workflow: corpus -> annotators -> comparable outputs")
-        print("Quickstart: uv sync && uv run totalannotator demo")
+        print("Workflow: terminal UI -> reproducible config -> annotators -> comparable outputs")
+        print("Quickstart: uv sync && uv run totalannotator annotate")
+        print("Demo: uv run totalannotator demo")
         print("Inspect config: uv run totalannotator inspect-config")
         print("Preview documents: uv run totalannotator load-documents")
         print("Run config: uv run totalannotator run-config")
@@ -178,6 +189,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "demo":
         print(json.dumps(demo_payload(), indent=2))
+        return 0
+
+    if args.command == "annotate":
+        try:
+            run_terminal_annotation_ui(runs_dir=args.runs_dir)
+        except (RuntimeError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
         return 0
 
     if args.command == "inspect-config":
@@ -245,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             config = load_pipeline_config(args.config)
             payload = run_pipeline_from_config(args.config)
-        except ValueError as exc:
+        except (RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
         print_run_config_summary(payload, config.output_path)
