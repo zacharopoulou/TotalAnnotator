@@ -1,0 +1,25 @@
+[project]
+name = "aioner-env"
+version = "0.0.0"
+description = "Isolated Python 3.8 environment for running NCBI AIONER as a subprocess."
+# AIONER pins TensorFlow 2.3, which only ships wheels up to CPython 3.8, so this
+# environment is deliberately separate from the main project (>=3.12).
+requires-python = ">=3.8,<3.9"
+dependencies = [
+    "tensorflow==2.3.0",
+    "tensorflow-addons==0.12.1",
+    "transformers==4.18.0",
+    "stanza==1.4.0",
+    "spacy==3.2.4",
+    "bioc==2.0.post4",
+    # TensorFlow 2.3's generated protobuf code is incompatible with protobuf>=3.21.
+    "protobuf<3.21",
+    # spaCy 3.2 uses pydantic v1, which breaks with typing_extensions>=4.6
+    # ("issubclass() arg 1 must be a class").
+    "typing-extensions<4.6",
+]
+
+[tool.uv]
+# This project only provisions an interpreter + dependencies for the AIONER
+# scripts (which live in the external AIONER repo); it ships no code of its own.
+package = false
