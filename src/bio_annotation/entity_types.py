@@ -50,6 +50,12 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Chemical / drug", "drug", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Species", "species", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Cell line", "cell_line", ()),
+    AnnotatorEntityTypeSpec("aioner", "AIONER", "Gene", "gene", ()),
+    AnnotatorEntityTypeSpec("aioner", "AIONER", "Chemical", "drug", ()),
+    AnnotatorEntityTypeSpec("aioner", "AIONER", "Disease", "disease", ()),
+    AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
+    AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
+    AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
 )
 
 
@@ -124,6 +130,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "flair"
+        },
+        normalization_fields=(),
+    ),
+    "aioner": AnnotatorCapability(
+        label="AIONER",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "aioner"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "aioner"
         },
         normalization_fields=(),
     ),

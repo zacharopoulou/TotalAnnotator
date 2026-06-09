@@ -10,6 +10,7 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable
 
+from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
@@ -25,7 +26,7 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3"}
+SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner"}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
@@ -40,6 +41,7 @@ def run_pipeline_from_config(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
+    aioner_request_fn: Callable[[Document], Any] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
@@ -71,6 +73,7 @@ def run_pipeline_from_config(
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
         flair_spans_by_document=flair_spans_by_document,
+        aioner_request_fn=aioner_request_fn,
     )
     if config.output_path is not None:
         actual_output_path = timestamped_output_path(config.output_path)
@@ -90,6 +93,7 @@ def build_pipeline_output(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
+    aioner_request_fn: Callable[[Document], Any] | None = None,
 ) -> dict[str, Any]:
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
@@ -99,6 +103,7 @@ def build_pipeline_output(
     bern2_options = _read_bern2_options(annotator_settings.get("bern2", {}))
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
     flair_options = _read_flair_options(annotator_settings.get("flair", {}))
+    aioner_options = _read_aioner_options(annotator_settings.get("aioner", {}))
 
     flair_tagger = None
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -124,8 +129,10 @@ def build_pipeline_output(
             enabled_annotators,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
+            aioner_request_fn=aioner_request_fn,
             bern2_options=bern2_options,
             pubtator3_options=pubtator3_options,
+            aioner_options=aioner_options,
             flair_spans=(
                 flair_spans_by_document.get(document.document_id)
                 if flair_spans_by_document is not None
@@ -382,8 +389,10 @@ def run_selected_annotators(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    aioner_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
+    aioner_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
@@ -393,8 +402,10 @@ def run_selected_annotators(
         annotators,
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
+        aioner_request_fn=aioner_request_fn,
         bern2_options=bern2_options,
         pubtator3_options=pubtator3_options,
+        aioner_options=aioner_options,
         flair_spans=flair_spans,
         flair_tagger=flair_tagger,
         flair_options=flair_options,
@@ -408,8 +419,10 @@ def run_selected_annotators_with_status(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    aioner_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
+    aioner_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
@@ -480,6 +493,24 @@ def run_selected_annotators_with_status(
                     else 180.0,
                     progress_callback=_pubtator3_progress,
                 )
+            elif annotator == "aioner":
+                results[annotator] = annotate_with_aioner(
+                    document,
+                    request_fn=aioner_request_fn,
+                    repo=aioner_options.get("repo") if aioner_options else None,
+                    model=aioner_options.get("model") if aioner_options else None,
+                    vocab=aioner_options.get("vocab") if aioner_options else None,
+                    entity=aioner_options.get("entity", "ALL")
+                    if aioner_options
+                    else "ALL",
+                    project=aioner_options.get("project", "tools/aioner")
+                    if aioner_options
+                    else "tools/aioner",
+                    python=aioner_options.get("python") if aioner_options else None,
+                    timeout=aioner_options.get("timeout", 600)
+                    if aioner_options
+                    else 600,
+                )
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
         except Exception as exc:
@@ -516,7 +547,7 @@ def run_selected_annotators_with_status(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3"):
+    for source in ("bern2", "flair", "pubtator3", "aioner"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -716,6 +747,12 @@ def _no_annotations_reason(annotator: str) -> str:
         return (
             "No annotations returned. Verify PubTator3 is reachable and "
             "returned entities for this document."
+        )
+    if annotator == "aioner":
+        return (
+            "No annotations returned. Ensure AIONER is installed "
+            "(tools/aioner/setup.sh) and annotators.aioner.repo/model are set, "
+            "or it found no entities."
         )
     return "No annotations returned."
 
@@ -921,6 +958,25 @@ def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
         "model": model.strip()
         if isinstance(model, str) and model.strip()
         else None,
+    }
+
+
+def _read_aioner_options(settings: dict[str, object]) -> dict[str, Any]:
+    def _clean_str(key: str, default: str | None = None) -> str | None:
+        value = settings.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return default
+
+    timeout = settings.get("timeout")
+    return {
+        "repo": _clean_str("repo"),
+        "model": _clean_str("model"),
+        "vocab": _clean_str("vocab"),
+        "entity": _clean_str("entity", "ALL"),
+        "project": _clean_str("project", "tools/aioner"),
+        "python": _clean_str("python"),
+        "timeout": int(timeout) if isinstance(timeout, int) and timeout > 0 else 600,
     }
 
 

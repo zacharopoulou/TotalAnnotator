@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
@@ -23,8 +24,10 @@ def run_all_annotators(
     pubtator3_response: Any = None,
     pubtator3_request_fn: Any = None,
     pubtator3_endpoint: str | None = None,
+    aioner_response: Any = None,
+    aioner_request_fn: Any = None,
 ) -> dict[str, list[Annotation]]:
-    return {
+    results = {
         "bern2": annotate_with_bern2(
             document,
             response=bern2_response,
@@ -44,15 +47,26 @@ def run_all_annotators(
             endpoint=pubtator3_endpoint,
         ),
     }
+    # AIONER runs in a separate environment, so only invoke it when an explicit
+    # response or request function is supplied (avoids spawning the subprocess in
+    # callers that don't use it, e.g. the demo command).
+    if aioner_response is not None or aioner_request_fn is not None:
+        results["aioner"] = annotate_with_aioner(
+            document,
+            response=aioner_response,
+            request_fn=aioner_request_fn,
+        )
+    return results
 
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3"):
+    for source in ("bern2", "flair", "pubtator3", "aioner"):
         annotations.extend(results.get(source, []))
     return annotations
 
 __all__ = [
+    "annotate_with_aioner",
     "annotate_with_bern2",
     "annotate_with_flair",
     "annotate_with_pubtator3",
