@@ -6,6 +6,7 @@ import json
 import logging
 import sys
 from datetime import datetime
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable
 
@@ -25,6 +26,10 @@ from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3"}
+FLAIR_INSTALL_HINT = (
+    "The Flair annotator requires the optional Flair dependency. "
+    "Install it with: uv sync --extra flair"
+)
 
 
 def run_pipeline_from_config(
@@ -37,6 +42,10 @@ def run_pipeline_from_config(
     flair_spans_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
+    validate_optional_annotator_dependencies(
+        config,
+        flair_spans_by_document=flair_spans_by_document,
+    )
     if pmid_fetcher is not None and config.input_mode == "pmids":
         documents = load_documents_from_pmids(
             config.pmids,
@@ -878,6 +887,19 @@ def _validate_annotators(annotators: list[str]) -> None:
         raise ValueError(f"Unsupported annotators requested: {', '.join(unsupported)}")
 
 
+def validate_optional_annotator_dependencies(
+    config: PipelineConfig,
+    *,
+    flair_spans_by_document: dict[str, list[Any]] | None = None,
+) -> None:
+    if "flair" not in config.annotators:
+        return
+    if flair_spans_by_document is not None:
+        return
+    if find_spec("flair") is None:
+        raise ValueError(FLAIR_INSTALL_HINT)
+
+
 def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
     endpoint = settings.get("endpoint")
     base_url = settings.get("base_url")
@@ -903,8 +925,11 @@ def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
 
 
 def _load_flair_tagger(model: str) -> Any:
-    import flair
-    from flair.nn import Classifier
+    try:
+        import flair
+        from flair.nn import Classifier
+    except ImportError as exc:
+        raise RuntimeError(FLAIR_INSTALL_HINT) from exc
 
     flair.logger.setLevel(logging.WARNING)
     return Classifier.load(model)

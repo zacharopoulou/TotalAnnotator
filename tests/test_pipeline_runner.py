@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import builtins
 import json
 from contextlib import redirect_stdout
 from dataclasses import dataclass
 from io import StringIO
+
+import pytest
 
 from bio_annotation.cli import main
 from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
 from bio_annotation.schemas.document import Document
 from bio_annotation.pipeline_runner import (
+    _load_flair_tagger,
     _read_bern2_options,
     _read_flair_options,
     _read_pubtator3_options,
@@ -405,6 +409,52 @@ def test_run_selected_annotators_passes_bern2_endpoint(monkeypatch) -> None:
 def test_read_flair_options_reads_model() -> None:
     assert _read_flair_options({"model": "hunflair2"}) == {"model": "hunflair2"}
     assert _read_flair_options({}) == {"model": None}
+
+
+def test_load_flair_tagger_reports_optional_dependency(monkeypatch) -> None:
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "flair":
+            raise ImportError("No module named 'flair'")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(RuntimeError, match="uv sync --extra flair"):
+        _load_flair_tagger("hunflair2")
+
+
+def test_run_pipeline_preflights_missing_flair_dependency(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[annotators]",
+                'enabled = ["flair"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    checked_modules: list[str] = []
+
+    def fake_find_spec(name: str) -> object | None:
+        checked_modules.append(name)
+        return None
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+
+    with pytest.raises(ValueError, match="uv sync --extra flair"):
+        run_pipeline_from_config(config_path)
+
+    assert checked_modules == ["flair"]
 
 
 def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
