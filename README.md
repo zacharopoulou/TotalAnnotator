@@ -30,6 +30,20 @@ cd TotalAnnotator
 uv sync
 ```
 
+Install local Flair support when you want to use the `flair` annotator:
+
+```bash
+uv sync --extra flair
+```
+
+Install every optional feature:
+
+```bash
+uv sync --extra all
+```
+
+If a config enables `flair` but Flair is not installed, TotalAnnotator stops before the run starts and prints the install command.
+
 ## Run The Terminal UI
 
 Start a new annotation run:
