@@ -15,6 +15,75 @@ SUPPORTED_ENRICHMENT_SOURCES = [
 ]
 DEFAULT_ENRICHMENT_SOURCES: list[str] = []
 
+SUPPORTED_FETCH_SOURCES = ["pubtator3", "entrez", "europe_pmc"]
+SUPPORTED_FETCH_FIELDS_BY_SOURCE = {
+    "pubtator3": frozenset(
+        {
+            "pmid",
+            "pmcid",
+            "title",
+            "abstract",
+            "full_text",
+            "annotations",
+        }
+    ),
+    "entrez": frozenset(
+        {
+            "pmid",
+            "pmcid",
+            "doi",
+            "title",
+            "abstract",
+            "structured_abstract",
+            "year",
+            "authors",
+            "affiliations",
+            "journal",
+            "journal_abbrev",
+            "volume",
+            "issue",
+            "pages",
+            "language",
+            "publication_type",
+            "country",
+            "pub_date",
+            "epub_date",
+            "received_date",
+            "accepted_date",
+            "medline_date",
+            "entrez_date",
+            "revision_date",
+            "keywords",
+            "mesh_terms",
+            "chemicals",
+            "gene_symbols",
+            "supplemental_mesh",
+            "grants",
+            "elinks",
+        }
+    ),
+    "europe_pmc": frozenset(
+        {
+            "pmid",
+            "pmcid",
+            "doi",
+            "title",
+            "abstract",
+            "year",
+            "authors",
+            "journal",
+            "mesh_terms",
+            "keywords",
+            "is_open_access",
+            "in_epmc",
+            "citation_count",
+            "full_text_urls",
+            "full_text",
+            "license",
+        }
+    ),
+}
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -32,6 +101,10 @@ class PipelineConfig:
     annotator_settings: dict[str, dict[str, object]]
     entity_types: list[str]
     output_path: Path | None
+    fetch_sources: list[str]
+    fetch_fields: list[str] | None
+    fetch_fields_per_source: dict[str, list[str]] | None
+    pubtator3_full_text: bool
 
 
 def load_pipeline_config(path: Path) -> PipelineConfig:
@@ -75,6 +148,19 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
     output_path_value = output_config.get("path")
     output_path = Path(output_path_value) if isinstance(output_path_value, str) and output_path_value.strip() else None
 
+    fetch_sources = _read_fetch_sources(input_config.get("source"))
+    fetch_fields = _read_optional_string_list(
+        input_config.get("fields"),
+        field_name="input.fields",
+    )
+    fetch_fields_per_source = _read_fields_per_source(input_config.get("fields_per_source"))
+    _validate_fetch_fields(
+        fetch_sources=fetch_sources,
+        fetch_fields=fetch_fields,
+        fetch_fields_per_source=fetch_fields_per_source,
+    )
+    pubtator3_full_text = _read_pubtator3_full_text(input_config.get("pubtator3"))
+
     _validate_input_config(
         path,
         input_mode=input_mode,
@@ -98,6 +184,10 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         annotator_settings=annotator_settings,
         entity_types=entity_types,
         output_path=output_path,
+        fetch_sources=fetch_sources,
+        fetch_fields=fetch_fields,
+        fetch_fields_per_source=fetch_fields_per_source,
+        pubtator3_full_text=pubtator3_full_text,
     )
 
 
@@ -147,6 +237,121 @@ def _read_enrichment_sources(value: object) -> list[str]:
             + ", ".join(invalid)
         )
     return sources
+
+
+def _read_fetch_sources(value: object) -> list[str]:
+    """Parse input.source: missing -> [] (loader defaults to pubtator3), str -> one source, list -> chain."""
+
+    if value is None:
+        return []
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return []
+        items = [cleaned]
+    elif isinstance(value, list):
+        items = _read_string_list(value, field_name="input.source", allow_empty=True)
+    else:
+        raise ValueError(
+            "input.source must be a string or a list of strings (got "
+            f"{type(value).__name__})."
+        )
+    invalid = [name for name in items if name not in SUPPORTED_FETCH_SOURCES]
+    if invalid:
+        raise ValueError(
+            "input.source contains unsupported values: "
+            + ", ".join(invalid)
+            + f". Supported: {', '.join(SUPPORTED_FETCH_SOURCES)}."
+        )
+    return items
+
+
+def _read_optional_string_list(value: object, *, field_name: str) -> list[str] | None:
+    if value is None:
+        return None
+    return _read_string_list(value, field_name=field_name, allow_empty=True)
+
+
+def _read_fields_per_source(value: object) -> dict[str, list[str]] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(
+            "input.fields_per_source must be a table mapping source names to lists of fields."
+        )
+    cleaned: dict[str, list[str]] = {}
+    for source_name, fields_value in value.items():
+        if not isinstance(source_name, str) or not source_name.strip():
+            raise ValueError("input.fields_per_source contains an invalid source name.")
+        normalized_name = source_name.strip()
+        if normalized_name not in SUPPORTED_FETCH_SOURCES:
+            raise ValueError(
+                f"input.fields_per_source.{normalized_name} is not a supported source. "
+                f"Supported: {', '.join(SUPPORTED_FETCH_SOURCES)}."
+            )
+        cleaned[normalized_name] = _read_string_list(
+            fields_value,
+            field_name=f"input.fields_per_source.{normalized_name}",
+            allow_empty=True,
+        )
+    return cleaned or None
+
+
+def _validate_fetch_fields(
+    *,
+    fetch_sources: list[str],
+    fetch_fields: list[str] | None,
+    fetch_fields_per_source: dict[str, list[str]] | None,
+) -> None:
+    if fetch_fields is not None:
+        active_sources = fetch_sources or ["pubtator3"]
+        supported = set().union(
+            *(SUPPORTED_FETCH_FIELDS_BY_SOURCE[source] for source in active_sources)
+        )
+        _reject_unknown_fetch_fields(
+            fetch_fields,
+            supported=supported,
+            field_name="input.fields",
+        )
+
+    if fetch_fields_per_source is None:
+        return
+    for source_name, fields in fetch_fields_per_source.items():
+        _reject_unknown_fetch_fields(
+            fields,
+            supported=SUPPORTED_FETCH_FIELDS_BY_SOURCE[source_name],
+            field_name=f"input.fields_per_source.{source_name}",
+        )
+
+
+def _reject_unknown_fetch_fields(
+    fields: list[str],
+    *,
+    supported: frozenset[str] | set[str],
+    field_name: str,
+) -> None:
+    invalid = [field for field in fields if field not in supported]
+    if invalid:
+        raise ValueError(
+            f"{field_name} contains unsupported values: "
+            + ", ".join(invalid)
+            + f". Supported: {', '.join(sorted(supported))}."
+        )
+
+
+def _read_pubtator3_full_text(value: object) -> bool:
+    """Parse [input.pubtator3].full_text: default False, must be bool when present."""
+
+    if value is None:
+        return False
+    if not isinstance(value, dict):
+        raise ValueError("[input.pubtator3] must be a table.")
+    raw = value.get("full_text")
+    if raw is None:
+        return False
+    if not isinstance(raw, bool):
+        raise ValueError("[input.pubtator3].full_text must be a boolean.")
+    return raw
 
 
 def _read_annotator_settings(annotator_config: dict[str, object]) -> dict[str, dict[str, object]]:

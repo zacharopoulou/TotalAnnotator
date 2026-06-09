@@ -5,9 +5,9 @@ This directory contains runnable pipeline configurations for TotalAnnotator.
 ## Files
 
 - `pipeline.toml`
-  Default config, set up for a first live `pubtator3` PMID run.
+  Default config, set up for a first live PubTator3 PMID run.
 - `examples/`
-  Small example configs for inline PMID, PMID file, and local text inputs.
+  Small runnable configs for common input modes, plus one advanced multi-source fetch example.
 
 ## Main Sections
 
@@ -18,6 +18,12 @@ Each pipeline config is organized around:
 - `[annotators]`
 - `[filters]`
 - `[output]`
+
+## Fetch Defaults
+
+PMID-based inputs use PubTator3 as the default fetch source when `[input].source` is omitted.
+
+Use comments inside `examples/pmid-single.toml` and `examples/pmid-file.toml` to switch to Entrez, Europe PMC, merged fetch, field filtering, or PubTator3 full text.
 
 ## Annotator Tables
 
@@ -44,8 +50,10 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 ## Current Examples
 
 - `examples/pmid-single.toml`
-  Inline PMID example with `pubtator3`.
+  Inline PMID input using the default PubTator3 fetch source.
 - `examples/pmid-file.toml`
-  PMID batch example with `pubtator3`.
+  PMID batch input using the default PubTator3 fetch source. Commented options show Entrez, Europe PMC, merged fetch, field filtering, and PubTator3 full text.
 - `examples/corpus-file.toml`
-  Local text-table example with `pubtator3` raw-text annotation.
+  Local text-table input with PubTator3 raw-text annotation.
+- `examples/fetch-merge.toml`
+  Advanced multi-source fetch example. Fetches from PubTator3, Entrez, and Europe PMC, then merges results into one canonical document per PMID.

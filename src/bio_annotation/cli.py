@@ -12,6 +12,7 @@ from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
 from bio_annotation.preprocessing.document_loader import load_documents_from_config
 from bio_annotation.schemas.document import Document
+from bio_annotation.terminal_ui import run_terminal_annotation_ui
 
 
 def build_demo_document() -> Document:
@@ -77,6 +78,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("info", help="Show a short project summary.")
     subparsers.add_parser("demo", help="Run a local mocked annotation demo.")
+    annotate_parser = subparsers.add_parser(
+        "annotate",
+        help="Launch the primary terminal annotation UI.",
+    )
+    annotate_parser.add_argument(
+        "--runs-dir",
+        type=Path,
+        default=Path("outputs/runs"),
+        help="Directory where reproducible UI runs are saved.",
+    )
     inspect_parser = subparsers.add_parser("inspect-config", help="Show parsed pipeline config values.")
     inspect_parser.add_argument(
         "--config",
@@ -131,8 +142,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in (None, "info"):
         print("TotalAnnotator")
-        print("Workflow: corpus -> annotators -> comparable outputs")
-        print("Quickstart: uv sync && uv run totalannotator demo")
+        print("Workflow: terminal UI -> reproducible config -> annotators -> comparable outputs")
+        print("Quickstart: uv sync && uv run totalannotator annotate")
+        print("Demo: uv run totalannotator demo")
         print("Inspect config: uv run totalannotator inspect-config")
         print("Preview documents: uv run totalannotator load-documents")
         print("Run config: uv run totalannotator run-config")
@@ -141,6 +153,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "demo":
         print(json.dumps(demo_payload(), indent=2))
+        return 0
+
+    if args.command == "annotate":
+        try:
+            run_terminal_annotation_ui(runs_dir=args.runs_dir)
+        except (RuntimeError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
         return 0
 
     if args.command == "inspect-config":
@@ -166,6 +186,10 @@ def main(argv: list[str] | None = None) -> int:
                     "annotator_settings": config.annotator_settings,
                     "entity_types": config.entity_types,
                     "output_path": str(config.output_path) if config.output_path is not None else None,
+                    "fetch_sources": config.fetch_sources,
+                    "fetch_fields": config.fetch_fields,
+                    "fetch_fields_per_source": config.fetch_fields_per_source,
+                    "pubtator3_full_text": config.pubtator3_full_text,
                 },
                 indent=2,
             )
@@ -202,11 +226,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run-config":
         try:
+            config = load_pipeline_config(args.config)
             payload = run_pipeline_from_config(args.config)
-        except ValueError as exc:
+        except (RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
-        print(json.dumps(payload, indent=2))
+        print_run_config_summary(payload, config.output_path)
         return 0
 
     if args.command == "search-pmids":
@@ -238,3 +263,42 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+def print_run_config_summary(payload: dict[str, object], output_path: Path | None) -> None:
+    annotation_summary = payload.get("annotation_summary")
+    summary = annotation_summary if isinstance(annotation_summary, dict) else {}
+    output = payload.get("output")
+    actual_output_path = (
+        output.get("path")
+        if isinstance(output, dict)
+        else None
+    )
+
+    print("Pipeline completed.")
+    if isinstance(actual_output_path, str) and actual_output_path:
+        print(f"Output written to: {actual_output_path}")
+    elif output_path is not None:
+        print(f"Output written to: {output_path.as_posix()}")
+    else:
+        print("No output path configured; no JSON file was written.")
+
+    print(f"Documents: {payload.get('document_count', 0)}")
+    print(f"Annotations: {summary.get('annotation_count', 0)}")
+    print(f"Keywords: {summary.get('keyword_count', 0)}")
+
+    annotator_summary = payload.get("annotator_summary")
+    if isinstance(annotator_summary, dict):
+        produced = annotator_summary.get("produced")
+        not_produced = annotator_summary.get("not_produced")
+        failed = annotator_summary.get("failed")
+        print(f"Annotators with results: {_format_name_list(produced)}")
+        print(f"Annotators without results: {_format_name_list(not_produced)}")
+        if failed:
+            print(f"Annotators failed: {_format_name_list(failed)}")
+
+
+def _format_name_list(value: object) -> str:
+    if isinstance(value, list) and value:
+        return ", ".join(str(item) for item in value)
+    return "none"

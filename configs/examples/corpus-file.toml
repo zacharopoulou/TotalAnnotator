@@ -20,9 +20,10 @@ timeout = 45
 mode = "text_only"
 bioconcept = "All"
 poll_interval_seconds = 2.0
-poll_backoff = 1.5
-max_poll_interval_seconds = 15.0
-max_poll_attempts = 30
+poll_backoff = 1.25
+max_poll_interval_seconds = 5.0
+max_poll_attempts = 12
+max_poll_seconds = 45.0
 
 [filters]
 entity_types = []

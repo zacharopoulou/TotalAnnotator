@@ -6,8 +6,10 @@ from typing import Any, Callable
 
 from bio_annotation.clients.pubtator3 import (
     DEFAULT_EXPORT_FORMAT,
+    DEFAULT_TEXT_MAX_POLL_SECONDS,
     PUBTATOR3_API_BASE_URL,
     PubTator3Client,
+    PollProgressCallback,
 )
 from bio_annotation.entity_proposal._shared import make_annotation, pick_first
 from bio_annotation.schemas.document import Document
@@ -180,11 +182,15 @@ def build_pubtator3_text_payload(document: Document) -> str:
 
 
 def _document_pmcid(document: Document) -> str | None:
-    pubmed_record = document.metadata.get("pubmed_record") if isinstance(document.metadata, dict) else None
+    metadata = document.metadata if isinstance(document.metadata, dict) else {}
+    pubmed_record = metadata.get("pubmed_record")
     if isinstance(pubmed_record, dict):
         value = pubmed_record.get("pmcid")
         if value:
             return str(value)
+    value = metadata.get("pmcid")
+    if value:
+        return str(value)
     return None
 
 
@@ -201,6 +207,8 @@ def call_pubtator3(
     poll_backoff: float = 1.5,
     max_poll_interval_seconds: float = 15.0,
     max_poll_attempts: int = 15,
+    max_poll_seconds: float = DEFAULT_TEXT_MAX_POLL_SECONDS,
+    progress_callback: PollProgressCallback | None = None,
 ) -> Any:
     active_client = client or PubTator3Client(
         base_url=endpoint or os.getenv("PUBTATOR3_API_URL", PUBTATOR3_API_BASE_URL),
@@ -214,10 +222,10 @@ def call_pubtator3(
         )
 
     if normalized_mode == "publication_only":
-        if document.source == "pubmed" and document.pmid:
+        if document.pmid:
             return active_client.fetch_publications_by_pmids([document.pmid], format=format)
 
-        pmcid = _document_pmcid(document) if document.source == "pubmed" else None
+        pmcid = _document_pmcid(document)
         if pmcid:
             return active_client.fetch_publications_by_pmcids([pmcid], format=format)
         return None
@@ -233,17 +241,18 @@ def call_pubtator3(
             poll_interval=poll_interval_seconds,
             poll_backoff=poll_backoff,
             max_poll_interval=max_poll_interval_seconds,
+            max_poll_seconds=max_poll_seconds,
+            progress_callback=progress_callback,
         )
 
-    if document.source == "pubmed":
-        publication_payload = call_pubtator3(
-            document,
-            client=active_client,
-            format=format,
-            mode="publication_only",
-        )
-        if publication_payload is not None:
-            return publication_payload
+    publication_payload = call_pubtator3(
+        document,
+        client=active_client,
+        format=format,
+        mode="publication_only",
+    )
+    if publication_payload is not None:
+        return publication_payload
 
     return call_pubtator3(
         document,
@@ -255,6 +264,8 @@ def call_pubtator3(
         poll_backoff=poll_backoff,
         max_poll_interval_seconds=max_poll_interval_seconds,
         max_poll_attempts=max_poll_attempts,
+        max_poll_seconds=max_poll_seconds,
+        progress_callback=progress_callback,
     )
 
 
@@ -273,6 +284,8 @@ def annotate_with_pubtator3(
     poll_backoff: float = 1.5,
     max_poll_interval_seconds: float = 15.0,
     max_poll_attempts: int = 15,
+    max_poll_seconds: float = DEFAULT_TEXT_MAX_POLL_SECONDS,
+    progress_callback: PollProgressCallback | None = None,
 ) -> list[Annotation]:
     payload = response
     if payload is None and request_fn is not None:
@@ -290,6 +303,8 @@ def annotate_with_pubtator3(
             poll_backoff=poll_backoff,
             max_poll_interval_seconds=max_poll_interval_seconds,
             max_poll_attempts=max_poll_attempts,
+            max_poll_seconds=max_poll_seconds,
+            progress_callback=progress_callback,
         )
     return parse_pubtator3_response(document, payload)
 

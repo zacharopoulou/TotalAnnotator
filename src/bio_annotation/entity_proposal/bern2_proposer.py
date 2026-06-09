@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 import os
 from typing import Any, Callable
-from urllib import error, request
+from urllib import error, parse, request
 
 from bio_annotation.entity_proposal._shared import make_annotation, pick_first
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
+
+DEFAULT_BERN2_API_URL = "http://bern2.korea.ac.kr/plain"
+LOCAL_BERN2_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 def _extract_records(payload: Any) -> list[dict[str, Any]]:
@@ -50,7 +53,7 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
                 start=pick_first(record.get("start"), span.get("begin"), span.get("start")),
                 end=pick_first(record.get("end"), span.get("end")),
                 canonical_id=pick_first(
-                    record.get("id"),
+                    _first_identifier(record.get("id")),
                     record.get("db_id"),
                     record.get("identifier"),
                 ),
@@ -62,6 +65,7 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
                 confidence=pick_first(
                     record.get("confidence"),
                     record.get("probability"),
+                    record.get("prob"),
                     record.get("score"),
                 ),
             )
@@ -70,20 +74,36 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
     return annotations
 
 
+def _first_identifier(value: Any) -> Any:
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
 def call_bern2(document: Document, endpoint: str | None = None, timeout: int = 30) -> Any:
-    target = endpoint or os.getenv("BERN2_API_URL")
-    if not target:
-        return None
+    target = endpoint or os.getenv("BERN2_API_URL") or DEFAULT_BERN2_API_URL
+    if not target.endswith("/plain"):
+        target = target.rstrip("/") + "/plain"
 
     payload = json.dumps({"text": document.text}).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     http_request = request.Request(target, data=payload, headers=headers, method="POST")
 
     try:
-        with request.urlopen(http_request, timeout=timeout) as response:
+        opener = _request_opener_for_url(target)
+        with opener.open(http_request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
-    except (error.URLError, json.JSONDecodeError):
-        return None
+    except error.URLError as exc:
+        raise RuntimeError(f"BERN2 request failed for {target}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"BERN2 returned invalid JSON from {target}: {exc}") from exc
+
+
+def _request_opener_for_url(url: str) -> request.OpenerDirector:
+    host = parse.urlparse(url).hostname
+    if host in LOCAL_BERN2_HOSTS:
+        return request.build_opener(request.ProxyHandler({}))
+    return request.build_opener()
 
 
 def annotate_with_bern2(
@@ -92,10 +112,11 @@ def annotate_with_bern2(
     response: Any = None,
     request_fn: Callable[[Document], Any] | None = None,
     endpoint: str | None = None,
+    timeout: int = 30,
 ) -> list[Annotation]:
     payload = response
     if payload is None and request_fn is not None:
         payload = request_fn(document)
     if payload is None:
-        payload = call_bern2(document, endpoint=endpoint)
+        payload = call_bern2(document, endpoint=endpoint, timeout=timeout)
     return parse_bern2_response(document, payload)

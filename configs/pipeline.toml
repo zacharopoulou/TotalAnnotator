@@ -6,23 +6,26 @@ pmids = ["36403686"]
 sources = []
 
 [annotators]
-enabled = ["pubtator3"]
+enabled = ["bern2", "flair", "pubtator3"]
 
 [annotators.bern2]
-runtime = "docker"
+runtime = "remote_api"
 base_url = "http://127.0.0.1:8888"
+endpoint = "http://bern2.korea.ac.kr/plain"
 
 [annotators.flair]
-runtime = "python_local"
+model = "hunflair2"
 
 [annotators.pubtator3]
 runtime = "remote_api"
 endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
 timeout = 60
+mode = "auto"
+bioconcept = "All"
 
 [filters]
 entity_types = []
 
 [output]
-path = "outputs/pubtator3_pipeline_output.json"
+path = "outputs/annotators_result.json"
