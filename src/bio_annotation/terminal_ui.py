@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from bio_annotation.entity_proposal.aioner_proposer import (
+    DEFAULT_AIONER_ENTITY,
+    DEFAULT_AIONER_PROJECT,
+)
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
@@ -77,6 +82,14 @@ def run_terminal_annotation_ui(
     prepare_input_files(answers, paths)
     write_terminal_ui_config(answers, paths.config_path, paths)
     load_pipeline_config(paths.config_path)
+    if "aioner" in answers.annotators:
+        _, aioner_model = aioner_config_paths()
+        if not Path(aioner_model).exists():
+            output_fn(
+                f"Warning: AIONER model not found at {aioner_model}. "
+                "Run tools/aioner/setup.sh first, or set AIONER_REPO / AIONER_MODEL; "
+                "otherwise the AIONER step will be skipped this run."
+            )
     output_fn("")
     output_fn("Running annotation...")
     payload = pipeline_run_fn(paths.config_path)
@@ -126,7 +139,9 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators",
         choices=ANNOTATOR_CHOICES,
-        default_values=[value for value, _ in ANNOTATOR_CHOICES],
+        # AIONER requires a separate environment + downloaded models, so it is
+        # offered as a choice but not pre-selected by default.
+        default_values=[value for value, _ in ANNOTATOR_CHOICES if value != "aioner"],
         validate_values=_validate_selected_annotators,
     )
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
@@ -156,6 +171,24 @@ def write_terminal_ui_config(answers: TerminalUIAnswers, config_path: Path, path
     config_path.write_text(build_terminal_ui_config_text(answers, paths), encoding="utf-8")
 
 
+# AIONER head produced by tools/aioner/setup.sh, relative to the AIONER repo.
+AIONER_DEFAULT_MODEL_RELPATH = "pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
+
+
+def aioner_config_paths() -> tuple[str, str]:
+    """Resolve AIONER repo/model paths for the generated config.
+
+    AIONER has no universal default (unlike the public-API annotators), so the TUI
+    points at the conventional locations created by tools/aioner/setup.sh, with the
+    AIONER_REPO / AIONER_MODEL environment variables taking precedence.
+    """
+
+    repo_root = Path(__file__).resolve().parents[2]
+    repo = os.environ.get("AIONER_REPO") or str(repo_root / "AIONER")
+    model = os.environ.get("AIONER_MODEL") or str(Path(repo) / AIONER_DEFAULT_MODEL_RELPATH)
+    return repo, model
+
+
 def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -> str:
     lines = ["[input]"]
     if answers.input_mode == "pmids":
@@ -175,6 +208,9 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
     if "pubtator3" in answers.annotators:
         pubtator3_mode = "text_only" if answers.input_mode == "plain_text" else "auto"
         lines += ["", "[annotators.pubtator3]", 'runtime = "remote_api"', 'endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"', 'format = "biocjson"', "timeout = 60", f"mode = {_toml_string(pubtator3_mode)}", 'bioconcept = "All"', "poll_interval_seconds = 2.0", "poll_backoff = 1.5", "max_poll_interval_seconds = 15.0", "max_poll_attempts = 30"]
+    if "aioner" in answers.annotators:
+        aioner_repo, aioner_model = aioner_config_paths()
+        lines += ["", "[annotators.aioner]", 'runtime = "local_subprocess"', f"repo = {_toml_string(aioner_repo)}", f"model = {_toml_string(aioner_model)}", f"entity = {_toml_string(DEFAULT_AIONER_ENTITY)}", f"project = {_toml_string(DEFAULT_AIONER_PROJECT)}"]
     lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
     return "\n".join(lines)
 
