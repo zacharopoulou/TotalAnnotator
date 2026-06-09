@@ -31,3 +31,6 @@ benchmarks/data/gnormplus/train.jsonl
 # Can be regenerated locally with benchmarks/scripts/bc2gm.py
 benchmarks/data/bc2gm/train.jsonl
 benchmarks/data/bc2gm/validation.jsonl
+
+# AIONER repository and downloaded models
+AIONER/
