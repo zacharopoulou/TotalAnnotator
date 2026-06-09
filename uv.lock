@@ -2478,14 +2478,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "datasets", marker = "extra == 'all'", specifier = ">=2.14,<4.0" },
     { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
-    { name = "flair", marker = "extra == 'all'", specifier = "==0.15.1" },
     { name = "flair", marker = "extra == 'flair'", specifier = "==0.15.1" },
-    { name = "pandas", marker = "extra == 'all'", specifier = ">=2.0" },
     { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
-    { name = "tabulate", marker = "extra == 'all'", specifier = ">=0.9" },
     { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
+    { name = "totalannotator", extras = ["flair", "benchmarks"], marker = "extra == 'all'" },
 ]
 provides-extras = ["flair", "benchmarks", "all"]
 

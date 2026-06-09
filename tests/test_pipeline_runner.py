@@ -260,7 +260,15 @@ def test_run_pipeline_preflights_missing_flair_dependency(tmp_path, monkeypatch)
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", lambda name: None)
+    checked_modules: list[str] = []
+
+    def fake_find_spec(name: str) -> object | None:
+        checked_modules.append(name)
+        return None
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
 
     with pytest.raises(ValueError, match="uv sync --extra flair"):
         run_pipeline_from_config(config_path)
+
+    assert checked_modules == ["flair"]

@@ -228,7 +228,7 @@ def validate_optional_annotator_dependencies(
         return
     if flair_spans_by_document is not None:
         return
-    if find_spec("flair.nn") is None:
+    if find_spec("flair") is None:
         raise ValueError(FLAIR_INSTALL_HINT)
 
 
