@@ -6,7 +6,7 @@ pmids = ["36403686"]
 sources = []
 
 [annotators]
-enabled = ["bern2", "flair", "pubtator3"]
+enabled = ["bern2", "flair", "pubtator3"]  # add "aioner" after running tools/aioner/setup.sh
 
 [annotators.bern2]
 runtime = "remote_api"
@@ -23,6 +23,13 @@ format = "biocjson"
 timeout = 60
 mode = "auto"
 bioconcept = "All"
+
+# AIONER runs in its own Python 3.8 environment; run tools/aioner/setup.sh first.
+[annotators.aioner]
+repo = "AIONER"
+model = "AIONER/pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
+entity = "ALL"
+project = "tools/aioner"
 
 [filters]
 entity_types = []

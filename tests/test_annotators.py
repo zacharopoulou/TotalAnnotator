@@ -10,6 +10,11 @@ import pytest
 
 from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
+from bio_annotation.annotators.aioner import (
+    annotate_with_aioner,
+    build_aioner_pubtator_input,
+    call_aioner,
+)
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
@@ -473,6 +478,68 @@ def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers()
 
     assert payload == '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
     assert client.payloads == [document.text]
+
+
+def test_aioner_adapter_parses_pubtator_output_and_normalizes_types() -> None:
+    document = sample_document()
+    # AIONER emits 5-column PubTator (no identifier; NER only). "Chemical" and
+    # "CellLine" must normalize to the canonical "drug" / "cell_line" types.
+    response = (
+        "PMID:12345678|t|PTEN regulates glioblastoma\n"
+        "PMID:12345678|a|\n"
+        "PMID:12345678\t0\t4\tPTEN\tGene\n"
+        "PMID:12345678\t15\t27\tglioblastoma\tDisease\n"
+        "PMID:12345678\t40\t48\tcisplatin\tChemical\n"
+        "PMID:12345678\t60\t65\tHeLa\tCellLine\n"
+    )
+
+    annotations = annotate_with_aioner(document, response=response)
+
+    assert len(annotations) == 4
+    assert all(annotation.source == "aioner" for annotation in annotations)
+    assert annotations[0].entity_type == "gene"
+    assert annotations[0].start == 0
+    assert annotations[0].end == 4
+    assert annotations[1].entity_type == "disease"
+    assert annotations[2].entity_type == "drug"
+    assert annotations[3].entity_type == "cell_line"
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
+def test_aioner_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> str:
+        calls.append(doc)
+        return "PMID:12345678\t0\t4\tPTEN\tGene\n"
+
+    annotations = annotate_with_aioner(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "gene"
+
+
+def test_aioner_input_flattens_newlines_preserving_offsets() -> None:
+    document = sample_document()
+    rendered = build_aioner_pubtator_input(document)
+
+    title_line = rendered.splitlines()[0]
+    assert title_line.startswith("PMID:12345678|t|")
+    flat_text = title_line.split("|t|", 1)[1]
+    assert "\n" not in flat_text
+    # Length is preserved so AIONER's absolute offsets map onto document.text.
+    assert len(flat_text) == len(document.text)
+
+
+def test_aioner_call_requires_configuration(monkeypatch) -> None:
+    document = sample_document()
+    monkeypatch.delenv("AIONER_REPO", raising=False)
+    monkeypatch.delenv("AIONER_MODEL", raising=False)
+
+    with pytest.raises(RuntimeError, match="AIONER repo path is not configured"):
+        call_aioner(document)
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:

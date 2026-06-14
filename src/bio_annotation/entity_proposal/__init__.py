@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from bio_annotation.entity_proposal.aioner_proposer import annotate_with_aioner
 from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
 from bio_annotation.entity_proposal.pubtator3_proposer import annotate_with_pubtator3
@@ -23,10 +24,12 @@ def run_all_annotators(
     pubtator3_response: Any = None,
     pubtator3_request_fn: Any = None,
     pubtator3_endpoint: str | None = None,
+    aioner_response: Any = None,
+    aioner_request_fn: Any = None,
 ) -> dict[str, list[Annotation]]:
     """Run all configured annotator adapters and return normalized outputs."""
 
-    return {
+    results = {
         "bern2": annotate_with_bern2(
             document,
             response=bern2_response,
@@ -46,16 +49,25 @@ def run_all_annotators(
             endpoint=pubtator3_endpoint,
         ),
     }
+    # Only invoke AIONER when a response or request function is provided.
+    if aioner_response is not None or aioner_request_fn is not None:
+        results["aioner"] = annotate_with_aioner(
+            document,
+            response=aioner_response,
+            request_fn=aioner_request_fn,
+        )
+    return results
 
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3"):
+    for source in ("bern2", "flair", "pubtator3", "aioner"):
         annotations.extend(results.get(source, []))
     return annotations
 
 
 __all__ = [
+    "annotate_with_aioner",
     "annotate_with_bern2",
     "annotate_with_flair",
     "annotate_with_pubtator3",
