@@ -27,6 +27,58 @@ class AnnotatorCapability:
     normalization_fields: tuple[str, ...]
 
 
+# d4data/biomedical-ner-all (MACCROBAT) emits 41 entity labels. The two biomedical
+# ones map to this pipeline's canonical types; the rest are declared as-is so they
+# are first-class (selectable in the UI, listed in the annotator's capability).
+_D4DATA_CANONICAL_OVERRIDES: dict[str, str] = {
+    "Disease_disorder": "disease",
+    "Medication": "drug",
+}
+_D4DATA_LABELS: tuple[str, ...] = (
+    "Disease_disorder",
+    "Medication",
+    "Activity",
+    "Administration",
+    "Age",
+    "Area",
+    "Biological_attribute",
+    "Biological_structure",
+    "Clinical_event",
+    "Color",
+    "Coreference",
+    "Date",
+    "Detailed_description",
+    "Diagnostic_procedure",
+    "Distance",
+    "Dosage",
+    "Duration",
+    "Family_history",
+    "Frequency",
+    "Height",
+    "History",
+    "Lab_value",
+    "Mass",
+    "Nonbiological_location",
+    "Occupation",
+    "Other_entity",
+    "Other_event",
+    "Outcome",
+    "Personal_background",
+    "Qualitative_concept",
+    "Quantitative_concept",
+    "Severity",
+    "Sex",
+    "Shape",
+    "Sign_symptom",
+    "Subject",
+    "Texture",
+    "Therapeutic_procedure",
+    "Time",
+    "Volume",
+    "Weight",
+)
+
+
 ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("pubtator3", "PubTator3", "Gene / protein", "gene", ("NCBI Gene",)),
     AnnotatorEntityTypeSpec("pubtator3", "PubTator3", "Disease", "disease", ("MeSH",)),
@@ -56,6 +108,19 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # d4data/biomedical-ner-all entity types are generated from _D4DATA_LABELS
+    # below: Disease_disorder/Medication map to canonical disease/drug, every
+    # other clinical label becomes its own first-class type.
+    *(
+        AnnotatorEntityTypeSpec(
+            "d4data",
+            "d4data biomedical-ner-all",
+            label.replace("_", " "),
+            _D4DATA_CANONICAL_OVERRIDES.get(label, label.lower()),
+            (),
+        )
+        for label in _D4DATA_LABELS
+    ),
 )
 
 
@@ -146,6 +211,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "aioner"
+        },
+        normalization_fields=(),
+    ),
+    "d4data": AnnotatorCapability(
+        label="d4data biomedical-ner-all",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
         },
         normalization_fields=(),
     ),
