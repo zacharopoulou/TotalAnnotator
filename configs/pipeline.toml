@@ -31,6 +31,11 @@ model = "AIONER/pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
 entity = "ALL"
 project = "tools/aioner"
 
+# d4data is a local HuggingFace clinical NER model; add "d4data" to enabled above
+# after installing the optional deps with: uv sync --extra d4data
+[annotators.d4data]
+model = "d4data/biomedical-ner-all"
+
 [filters]
 entity_types = []
 
