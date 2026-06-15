@@ -15,6 +15,10 @@ from bio_annotation.annotators.aioner import (
     build_aioner_pubtator_input,
     call_aioner,
 )
+from bio_annotation.annotators.d4data import (
+    DEFAULT_D4DATA_MODEL,
+    annotate_with_d4data,
+)
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
@@ -540,6 +544,75 @@ def test_aioner_call_requires_configuration(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="AIONER repo path is not configured"):
         call_aioner(document)
+
+
+def test_d4data_adapter_parses_pipeline_output_and_normalizes_types() -> None:
+    document = sample_document()
+    # HuggingFace token-classification output (aggregation_strategy="simple").
+    # "Disease_disorder"/"Medication" must normalize to canonical "disease"/"drug";
+    # unmapped clinical labels like "Sign_symptom" pass through. The span text is
+    # sliced from document.text, so a subword "word" artifact is ignored.
+    response = [
+        {"entity_group": "Disease_disorder", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
+        {"entity_group": "Medication", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
+        {"entity_group": "Sign_symptom", "score": 0.80, "word": "biomarkers", "start": 49, "end": 59},
+    ]
+
+    annotations = annotate_with_d4data(document, response=response)
+
+    assert len(annotations) == 3
+    assert all(annotation.source == "d4data" for annotation in annotations)
+    assert annotations[0].entity_type == "disease"
+    assert annotations[0].span_text == "glioblastoma"
+    assert annotations[0].start == 15
+    assert annotations[0].end == 27
+    assert annotations[1].entity_type == "drug"
+    assert annotations[2].entity_type == "sign_symptom"
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
+def test_d4data_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> list[dict[str, object]]:
+        calls.append(doc)
+        return [
+            {"entity_group": "Disease_disorder", "score": 0.9, "word": "glioblastoma", "start": 15, "end": 27}
+        ]
+
+    annotations = annotate_with_d4data(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "disease"
+
+
+def test_d4data_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakePipeline:
+        def __call__(self, text: str) -> list[dict[str, object]]:
+            assert text == document.text
+            return [
+                {"entity_group": "Medication", "score": 0.88, "word": "PTEN", "start": 0, "end": 4}
+            ]
+
+    def fake_loader(model: str) -> FakePipeline:
+        loaded_models.append(model)
+        return FakePipeline()
+
+    annotations = annotate_with_d4data(
+        document,
+        model=DEFAULT_D4DATA_MODEL,
+        pipeline_loader=fake_loader,
+    )
+
+    assert loaded_models == [DEFAULT_D4DATA_MODEL]
+    assert len(annotations) == 1
+    assert annotations[0].source == "d4data"
+    assert annotations[0].entity_type == "drug"
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
