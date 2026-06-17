@@ -13,6 +13,7 @@ from bio_annotation.entity_proposal.aioner_proposer import (
     DEFAULT_AIONER_ENTITY,
     DEFAULT_AIONER_PROJECT,
 )
+from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
@@ -139,9 +140,13 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators",
         choices=ANNOTATOR_CHOICES,
-        # AIONER requires a separate environment + downloaded models, so it is
-        # offered as a choice but not pre-selected by default.
-        default_values=[value for value, _ in ANNOTATOR_CHOICES if value != "aioner"],
+        # AIONER and apollo require extra setup (separate env / model download), so
+        # they are offered as choices but not pre-selected by default.
+        default_values=[
+            value
+            for value, _ in ANNOTATOR_CHOICES
+            if value not in {"aioner", "apollo"}
+        ],
         validate_values=_validate_selected_annotators,
     )
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
@@ -211,6 +216,8 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
     if "aioner" in answers.annotators:
         aioner_repo, aioner_model = aioner_config_paths()
         lines += ["", "[annotators.aioner]", 'runtime = "local_subprocess"', f"repo = {_toml_string(aioner_repo)}", f"model = {_toml_string(aioner_model)}", f"entity = {_toml_string(DEFAULT_AIONER_ENTITY)}", f"project = {_toml_string(DEFAULT_AIONER_PROJECT)}"]
+    if "apollo" in answers.annotators:
+        lines += ["", "[annotators.apollo]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_APOLLO_MODEL)}"]
     lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
     return "\n".join(lines)
 
@@ -257,9 +264,22 @@ def find_unsupported_entity_types(annotators: list[str], entity_types: list[str]
     return {a: missing for a in annotators if (missing := [e for e in entity_types if e not in ANNOTATOR_ENTITY_TYPES.get(a, set())])}
 
 
+def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ...]:
+    available: set[str] = set()
+    for annotator in annotators:
+        available |= ANNOTATOR_ENTITY_TYPES.get(annotator, set())
+    if not available:
+        return ENTITY_TYPE_CHOICES
+    canonical_order = [value for value, _ in ENTITY_TYPE_CHOICES]
+    ordered = [value for value in canonical_order if value in available]
+    ordered.extend(sorted(available - set(canonical_order)))
+    return tuple((value, _entity_type_label(value)) for value in ordered)
+
+
 def _prompt_entity_types(*, input_fn: InputFn, output_fn: OutputFn, annotators: list[str]) -> list[str]:
+    choices = _entity_type_choices_for(annotators)
     while True:
-        entity_types = _prompt_multi_choice(input_fn=input_fn, output_fn=output_fn, title="Choose entity types to include, or press Enter for all entity types", choices=ENTITY_TYPE_CHOICES, default_values=[], allow_empty=True)
+        entity_types = _prompt_multi_choice(input_fn=input_fn, output_fn=output_fn, title="Choose entity types to include, or press Enter for all entity types", choices=choices, default_values=[], allow_empty=True)
         unsupported = find_unsupported_entity_types(annotators, entity_types)
         if not unsupported:
             return entity_types
@@ -385,7 +405,10 @@ def _annotator_label(annotator: str) -> str:
 
 
 def _entity_type_label(entity_type: str) -> str:
-    return ENTITY_TYPE_DISPLAY_NAMES.get(entity_type, entity_type)
+    return ENTITY_TYPE_DISPLAY_NAMES.get(
+        entity_type,
+        entity_type.replace("_", " ").capitalize(),
+    )
 
 
 def _toml_string(value: str) -> str:
