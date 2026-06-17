@@ -27,6 +27,58 @@ class AnnotatorCapability:
     normalization_fields: tuple[str, ...]
 
 
+# Clinical-AI-Apollo/Medical-NER (DeBERTa-v3, MACCROBAT) emits 41 entity labels.
+# DISEASE_DISORDER and MEDICATION map to this pipeline's canonical types; the rest
+# are declared as-is
+_APOLLO_CANONICAL_OVERRIDES: dict[str, str] = {
+    "DISEASE_DISORDER": "disease",
+    "MEDICATION": "drug",
+}
+_APOLLO_LABELS: tuple[str, ...] = (
+    "DISEASE_DISORDER",
+    "MEDICATION",
+    "ACTIVITY",
+    "ADMINISTRATION",
+    "AGE",
+    "AREA",
+    "BIOLOGICAL_ATTRIBUTE",
+    "BIOLOGICAL_STRUCTURE",
+    "CLINICAL_EVENT",
+    "COLOR",
+    "COREFERENCE",
+    "DATE",
+    "DETAILED_DESCRIPTION",
+    "DIAGNOSTIC_PROCEDURE",
+    "DISTANCE",
+    "DOSAGE",
+    "DURATION",
+    "FAMILY_HISTORY",
+    "FREQUENCY",
+    "HEIGHT",
+    "HISTORY",
+    "LAB_VALUE",
+    "MASS",
+    "NONBIOLOGICAL_LOCATION",
+    "OCCUPATION",
+    "OTHER_ENTITY",
+    "OTHER_EVENT",
+    "OUTCOME",
+    "PERSONAL_BACKGROUND",
+    "QUALITATIVE_CONCEPT",
+    "QUANTITATIVE_CONCEPT",
+    "SEVERITY",
+    "SEX",
+    "SHAPE",
+    "SIGN_SYMPTOM",
+    "SUBJECT",
+    "TEXTURE",
+    "THERAPEUTIC_PROCEDURE",
+    "TIME",
+    "VOLUME",
+    "WEIGHT",
+)
+
+
 ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("pubtator3", "PubTator3", "Gene / protein", "gene", ("NCBI Gene",)),
     AnnotatorEntityTypeSpec("pubtator3", "PubTator3", "Disease", "disease", ("MeSH",)),
@@ -56,6 +108,19 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # Clinical-AI-Apollo/Medical-NER entity types are generated from _APOLLO_LABELS
+    # above: DISEASE_DISORDER/MEDICATION map to canonical disease/drug, every other
+    # clinical label becomes its own first-class type.
+    *(
+        AnnotatorEntityTypeSpec(
+            "apollo",
+            "Clinical-AI-Apollo Medical-NER",
+            label.replace("_", " "),
+            _APOLLO_CANONICAL_OVERRIDES.get(label, label.lower()),
+            (),
+        )
+        for label in _APOLLO_LABELS
+    ),
 )
 
 
@@ -146,6 +211,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "aioner"
+        },
+        normalization_fields=(),
+    ),
+    "apollo": AnnotatorCapability(
+        label="Clinical-AI-Apollo Medical-NER",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "apollo"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "apollo"
         },
         normalization_fields=(),
     ),
