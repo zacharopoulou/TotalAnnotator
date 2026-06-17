@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
+from bio_annotation.annotators.apollo import DEFAULT_APOLLO_MODEL, annotate_with_apollo
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
@@ -26,10 +27,14 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner"}
+SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "apollo"}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
+)
+APOLLO_INSTALL_HINT = (
+    "The apollo annotator requires the optional Hugging Face dependencies. "
+    "Install them with: uv sync --extra apollo"
 )
 
 
@@ -42,11 +47,13 @@ def run_pipeline_from_config(
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    apollo_responses_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
         config,
         flair_spans_by_document=flair_spans_by_document,
+        apollo_responses_by_document=apollo_responses_by_document,
     )
     if pmid_fetcher is not None and config.input_mode == "pmids":
         documents = load_documents_from_pmids(
@@ -74,6 +81,7 @@ def run_pipeline_from_config(
         pubtator3_request_fn=pubtator3_request_fn,
         flair_spans_by_document=flair_spans_by_document,
         aioner_request_fn=aioner_request_fn,
+        apollo_responses_by_document=apollo_responses_by_document,
     )
     if config.output_path is not None:
         actual_output_path = timestamped_output_path(config.output_path)
@@ -94,6 +102,7 @@ def build_pipeline_output(
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    apollo_responses_by_document: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
@@ -104,6 +113,7 @@ def build_pipeline_output(
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
     flair_options = _read_flair_options(annotator_settings.get("flair", {}))
     aioner_options = _read_aioner_options(annotator_settings.get("aioner", {}))
+    apollo_options = _read_apollo_options(annotator_settings.get("apollo", {}))
 
     flair_tagger = None
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -111,6 +121,12 @@ def build_pipeline_output(
             flair_tagger = _load_flair_tagger(flair_options["model"] or "hunflair2")
         except Exception as exc:
             print(f"flair unavailable: {exc}")
+    apollo_pipeline = None
+    if "apollo" in enabled_annotators and apollo_responses_by_document is None:
+        try:
+            apollo_pipeline = _load_apollo_pipeline(apollo_options["model"])
+        except Exception as exc:
+            print(f"apollo unavailable: {exc}")
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
     keyword_output: list[dict[str, Any]] = []
@@ -139,6 +155,13 @@ def build_pipeline_output(
                 else None
             ),
             flair_tagger=flair_tagger,
+            apollo_response=(
+                apollo_responses_by_document.get(document.document_id)
+                if apollo_responses_by_document is not None
+                else None
+            ),
+            apollo_pipeline=apollo_pipeline,
+            apollo_options=apollo_options,
         )
         all_statuses.extend(statuses)
 
@@ -396,6 +419,9 @@ def run_selected_annotators(
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
+    apollo_response: Any = None,
+    apollo_pipeline: Any = None,
+    apollo_options: dict[str, Any] | None = None,
 ) -> dict[str, list[Annotation]]:
     results, _ = run_selected_annotators_with_status(
         document,
@@ -409,6 +435,9 @@ def run_selected_annotators(
         flair_spans=flair_spans,
         flair_tagger=flair_tagger,
         flair_options=flair_options,
+        apollo_response=apollo_response,
+        apollo_pipeline=apollo_pipeline,
+        apollo_options=apollo_options,
     )
     return results
 
@@ -426,6 +455,9 @@ def run_selected_annotators_with_status(
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
+    apollo_response: Any = None,
+    apollo_pipeline: Any = None,
+    apollo_options: dict[str, Any] | None = None,
 ) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
     statuses: list[dict[str, Any]] = []
@@ -511,6 +543,13 @@ def run_selected_annotators_with_status(
                     if aioner_options
                     else 600,
                 )
+            elif annotator == "apollo":
+                results[annotator] = annotate_with_apollo(
+                    document,
+                    response=apollo_response,
+                    pipeline=apollo_pipeline,
+                    model=apollo_options.get("model") if apollo_options else None,
+                )
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
         except Exception as exc:
@@ -547,7 +586,7 @@ def run_selected_annotators_with_status(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "apollo"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -754,6 +793,11 @@ def _no_annotations_reason(annotator: str) -> str:
             "(tools/aioner/setup.sh) and annotators.aioner.repo/model are set, "
             "or it found no entities."
         )
+    if annotator == "apollo":
+        return (
+            "No annotations returned. The apollo model may be unavailable/not "
+            "downloaded (uv sync --extra apollo), or it found no entities."
+        )
     return "No annotations returned."
 
 
@@ -928,7 +972,14 @@ def validate_optional_annotator_dependencies(
     config: PipelineConfig,
     *,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
+    apollo_responses_by_document: dict[str, list[Any]] | None = None,
 ) -> None:
+    if (
+        "apollo" in config.annotators
+        and apollo_responses_by_document is None
+        and find_spec("transformers") is None
+    ):
+        raise ValueError(APOLLO_INSTALL_HINT)
     if "flair" not in config.annotators:
         return
     if flair_spans_by_document is not None:
@@ -989,6 +1040,29 @@ def _load_flair_tagger(model: str) -> Any:
 
     flair.logger.setLevel(logging.WARNING)
     return Classifier.load(model)
+
+
+def _read_apollo_options(settings: dict[str, object]) -> dict[str, Any]:
+    model = settings.get("model")
+    return {
+        "model": model.strip()
+        if isinstance(model, str) and model.strip()
+        else DEFAULT_APOLLO_MODEL,
+    }
+
+
+def _load_apollo_pipeline(model: str) -> Any:
+    try:
+        from transformers import pipeline
+    except ImportError as exc:
+        raise RuntimeError(APOLLO_INSTALL_HINT) from exc
+
+    return pipeline(
+        "ner",
+        model=model,
+        tokenizer=model,
+        aggregation_strategy="first",
+    )
 
 
 def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
