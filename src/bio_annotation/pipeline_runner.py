@@ -155,7 +155,9 @@ def build_pipeline_output(
                     "sources": sorted(results),
                     "annotators": statuses,
                     "annotation_count": len(annotations),
-                    "annotations": [annotation.to_dict() for annotation in annotations],
+                    "annotation_ids": [
+                        annotation.annotation_id for annotation in annotations
+                    ],
                 }
             )
         annotations_output.extend(
@@ -219,6 +221,7 @@ def write_pipeline_tsv_outputs(payload: dict[str, Any], output_path: Path) -> No
 
 def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
     documents = _documents_by_id(payload)
+    annotations = _annotations_by_id(payload)
     rows: list[dict[str, Any]] = []
 
     for keyword in payload.get("keywords", []):
@@ -227,11 +230,10 @@ def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
 
         document_id = str(keyword.get("document_id") or "")
         document = documents.get(document_id, {})
-        annotators = [
-            item
-            for item in keyword.get("annotators", [])
-            if isinstance(item, dict)
-        ]
+        keyword_annotations = _resolve_annotations(
+            annotations,
+            keyword.get("annotation_ids"),
+        )
 
         first_mention = _first_mention(keyword)
         rows.append(
@@ -249,9 +251,9 @@ def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
                 "sources": _join_values(
                     sorted(
                         {
-                            item.get("source")
-                            for item in annotators
-                            if item.get("source")
+                            annotation.get("source")
+                            for annotation in keyword_annotations
+                            if annotation.get("source")
                         }
                     )
                 ),
@@ -282,6 +284,7 @@ def write_keyword_annotator_evidence_tsv(
     output_path: Path,
 ) -> None:
     documents = _documents_by_id(payload)
+    annotations = _annotations_by_id(payload)
     rows: list[dict[str, Any]] = []
 
     for keyword in payload.get("keywords", []):
@@ -294,9 +297,10 @@ def write_keyword_annotator_evidence_tsv(
         for mention in keyword.get("mentions", []):
             if not isinstance(mention, dict):
                 continue
-            for item in mention.get("annotators", []):
-                if not isinstance(item, dict):
-                    continue
+            for annotation in _resolve_annotations(
+                annotations,
+                mention.get("annotation_ids"),
+            ):
 
                 rows.append(
                     {
@@ -306,12 +310,12 @@ def write_keyword_annotator_evidence_tsv(
                         "keyword": keyword.get("keyword"),
                         "start": mention.get("start"),
                         "end": mention.get("end"),
-                        "source": item.get("source"),
-                        "label": item.get("label"),
-                        "annotation_id": item.get("annotation_id"),
-                        "canonical_id": _join_values(item.get("canonical_id")),
-                        "canonical_name": item.get("canonical_name"),
-                        "confidence": item.get("confidence"),
+                        "source": annotation.get("source"),
+                        "label": annotation.get("entity_type"),
+                        "annotation_id": annotation.get("annotation_id"),
+                        "canonical_id": _join_values(annotation.get("canonical_id")),
+                        "canonical_name": annotation.get("canonical_name"),
+                        "confidence": annotation.get("confidence"),
                     }
                 )
 
@@ -578,23 +582,14 @@ def build_keyword_annotations(
                 "labels": [],
                 "canonical_ids": [],
                 "mentions": [],
-                "annotators": [],
+                "annotation_ids": [],
             }
 
         group = groups[key]
         group["annotation_count"] += 1
+        group["annotation_ids"].append(annotation.annotation_id)
         if keyword not in group["variants"]:
             group["variants"].append(keyword)
-        group["annotators"].append(
-            {
-                "source": annotation.source,
-                "label": annotation.entity_type,
-                "annotation_id": annotation.annotation_id,
-                "canonical_id": _normalize_scalar_id(annotation.canonical_id),
-                "canonical_name": annotation.canonical_name,
-                "confidence": annotation.confidence,
-            }
-        )
 
         mention_key = (annotation.start, annotation.end)
         mention = next(
@@ -612,25 +607,24 @@ def build_keyword_annotations(
                 "end": annotation.end,
                 "annotation_count": 0,
                 "annotator_count": 0,
-                "annotators": [],
+                "annotation_ids": [],
             }
             group["mentions"].append(mention)
         mention["annotation_count"] += 1
-        mention["annotators"].append(
-            {
-                "source": annotation.source,
-                "label": annotation.entity_type,
-                "annotation_id": annotation.annotation_id,
-                "canonical_id": _normalize_scalar_id(annotation.canonical_id),
-                "canonical_name": annotation.canonical_name,
-                "confidence": annotation.confidence,
-            }
-        )
+        mention["annotation_ids"].append(annotation.annotation_id)
 
     for group in groups.values():
+        annotations_by_id = {
+            annotation.annotation_id: annotation
+            for annotation in annotations
+            if annotation.annotation_id in set(group["annotation_ids"])
+        }
         group["variants"] = sorted(group["variants"])
+        group["annotation_ids"] = sorted(group["annotation_ids"])
         group["mention_count"] = len(group["mentions"])
-        group["mentions"] = [_finalize_mention(item) for item in group["mentions"]]
+        group["mentions"] = [
+            _finalize_mention(item, annotations_by_id) for item in group["mentions"]
+        ]
         group["mentions"] = sorted(
             group["mentions"],
             key=lambda item: (
@@ -641,21 +635,26 @@ def build_keyword_annotations(
                 item["text"].casefold(),
             ),
         )
-        group["annotators"] = _summarize_keyword_annotators(group["annotators"])
-        group["annotator_count"] = len(group["annotators"])
+        group["annotator_count"] = len(
+            {
+                annotation.source
+                for annotation in annotations_by_id.values()
+            }
+        )
         group["labels"] = sorted(
             {
-                item["label"]
-                for mention in group["mentions"]
-                for item in mention["annotators"]
-                if item["label"] is not None
+                annotation.entity_type
+                for annotation in annotations_by_id.values()
+                if annotation.entity_type is not None
             }
         )
         group["canonical_ids"] = sorted(
             {
                 canonical_id
-                for item in group["annotators"]
-                for canonical_id in _flatten_values(item["canonical_ids"])
+                for annotation in annotations_by_id.values()
+                for canonical_id in _flatten_values(
+                    _normalize_scalar_id(annotation.canonical_id)
+                )
                 if canonical_id
             }
         )
@@ -772,60 +771,19 @@ def _pubtator3_progress(
     )
 
 
-def _finalize_mention(mention: dict[str, Any]) -> dict[str, Any]:
-    mention["annotators"] = sorted(
-        mention["annotators"],
-        key=lambda item: (
-            item["source"],
-            item["label"],
-            item["annotation_id"],
-        ),
-    )
+def _finalize_mention(
+    mention: dict[str, Any],
+    annotations_by_id: dict[str, Annotation],
+) -> dict[str, Any]:
+    mention["annotation_ids"] = sorted(mention["annotation_ids"])
     mention["annotator_count"] = len(
         {
-            item["source"]
-            for item in mention["annotators"]
+            annotation.source
+            for annotation_id in mention["annotation_ids"]
+            if (annotation := annotations_by_id.get(annotation_id)) is not None
         }
     )
     return mention
-
-
-def _summarize_keyword_annotators(
-    annotators: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    by_source: dict[str, dict[str, Any]] = {}
-    for item in annotators:
-        source = str(item["source"])
-        summary = by_source.setdefault(
-            source,
-            {
-                "source": source,
-                "annotation_count": 0,
-                "labels": [],
-                "canonical_ids": [],
-                "canonical_names": [],
-            },
-        )
-        summary["annotation_count"] += 1
-        if item.get("label") is not None:
-            summary["labels"].append(item["label"])
-        if item.get("canonical_id") is not None:
-            summary["canonical_ids"].append(item["canonical_id"])
-        if item.get("canonical_name") is not None:
-            summary["canonical_names"].append(item["canonical_name"])
-
-    for summary in by_source.values():
-        summary["labels"] = sorted(set(summary["labels"]))
-        summary["canonical_ids"] = sorted(
-            {
-                value
-                for value in _flatten_values(summary["canonical_ids"])
-                if value is not None
-            }
-        )
-        summary["canonical_names"] = sorted(set(summary["canonical_names"]))
-
-    return sorted(by_source.values(), key=lambda item: item["source"])
 
 
 def _documents_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -837,6 +795,29 @@ def _documents_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if document_id is not None:
             documents[str(document_id)] = document
     return documents
+
+
+def _annotations_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    annotations: dict[str, dict[str, Any]] = {}
+    for annotation in payload.get("annotations", []):
+        if not isinstance(annotation, dict):
+            continue
+        annotation_id = annotation.get("annotation_id")
+        if annotation_id is not None:
+            annotations[str(annotation_id)] = annotation
+    return annotations
+
+
+def _resolve_annotations(
+    annotations: dict[str, dict[str, Any]],
+    annotation_ids: object,
+) -> list[dict[str, Any]]:
+    resolved: list[dict[str, Any]] = []
+    for annotation_id in _flatten_values(annotation_ids):
+        annotation = annotations.get(str(annotation_id))
+        if annotation is not None:
+            resolved.append(annotation)
+    return resolved
 
 
 def _first_mention(keyword: dict[str, Any]) -> dict[str, Any]:
