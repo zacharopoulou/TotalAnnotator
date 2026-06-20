@@ -4,7 +4,6 @@ import ast
 import csv
 import json
 import logging
-import sys
 from datetime import datetime
 from importlib.util import find_spec
 from pathlib import Path
@@ -31,6 +30,7 @@ FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
 )
+logger = logging.getLogger(__name__)
 
 
 def run_pipeline_from_config(
@@ -110,7 +110,7 @@ def build_pipeline_output(
         try:
             flair_tagger = _load_flair_tagger(flair_options["model"] or "hunflair2")
         except Exception as exc:
-            print(f"flair unavailable: {exc}")
+            logger.warning("flair unavailable: %s", exc)
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
     keyword_output: list[dict[str, Any]] = []
@@ -514,7 +514,7 @@ def run_selected_annotators_with_status(
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
         except Exception as exc:
-            print(f"{annotator} unavailable: {exc}")
+            logger.warning("%s unavailable: %s", annotator, exc)
             results[annotator] = []
             statuses.append(
                 {
@@ -763,12 +763,13 @@ def _pubtator3_progress(
     max_attempts: int,
     sleep_seconds: float,
 ) -> None:
-    print(
+    logger.info(
         "pubtator3 pending: "
-        f"session={session_id} attempt={attempt}/{max_attempts}; "
-        f"sleeping {sleep_seconds:.1f}s",
-        file=sys.stderr,
-        flush=True,
+        "session=%s attempt=%s/%s; sleeping %.1fs",
+        session_id,
+        attempt,
+        max_attempts,
+        sleep_seconds,
     )
 
 

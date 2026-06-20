@@ -481,7 +481,7 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
     assert calls == ["hunflair2"]
 
 
-def test_run_selected_annotators_records_failures(monkeypatch) -> None:
+def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
     document = Document(
         document_id="doc1",
         title="PTEN regulates glioblastoma",
@@ -494,11 +494,12 @@ def test_run_selected_annotators_records_failures(monkeypatch) -> None:
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", broken_flair)
 
-    results, statuses = run_selected_annotators_with_status(
-        document,
-        ["flair"],
-        flair_options={"model": "hunflair2"},
-    )
+    with caplog.at_level("WARNING", logger="bio_annotation.pipeline_runner"):
+        results, statuses = run_selected_annotators_with_status(
+            document,
+            ["flair"],
+            flair_options={"model": "hunflair2"},
+        )
 
     assert results == {"flair": []}
     assert statuses == [
@@ -509,6 +510,7 @@ def test_run_selected_annotators_records_failures(monkeypatch) -> None:
             "reason": "hunflair2 is unavailable",
         }
     ]
+    assert "flair unavailable: hunflair2 is unavailable" in caplog.text
 
 
 def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:
