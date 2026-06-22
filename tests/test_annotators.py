@@ -542,6 +542,54 @@ def test_aioner_call_requires_configuration(monkeypatch) -> None:
         call_aioner(document)
 
 
+def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:
+    # The Windows runner must hand AIONER forward-slash paths (it splits the model
+    # path on "/") and decode the subprocess as UTF-8. Imported directly so the
+    # test runs on any OS.
+    from pathlib import Path
+
+    from bio_annotation.entity_proposal import aioner_windows
+
+    repo = tmp_path / "aioner"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "AIONER_Run.py").write_text("", encoding="utf-8")
+    (repo / "vocab").mkdir()
+    (repo / "vocab" / "AIO_label.vocab").write_text("", encoding="utf-8")
+    model = tmp_path / "models" / "AIONER.h5"
+    model.parent.mkdir()
+    model.write_text("", encoding="utf-8")
+
+    captured: dict = {}
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        out_dir = Path(command[command.index("-o") + 1])
+        (out_dir / "document.txt").write_text("doc\t0\t4\tPTEN\tGene\n", encoding="utf-8")
+        return FakeCompleted()
+
+    monkeypatch.setattr(aioner_windows.subprocess, "run", fake_run)
+
+    document = sample_document()
+    out = aioner_windows.call_aioner(
+        document, repo=str(repo), model=str(model), python="python"
+    )
+
+    cmd = captured["command"]
+    model_arg = cmd[cmd.index("-m") + 1]
+    assert "\\" not in model_arg
+    assert model_arg.endswith("/models/AIONER.h5")
+    assert "\\" not in cmd[cmd.index("-i") + 1]
+    assert "\\" not in cmd[cmd.index("-o") + 1]
+    assert captured["kwargs"].get("encoding") == "utf-8"
+    assert "PTEN" in out
+
+
 def test_run_all_annotators_returns_consistent_result_map() -> None:
     document = sample_document()
     results = run_all_annotators(
