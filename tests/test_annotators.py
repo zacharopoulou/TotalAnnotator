@@ -613,6 +613,16 @@ def test_cli_inspect_config_runs() -> None:
     assert output["annotator_settings"]["pubtator3"]["endpoint"] == "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 
 
+def test_cli_accepts_global_log_level_before_subcommand() -> None:
+    stream = StringIO()
+    with redirect_stdout(stream):
+        exit_code = main(["--log-level", "ERROR", "inspect-config"])
+
+    output = json.loads(stream.getvalue())
+    assert exit_code == 0
+    assert output["input_mode"] == "pmids"
+
+
 def test_cli_load_documents_runs(monkeypatch) -> None:
     monkeypatch.setattr(
         "bio_annotation.preprocessing.document_loader.fetch_pubmed_record",

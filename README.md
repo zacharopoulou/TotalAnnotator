@@ -262,6 +262,12 @@ The TSV files are generated from the same payload and use the same output stem a
 
 ## Developer Checks
 
+Show diagnostic logs while running a command:
+
+```bash
+uv run totalannotator --log-level INFO run-config
+```
+
 Run the test suite:
 
 ```bash
