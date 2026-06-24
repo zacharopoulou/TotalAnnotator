@@ -388,6 +388,17 @@ def _sanitize_annotator_value(name: str, field: str, value: object) -> object:
                 raise ValueError(f"annotators.{name}.{field} contains an unsupported value: {item!r}")
             cleaned_list.append(item)
         return cleaned_list
+    if isinstance(value, dict):
+        cleaned_dict: dict[str, object] = {}
+        for item_key, item_value in value.items():
+            if not isinstance(item_key, str) or not item_key.strip():
+                raise ValueError(f"annotators.{name}.{field} contains an invalid key.")
+            if not isinstance(item_value, (str, int, float, bool)):
+                raise ValueError(
+                    f"annotators.{name}.{field}.{item_key} contains an unsupported value: {item_value!r}"
+                )
+            cleaned_dict[item_key.strip()] = item_value
+        return cleaned_dict
     raise ValueError(f"annotators.{name}.{field} contains an unsupported value: {value!r}")
 
 
