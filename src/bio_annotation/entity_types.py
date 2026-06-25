@@ -144,6 +144,16 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
         )
         for label in MACCROBAT_LABELS
     ),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Chemical", "drug", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Simple chemical", "drug", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Disease", "disease", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cancer", "disease", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Gene or gene product", "gene", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Protein", "gene", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Organism", "species", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cell", "cell_line", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cell line", "cell_line", ()),
+    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cell type", "cell_line", ()),
 )
 
 
@@ -331,6 +341,24 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "medcat"
         },
         normalization_fields=("cui",),
+    ),
+    "stanza": AnnotatorCapability(
+        label="Stanza",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza"
+        },
+        normalization_fields=(),
     ),
 }
 

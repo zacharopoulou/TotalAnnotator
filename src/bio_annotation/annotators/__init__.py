@@ -12,6 +12,7 @@ from bio_annotation.annotators.d4data import annotate_with_d4data
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
+from bio_annotation.annotators.stanza import annotate_with_stanza
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -42,6 +43,7 @@ def run_all_annotators(
     medcat_response: Any = None,
     medcat_request_fn: Any = None,
     medcat_endpoint: str | None = None,
+    stanza_entities: Any = None,
 ) -> dict[str, list[Annotation]]:
     results = {
         "bern2": annotate_with_bern2(
@@ -126,12 +128,19 @@ def run_all_annotators(
             request_fn=medcat_request_fn,
             endpoint=medcat_endpoint,
         )
+    # Stanza loads/downloads local models, so only invoke it when entities are
+    # supplied directly (keeps callers that don't use it offline-friendly).
+    if stanza_entities is not None:
+        results["stanza"] = annotate_with_stanza(
+            document,
+            entities=stanza_entities,
+        )
     return results
 
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat", "stanza"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -144,6 +153,7 @@ __all__ = [
     "annotate_with_flair",
     "annotate_with_medcat",
     "annotate_with_pubtator3",
+    "annotate_with_stanza",
     "flatten_annotations",
     "run_all_annotators",
 ]
