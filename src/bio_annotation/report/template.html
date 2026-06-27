@@ -530,24 +530,30 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .entity-popup-info dt { color: var(--text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 0.1em; }
 .entity-popup-info dd { margin: 0; word-break: break-word; }
-.entity-popup-sources { display: flex; flex-direction: column; gap: 0.7em; }
-.entity-popup-source {
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 0.7em 0.9em;
-  background: var(--bg);
+.entity-popup-sources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4em 1.5em;
+  font-size: 0.92em;
+  align-items: start;
 }
-.entity-popup-source-name {
+.entity-popup-col-title {
+  font-size: 0.78em;
   font-weight: 600;
-  color: var(--accent);
-  font-size: 0.85em;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-bottom: 0.4em;
+  color: var(--text-muted);
+  margin-bottom: 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border-soft);
 }
-.entity-popup-source-hits { margin: 0; padding-left: 1.2em; font-size: 0.92em; color: var(--text); }
-.entity-popup-source-hits li { margin-bottom: 0.2em; }
-.entity-popup-empty { color: var(--text-muted); font-style: italic; }
+.entity-popup-source { margin-bottom: 0.6em; }
+.entity-popup-source:last-child { margin-bottom: 0; }
+.entity-popup-source-name { font-weight: 600; color: var(--accent); }
+.entity-popup-source-id { margin: 0.1em 0 0 0.2em; }
+.entity-popup-source-none { color: var(--text-muted); }
+.entity-popup-source-detail { color: var(--text-muted); font-size: 0.9em; }
+.entity-popup-empty { grid-column: 1 / -1; color: var(--text-muted); font-style: italic; }
 
 @media (max-width: 900px) {
   .summary { grid-template-columns: 1fr; }
@@ -600,6 +606,39 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     flair: "Flair / HunFlair",
   };
 
+  // Display IDs with a consistent prefix casing regardless of which annotator
+  // emitted them (e.g. mesh: and MESH: both render as MESH:).
+  const ID_PREFIX_CANONICAL = {
+    mesh: "MESH",
+    ncbigene: "NCBIGene", ncbi_gene: "NCBIGene", "ncbi-gene": "NCBIGene",
+    ncbitaxon: "NCBITaxon", ncbitaxonomy: "NCBITaxon", ncbi_taxonomy: "NCBITaxon",
+    taxonomy: "NCBITaxon", taxon: "NCBITaxon",
+    dbsnp: "dbSNP", chebi: "CHEBI", drugbank: "DrugBank",
+    cellosaurus: "CVCL", cvcl: "CVCL", omim: "OMIM", mim: "OMIM",
+    cl: "CL", go: "GO", doid: "DOID", uberon: "UBERON", bto: "BTO", fma: "FMA", pato: "PATO",
+  };
+  function formatId(canonicalId, entityType) {
+    if (!canonicalId) return canonicalId;
+    const s = String(canonicalId).trim();
+    const idx = s.indexOf(":");
+    if (idx === -1) {
+      // Bare numeric id: add the prefix the prefixed annotators use, so e.g.
+      // PubTator3 "9606" matches BERN2 "NCBITaxon:9606".
+      if (/^\d+$/.test(s)) {
+        if (entityType === "gene") return "NCBIGene:" + s;
+        if (entityType === "species") return "NCBITaxon:" + s;
+      }
+      return s;
+    }
+    const canon = ID_PREFIX_CANONICAL[s.slice(0, idx).toLowerCase()];
+    return canon ? canon + ":" + s.slice(idx + 1) : s;
+  }
+  // An annotator did NEN for this entity only if it returned a usable id.
+  const NULL_IDS = new Set(["", "-", "cui-less", "none", "null"]);
+  function isRealId(id) {
+    return id != null && !NULL_IDS.has(String(id).trim().toLowerCase());
+  }
+
   function databaseLink(canonicalId, entityType) {
     if (!canonicalId) return null;
     const id = String(canonicalId).trim();
@@ -650,43 +689,81 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     infoEl.appendChild(dd);
   }
 
-  function renderSourceRow(name, hits, entityType) {
-    const row = document.createElement("div");
-    row.className = "entity-popup-source";
-    const heading = document.createElement("div");
-    heading.className = "entity-popup-source-name";
-    heading.textContent = ANNOTATOR_LABELS[name] || name;
-    row.appendChild(heading);
-    const list = document.createElement("ul");
-    list.className = "entity-popup-source-hits";
+  function appendDetail(parent, hit) {
+    const detail = [];
+    if (typeof hit.confidence === "number") detail.push("conf " + hit.confidence.toFixed(3));
+    const mentions = typeof hit.mentions === "number" ? hit.mentions : 1;
+    if (mentions > 1) detail.push(mentions + " mentions");
+    if (detail.length === 0) return;
+    const small = document.createElement("span");
+    small.className = "entity-popup-source-detail";
+    small.textContent = " (" + detail.join(", ") + ")";
+    parent.appendChild(small);
+  }
+
+  // An annotator counts as NEN for this entity if any of its hits has a real id.
+  function annotatorIsNen(hits) {
+    return hits.some((h) => isRealId(h.canonical_id));
+  }
+
+  // Left ("NEN") column: annotator name plus each normalized id/name.
+  function renderNenEntry(name, hits, entityType) {
+    const div = document.createElement("div");
+    div.className = "entity-popup-source";
+    const nm = document.createElement("div");
+    nm.className = "entity-popup-source-name";
+    nm.textContent = ANNOTATOR_LABELS[name] || name;
+    div.appendChild(nm);
     for (const hit of hits) {
-      const li = document.createElement("li");
-      if (hit.canonical_id) {
-        const link = databaseLink(hit.canonical_id, entityType);
-        li.appendChild(document.createTextNode("ID: "));
-        if (link) {
-          const a = document.createElement("a");
-          a.href = link.url; a.target = "_blank"; a.rel = "noopener";
-          a.textContent = hit.canonical_id;
-          li.appendChild(a);
-        } else {
-          li.appendChild(document.createTextNode(hit.canonical_id));
-        }
+      if (!isRealId(hit.canonical_id)) continue;
+      const line = document.createElement("div");
+      line.className = "entity-popup-source-id";
+      const link = databaseLink(hit.canonical_id, entityType);
+      if (link) {
+        const a = document.createElement("a");
+        a.href = link.url; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = formatId(hit.canonical_id, entityType);
+        line.appendChild(a);
+      } else {
+        line.appendChild(document.createTextNode(formatId(hit.canonical_id, entityType)));
       }
-      const tail = [];
-      if (hit.canonical_name) tail.push(`name: ${hit.canonical_name}`);
-      if (typeof hit.confidence === "number") tail.push(`confidence: ${hit.confidence.toFixed(3)}`);
-      const mentions = typeof hit.mentions === "number" ? hit.mentions : 1;
-      if (mentions > 1) tail.push(`${mentions} mentions`);
-      if (!hit.canonical_id && tail.length === 0) tail.push("tagged, no canonical id");
-      if (tail.length > 0) {
-        const prefix = hit.canonical_id ? " · " : "";
-        li.appendChild(document.createTextNode(prefix + tail.join(" · ")));
+      if (hit.canonical_name && hit.canonical_name !== hit.canonical_id) {
+        line.appendChild(document.createTextNode(" · " + hit.canonical_name));
       }
-      list.appendChild(li);
+      appendDetail(line, hit);
+      div.appendChild(line);
     }
-    row.appendChild(list);
-    return row;
+    return div;
+  }
+
+  // Right ("NER only") column: annotator name and detail, no id.
+  function renderNerEntry(name, hits) {
+    const div = document.createElement("div");
+    div.className = "entity-popup-source";
+    const nm = document.createElement("span");
+    nm.className = "entity-popup-source-name";
+    nm.textContent = ANNOTATOR_LABELS[name] || name;
+    div.appendChild(nm);
+    if (hits.length > 0) appendDetail(div, hits[0]);
+    return div;
+  }
+
+  function renderColumn(title, names, renderEntry) {
+    const col = document.createElement("div");
+    col.className = "entity-popup-col";
+    const heading = document.createElement("div");
+    heading.className = "entity-popup-col-title";
+    heading.textContent = title;
+    col.appendChild(heading);
+    if (names.length === 0) {
+      const none = document.createElement("div");
+      none.className = "entity-popup-source-none";
+      none.textContent = "-";
+      col.appendChild(none);
+    } else {
+      for (const n of names) col.appendChild(renderEntry(n));
+    }
+    return col;
   }
 
   function openPopup(mark) {
@@ -699,7 +776,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     appendInfo("Keyword", data.keyword);
     appendInfo("Canonical name", data.canonical_name);
     const idLink = databaseLink(data.canonical_id, data.entity_type);
-    appendInfo("Canonical id", data.canonical_id, idLink ? idLink.url : null);
+    appendInfo("Canonical id", formatId(data.canonical_id, data.entity_type), idLink ? idLink.url : null);
 
     const sources = data.by_source || {};
     // Shows annotators in this order: PubTator3, then BERN2, then Flair.
@@ -712,9 +789,13 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
       note.textContent = "No annotator details available.";
       sourcesEl.appendChild(note);
     } else {
-      for (const name of names) {
-        sourcesEl.appendChild(renderSourceRow(name, sources[name], data.entity_type));
-      }
+      // Split by whether each annotator normalized THIS entity (NEN) or only
+      // tagged it (NER only). The same annotator (e.g. BERN2) can fall in either
+      // column depending on the entity.
+      const nenNames = names.filter((n) => annotatorIsNen(sources[n]));
+      const nerNames = names.filter((n) => !annotatorIsNen(sources[n]));
+      sourcesEl.appendChild(renderColumn("NEN", nenNames, (n) => renderNenEntry(n, sources[n], data.entity_type)));
+      sourcesEl.appendChild(renderColumn("NER only", nerNames, (n) => renderNerEntry(n, sources[n])));
     }
     popup.classList.remove("hidden");
     popup.setAttribute("aria-hidden", "false");
