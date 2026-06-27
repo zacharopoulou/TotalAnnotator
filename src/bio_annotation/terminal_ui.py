@@ -27,7 +27,6 @@ from bio_annotation.pipeline_runner import (
     run_pipeline_from_config,
     write_pipeline_tsv_outputs,
 )
-from bio_annotation.report import write_html_report
 from bio_annotation.terminal_text_input import (
     GENERATED_TEXT_DOCUMENT_ID,
     is_text_table_file,
@@ -100,7 +99,9 @@ def run_terminal_annotation_ui(
     pipeline_results_path = (
         Path(output_info["path"]) if output_info and output_info.get("path") else paths.results_path
     )
-    report_path = write_html_report(payload, pipeline_results_path.with_suffix(".html"))
+    # The report is written by the shared writer (write_pipeline_output); here we
+    # only resolve its path to display it.
+    report_path = pipeline_results_path.with_suffix(".html")
     output_fn("")
     output_fn("Run complete")
     output_fn(f"Documents: {payload.get('document_count', 0)}")
