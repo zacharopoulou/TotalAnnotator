@@ -12,6 +12,7 @@ from typing import Any, Callable
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
@@ -25,7 +26,7 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner"}
+SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "medcat"}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
@@ -42,6 +43,7 @@ def run_pipeline_from_config(
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
@@ -74,6 +76,7 @@ def run_pipeline_from_config(
         pubtator3_request_fn=pubtator3_request_fn,
         flair_spans_by_document=flair_spans_by_document,
         aioner_request_fn=aioner_request_fn,
+        medcat_request_fn=medcat_request_fn,
     )
     if config.output_path is not None:
         actual_output_path = timestamped_output_path(config.output_path)
@@ -94,6 +97,7 @@ def build_pipeline_output(
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
 ) -> dict[str, Any]:
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
@@ -104,6 +108,7 @@ def build_pipeline_output(
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
     flair_options = _read_flair_options(annotator_settings.get("flair", {}))
     aioner_options = _read_aioner_options(annotator_settings.get("aioner", {}))
+    medcat_options = _read_medcat_options(annotator_settings.get("medcat", {}))
 
     flair_tagger = None
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -130,9 +135,11 @@ def build_pipeline_output(
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
             aioner_request_fn=aioner_request_fn,
+            medcat_request_fn=medcat_request_fn,
             bern2_options=bern2_options,
             pubtator3_options=pubtator3_options,
             aioner_options=aioner_options,
+            medcat_options=medcat_options,
             flair_spans=(
                 flair_spans_by_document.get(document.document_id)
                 if flair_spans_by_document is not None
@@ -394,9 +401,11 @@ def run_selected_annotators(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
     aioner_options: dict[str, Any] | None = None,
+    medcat_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
@@ -407,9 +416,11 @@ def run_selected_annotators(
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
         aioner_request_fn=aioner_request_fn,
+        medcat_request_fn=medcat_request_fn,
         bern2_options=bern2_options,
         pubtator3_options=pubtator3_options,
         aioner_options=aioner_options,
+        medcat_options=medcat_options,
         flair_spans=flair_spans,
         flair_tagger=flair_tagger,
         flair_options=flair_options,
@@ -424,9 +435,11 @@ def run_selected_annotators_with_status(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
     aioner_options: dict[str, Any] | None = None,
+    medcat_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
@@ -515,6 +528,13 @@ def run_selected_annotators_with_status(
                     if aioner_options
                     else 600,
                 )
+            elif annotator == "medcat":
+                results[annotator] = annotate_with_medcat(
+                    document,
+                    request_fn=medcat_request_fn,
+                    endpoint=medcat_options.get("endpoint") if medcat_options else None,
+                    min_acc=medcat_options.get("min_acc") if medcat_options else None,
+                )
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
         except Exception as exc:
@@ -551,7 +571,7 @@ def run_selected_annotators_with_status(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "medcat"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -753,6 +773,12 @@ def _no_annotations_reason(annotator: str) -> str:
             "(tools/aioner/setup.sh) and annotators.aioner.repo/model are set, "
             "or it found no entities."
         )
+    if annotator == "medcat":
+        return (
+            "No annotations returned. Verify the MedCAT service is reachable "
+            "(set annotators.medcat.endpoint or MEDCAT_API_URL) and returned "
+            "entities for this document."
+        )
     return "No annotations returned."
 
 
@@ -931,6 +957,27 @@ def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
 
     return {
         "endpoint": cleaned_endpoint,
+    }
+
+
+def _read_medcat_options(settings: dict[str, object]) -> dict[str, Any]:
+    endpoint = settings.get("endpoint")
+    base_url = settings.get("base_url")
+
+    cleaned_endpoint = None
+    if isinstance(endpoint, str) and endpoint.strip():
+        cleaned_endpoint = endpoint.strip()
+    elif isinstance(base_url, str) and base_url.strip():
+        cleaned_endpoint = base_url.strip()
+
+    min_acc_raw = settings.get("min_acc")
+    min_acc = None
+    if isinstance(min_acc_raw, (int, float)) and float(min_acc_raw) > 0.0:
+        min_acc = float(min_acc_raw)
+
+    return {
+        "endpoint": cleaned_endpoint,
+        "min_acc": min_acc,
     }
 
 
