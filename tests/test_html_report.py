@@ -100,6 +100,21 @@ def test_render_highlighted_text_picks_pubtator_over_bern2_for_overlap() -> None
     assert payload["primary_source"] == "pubtator3"
 
 
+def test_format_canonical_id_normalizes_prefix_and_bare_numbers() -> None:
+    from bio_annotation.report.html_report import _format_canonical_id
+
+    # Prefix casing is unified regardless of the annotator's raw output.
+    assert _format_canonical_id("mesh:D009369") == "MESH:D009369"
+    assert _format_canonical_id("MESH:D007249") == "MESH:D007249"
+    assert _format_canonical_id("ncbigene:10397") == "NCBIGene:10397"
+    # Bare numbers gain the prefix the prefixed annotators use.
+    assert _format_canonical_id("9606", "species") == "NCBITaxon:9606"
+    assert _format_canonical_id("5728", "gene") == "NCBIGene:5728"
+    # Unknown prefixes and empty ids pass through unchanged.
+    assert _format_canonical_id("CVCL:0139") == "CVCL:0139"
+    assert _format_canonical_id("", "gene") == ""
+
+
 def test_render_highlighted_text_handles_nan_confidence() -> None:
     # BERN2 can return a NaN confidence; the popup's data-entity must stay valid
     # JSON (NaN -> null) or the browser's JSON.parse throws and no popup opens.

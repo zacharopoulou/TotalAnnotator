@@ -100,6 +100,38 @@ def _database_link(canonical_id: str | None, entity_type: str | None) -> str | N
     return None
 
 
+_ID_PREFIX_CANONICAL: dict[str, str] = {
+    "mesh": "MESH",
+    "ncbigene": "NCBIGene", "ncbi_gene": "NCBIGene", "ncbi-gene": "NCBIGene",
+    "ncbitaxon": "NCBITaxon", "ncbitaxonomy": "NCBITaxon", "ncbi_taxonomy": "NCBITaxon",
+    "taxonomy": "NCBITaxon", "taxon": "NCBITaxon",
+    "dbsnp": "dbSNP", "chebi": "CHEBI", "drugbank": "DrugBank",
+    "cellosaurus": "CVCL", "cvcl": "CVCL", "omim": "OMIM", "mim": "OMIM",
+    "cl": "CL", "go": "GO", "doid": "DOID", "uberon": "UBERON", "bto": "BTO", "fma": "FMA", "pato": "PATO",
+}
+
+
+def _format_canonical_id(canonical_id: Any, entity_type: str | None = None) -> str:
+    """Render an id with one consistent prefix casing (mirror of the JS formatId).
+
+    Only the prefix casing changes; the id value is untouched, and a bare
+    gene/species number gains the prefix the prefixed annotators use.
+    """
+    if not canonical_id:
+        return ""
+    raw = str(canonical_id).strip()
+    if ":" not in raw:
+        if raw.isdigit():
+            if entity_type == "gene":
+                return f"NCBIGene:{raw}"
+            if entity_type == "species":
+                return f"NCBITaxon:{raw}"
+        return raw
+    prefix, rest = raw.split(":", 1)
+    canon = _ID_PREFIX_CANONICAL.get(prefix.lower())
+    return f"{canon}:{rest}" if canon else raw
+
+
 def write_html_report(payload: dict[str, Any], output_path: Path) -> Path:
     """Generates a standalone HTML report next to the run's other outputs.
 
@@ -497,7 +529,7 @@ def _render_hits_cell(hits: list[dict[str, Any]]) -> str:
         line = f'<div class="entity-type">{escape(str(label))}</div>'
         if canonical_id:
             link = _database_link(canonical_id, entity_type)
-            code = f'<code>{escape(str(canonical_id))}</code>'
+            code = f'<code>{escape(_format_canonical_id(canonical_id, entity_type))}</code>'
             if link:
                 code = f'<a href="{escape(link, quote=True)}" target="_blank" rel="noopener">{code}</a>'
             line += f"<div>{code}</div>"
