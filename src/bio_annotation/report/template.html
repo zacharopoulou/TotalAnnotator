@@ -210,12 +210,15 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-weight: 700;
   flex: 1;
 }
-.stats-group-disease .stats-type   { color: #8c3a3a; }
-.stats-group-drug .stats-type      { color: #846213; }
-.stats-group-gene .stats-type      { color: #3a5b32; }
-.stats-group-species .stats-type   { color: #34557a; }
-.stats-group-variant .stats-type   { color: #7e3a55; }
-.stats-group-cell_line .stats-type { color: #4a3a73; }
+.stats-group-disease .stats-type   { color: #b35a5a; }
+.stats-group-drug .stats-type      { color: #9c7321; }
+.stats-group-gene .stats-type      { color: #5f8a52; }
+.stats-group-species .stats-type   { color: #4f7aac; }
+.stats-group-variant .stats-type   { color: #9c5172; }
+.stats-group-cell_line .stats-type { color: #6a5aa0; }
+.stats-group-dna .stats-type       { color: #2f8f80; }
+.stats-group-rna .stats-type       { color: #9c842a; }
+.stats-group-cell_type .stats-type { color: #876b4a; }
 .stats-type-total {
   font-size: 0.78em;
   color: var(--text-soft);
@@ -235,10 +238,14 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   padding: 0.22em 0;
 }
 .stats-keyword {
+  justify-self: start;
+  max-width: 100%;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 0.05em 0.4em;
+  border-radius: 3px;
 }
 .stats-bar-track {
   height: 5px;
@@ -254,15 +261,25 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   border-radius: 3px;
   transition: width 200ms;
 }
-.stats-group-disease .stats-bar-fill   { background: #c96b6b; }
-.stats-group-drug .stats-bar-fill      { background: #d99a3e; }
-.stats-group-gene .stats-bar-fill      { background: #5fa052; }
-.stats-group-species .stats-bar-fill   { background: #5a86c4; }
-.stats-group-variant .stats-bar-fill   { background: #b25fb2; }
-.stats-group-cell_line .stats-bar-fill { background: #7d5fc4; }
-.stats-group-dna .stats-bar-fill       { background: #2fa899; }
-.stats-group-rna .stats-bar-fill       { background: #c9b03e; }
-.stats-group-cell_type .stats-bar-fill { background: #9c7a52; }
+.stats-group-disease .stats-bar-fill   { background: #eaa9a8; }
+.stats-group-drug .stats-bar-fill      { background: #f2c47c; }
+.stats-group-gene .stats-bar-fill      { background: #a6d49b; }
+.stats-group-species .stats-bar-fill   { background: #9fbeea; }
+.stats-group-variant .stats-bar-fill   { background: #d9a7d9; }
+.stats-group-cell_line .stats-bar-fill { background: #b7a3e5; }
+.stats-group-dna .stats-bar-fill       { background: #8ad6c4; }
+.stats-group-rna .stats-bar-fill       { background: #e2d06a; }
+.stats-group-cell_type .stats-bar-fill { background: #ccb89c; }
+/* Each bioconcept carries the same highlight color it has in the text. */
+.stats-group-gene      .stats-keyword { background: #cfe8c9; color: #235c27; }
+.stats-group-disease   .stats-keyword { background: #f6cccb; color: #7a2a2a; }
+.stats-group-drug      .stats-keyword { background: #fbddae; color: #6b4310; }
+.stats-group-species   .stats-keyword { background: #c6d9f6; color: #1f4a82; }
+.stats-group-variant   .stats-keyword { background: #ecc8ec; color: #6a2f7a; }
+.stats-group-cell_line .stats-keyword { background: #d3c4f0; color: #45308f; }
+.stats-group-dna       .stats-keyword { background: #b6e6da; color: #0f5d51; }
+.stats-group-rna       .stats-keyword { background: #f1e59f; color: #6b5810; }
+.stats-group-cell_type .stats-keyword { background: #e0d3c2; color: #5e4630; }
 .stats-count {
   color: var(--text-soft);
   font-variant-numeric: tabular-nums;
@@ -297,12 +314,15 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-weight: 700;
   color: var(--text-muted);
 }
-.hist-row-disease .hist-label   { color: #8c3a3a; }
-.hist-row-drug .hist-label      { color: #846213; }
-.hist-row-gene .hist-label      { color: #3a5b32; }
-.hist-row-species .hist-label   { color: #34557a; }
-.hist-row-variant .hist-label   { color: #7e3a55; }
-.hist-row-cell_line .hist-label { color: #4a3a73; }
+.hist-row-disease .hist-label   { color: #b35a5a; }
+.hist-row-drug .hist-label      { color: #9c7321; }
+.hist-row-gene .hist-label      { color: #5f8a52; }
+.hist-row-species .hist-label   { color: #4f7aac; }
+.hist-row-variant .hist-label   { color: #9c5172; }
+.hist-row-cell_line .hist-label { color: #6a5aa0; }
+.hist-row-dna .hist-label       { color: #2f8f80; }
+.hist-row-rna .hist-label       { color: #9c842a; }
+.hist-row-cell_type .hist-label { color: #876b4a; }
 .hist-track {
   height: 10px;
   background: var(--border-soft);
@@ -316,15 +336,15 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--accent-soft);
   transition: width 250ms ease-out;
 }
-.hist-row-disease .hist-fill   { background: #c96b6b; }
-.hist-row-drug .hist-fill      { background: #d99a3e; }
-.hist-row-gene .hist-fill      { background: #5fa052; }
-.hist-row-species .hist-fill   { background: #5a86c4; }
-.hist-row-variant .hist-fill   { background: #b25fb2; }
-.hist-row-cell_line .hist-fill { background: #7d5fc4; }
-.hist-row-dna .hist-fill       { background: #2fa899; }
-.hist-row-rna .hist-fill       { background: #c9b03e; }
-.hist-row-cell_type .hist-fill { background: #9c7a52; }
+.hist-row-disease .hist-fill   { background: #eaa9a8; }
+.hist-row-drug .hist-fill      { background: #f2c47c; }
+.hist-row-gene .hist-fill      { background: #a6d49b; }
+.hist-row-species .hist-fill   { background: #9fbeea; }
+.hist-row-variant .hist-fill   { background: #d9a7d9; }
+.hist-row-cell_line .hist-fill { background: #b7a3e5; }
+.hist-row-dna .hist-fill       { background: #8ad6c4; }
+.hist-row-rna .hist-fill       { background: #e2d06a; }
+.hist-row-cell_type .hist-fill { background: #ccb89c; }
 .hist-count {
   font-variant-numeric: tabular-nums;
   color: var(--text);
