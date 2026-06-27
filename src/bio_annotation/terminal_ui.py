@@ -91,6 +91,15 @@ def run_terminal_annotation_ui(
                 "Run tools/aioner/setup.sh first, or set AIONER_REPO / AIONER_MODEL; "
                 "otherwise the AIONER step will be skipped this run."
             )
+    if "medcat" in answers.annotators:
+        medcat_endpoint = medcat_config_endpoint()
+        if not _medcat_service_reachable(medcat_endpoint):
+            output_fn(
+                f"Warning: no MedCAT service reachable at {medcat_endpoint}. "
+                "Start CogStack MedCATservice (see the MedCAT section in README) "
+                "or set MEDCAT_API_URL; otherwise the MedCAT step will return no "
+                "annotations this run."
+            )
     output_fn("")
     output_fn("Running annotation...")
     payload = pipeline_run_fn(paths.config_path)
@@ -192,6 +201,20 @@ def aioner_config_paths() -> tuple[str, str]:
 
 def medcat_config_endpoint() -> str:
     return os.environ.get("MEDCAT_API_URL") or DEFAULT_MEDCAT_API_URL
+
+
+def _medcat_service_reachable(endpoint: str, *, timeout: float = 3.0) -> bool:
+    """Best-effort check that a MedCATservice answers at the endpoint's /api/info."""
+    from urllib import request as urlrequest
+
+    base = endpoint.rstrip("/")
+    if base.endswith("/api/process"):
+        base = base[: -len("/api/process")]
+    try:
+        with urlrequest.urlopen(base + "/api/info", timeout=timeout):
+            return True
+    except Exception:
+        return False
 
 
 def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -> str:
