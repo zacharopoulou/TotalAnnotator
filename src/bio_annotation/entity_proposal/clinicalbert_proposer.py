@@ -10,6 +10,27 @@ from bio_annotation.schemas.entity import Annotation
 # i2b2-2010 clinical NER (problem / test / treatment), fine-tuned from BERT.
 DEFAULT_CLINICALBERT_MODEL = "samrawal/bert-base-uncased_clinical-ner"
 
+CLINICALBERT_INSTALL_HINT = (
+    "The ClinicalBERT annotator requires the optional Hugging Face dependencies. "
+    "Install them with: uv sync --extra clinicalbert"
+)
+
+# The model can emit spans with leading/trailing punctuation; trim those boundary
+# characters off the edges while keeping offsets correct. Hyphen and slash are
+# excluded since they occur inside clinical terms (e.g. "mg/dL", "5-HT").
+_BOUNDARY_CHARS = " \t\n\r\f\v.,;:!?()[]{}\"'"
+
+
+def _trim_boundary(
+    text: str, start: int | None, end: int | None
+) -> tuple[str, int | None, int | None]:
+    inner = text.strip(_BOUNDARY_CHARS)
+    if not inner or not isinstance(start, int) or not isinstance(end, int):
+        return inner, start, end
+    lead = len(text) - len(text.lstrip(_BOUNDARY_CHARS))
+    new_start = start + lead
+    return inner, new_start, new_start + len(inner)
+
 
 def parse_clinicalbert_response(
     document: Document,
@@ -39,6 +60,9 @@ def parse_clinicalbert_response(
             start = end = None
         if not span_text:
             continue
+        span_text, start, end = _trim_boundary(span_text, start, end)
+        if not span_text:
+            continue
 
         annotations.append(
             make_annotation(
@@ -57,7 +81,10 @@ def parse_clinicalbert_response(
 
 @lru_cache(maxsize=2)
 def _load_clinicalbert_pipeline(model: str) -> Any:
-    from transformers import pipeline
+    try:
+        from transformers import pipeline
+    except ImportError as exc:
+        raise RuntimeError(CLINICALBERT_INSTALL_HINT) from exc
 
     # "first" groups sub-word tokens into whole words and keeps the first
     # sub-word's label, which is what this B-/I- tagging model needs.

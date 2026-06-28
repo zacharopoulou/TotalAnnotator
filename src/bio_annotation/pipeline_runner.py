@@ -12,7 +12,9 @@ from typing import Any, Callable
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.clinicalbert import (
+    CLINICALBERT_INSTALL_HINT,
     DEFAULT_CLINICALBERT_MODEL,
+    _load_clinicalbert_pipeline,
     annotate_with_clinicalbert,
 )
 from bio_annotation.annotators.flair import annotate_with_flair
@@ -33,10 +35,6 @@ SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "clinicalbert"}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
-)
-CLINICALBERT_INSTALL_HINT = (
-    "The ClinicalBERT annotator requires the optional Hugging Face dependencies. "
-    "Install them with: uv sync --extra clinicalbert"
 )
 logger = logging.getLogger(__name__)
 
@@ -968,7 +966,7 @@ def validate_optional_annotator_dependencies(
     if (
         "clinicalbert" in config.annotators
         and clinicalbert_responses_by_document is None
-        and find_spec("transformers") is None
+        and (find_spec("transformers") is None or find_spec("torch") is None)
     ):
         raise ValueError(CLINICALBERT_INSTALL_HINT)
 
@@ -1034,21 +1032,6 @@ def _read_clinicalbert_options(settings: dict[str, object]) -> dict[str, Any]:
         if isinstance(model, str) and model.strip()
         else DEFAULT_CLINICALBERT_MODEL,
     }
-
-
-def _load_clinicalbert_pipeline(model: str) -> Any:
-    try:
-        from transformers import pipeline
-    except ImportError as exc:
-        raise RuntimeError(CLINICALBERT_INSTALL_HINT) from exc
-
-    # "first" groups sub-word tokens into whole words (see clinicalbert_proposer).
-    return pipeline(
-        "ner",
-        model=model,
-        tokenizer=model,
-        aggregation_strategy="first",
-    )
 
 
 def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
