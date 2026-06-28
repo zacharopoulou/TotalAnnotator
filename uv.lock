@@ -2464,11 +2464,17 @@ all = [
     { name = "flair" },
     { name = "pandas" },
     { name = "tabulate" },
+    { name = "torch" },
+    { name = "transformers" },
 ]
 benchmarks = [
     { name = "datasets" },
     { name = "pandas" },
     { name = "tabulate" },
+]
+clinicalbert = [
+    { name = "torch" },
+    { name = "transformers" },
 ]
 flair = [
     { name = "flair" },
@@ -2486,9 +2492,11 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
     { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
-    { name = "totalannotator", extras = ["flair", "benchmarks"], marker = "extra == 'all'" },
+    { name = "torch", marker = "extra == 'clinicalbert'", specifier = ">=2.0" },
+    { name = "totalannotator", extras = ["flair", "clinicalbert", "benchmarks"], marker = "extra == 'all'" },
+    { name = "transformers", marker = "extra == 'clinicalbert'", specifier = ">=4.30,<5" },
 ]
-provides-extras = ["flair", "benchmarks", "all"]
+provides-extras = ["flair", "clinicalbert", "benchmarks", "all"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]

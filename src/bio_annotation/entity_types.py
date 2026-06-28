@@ -56,6 +56,13 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # ClinicalBERT (i2b2) emits problem / test / treatment. These are clinical
+    # categories with no exact match in the canonical biomedical set (problem is
+    # broader than disease, treatment broader than drug), so they are kept as their
+    # own types rather than forced into disease/drug.
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "problem", "problem", ()),
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "test", "test", ()),
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "treatment", "treatment", ()),
 )
 
 
@@ -146,6 +153,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "aioner"
+        },
+        normalization_fields=(),
+    ),
+    "clinicalbert": AnnotatorCapability(
+        label="ClinicalBERT",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
         },
         normalization_fields=(),
     ),

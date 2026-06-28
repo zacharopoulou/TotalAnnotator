@@ -15,6 +15,10 @@ from bio_annotation.annotators.aioner import (
     build_aioner_pubtator_input,
     call_aioner,
 )
+from bio_annotation.annotators.clinicalbert import (
+    DEFAULT_CLINICALBERT_MODEL,
+    annotate_with_clinicalbert,
+)
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
@@ -540,6 +544,74 @@ def test_aioner_call_requires_configuration(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="AIONER repo path is not configured"):
         call_aioner(document)
+
+
+def test_clinicalbert_adapter_parses_pipeline_output_and_normalizes_types() -> None:
+    document = sample_document()
+    # HuggingFace token-classification output. The clinical labels problem / test
+    # / treatment are kept as their own types. Span text is sliced from
+    # document.text, so the model's "word" field is ignored.
+    response = [
+        {"entity_group": "problem", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
+        {"entity_group": "treatment", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
+        {"entity_group": "test", "score": 0.80, "word": "x", "start": 49, "end": 59},
+    ]
+
+    annotations = annotate_with_clinicalbert(document, response=response)
+
+    assert len(annotations) == 3
+    assert all(annotation.source == "clinicalbert" for annotation in annotations)
+    assert annotations[0].entity_type == "problem"
+    assert annotations[0].span_text == "glioblastoma"
+    assert annotations[0].start == 15
+    assert annotations[0].end == 27
+    assert annotations[1].entity_type == "treatment"
+    assert annotations[2].entity_type == "test"
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
+def test_clinicalbert_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> list[dict[str, object]]:
+        calls.append(doc)
+        return [
+            {"entity_group": "problem", "score": 0.9, "word": "glioblastoma", "start": 15, "end": 27}
+        ]
+
+    annotations = annotate_with_clinicalbert(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "problem"
+
+
+def test_clinicalbert_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakePipeline:
+        def __call__(self, text: str) -> list[dict[str, object]]:
+            assert text == document.text
+            return [
+                {"entity_group": "treatment", "score": 0.88, "word": "PTEN", "start": 0, "end": 4}
+            ]
+
+    def fake_loader(model: str) -> FakePipeline:
+        loaded_models.append(model)
+        return FakePipeline()
+
+    annotations = annotate_with_clinicalbert(
+        document,
+        model=DEFAULT_CLINICALBERT_MODEL,
+        pipeline_loader=fake_loader,
+    )
+
+    assert loaded_models == [DEFAULT_CLINICALBERT_MODEL]
+    assert len(annotations) == 1
+    assert annotations[0].source == "clinicalbert"
+    assert annotations[0].entity_type == "treatment"
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
