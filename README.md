@@ -1,6 +1,6 @@
 # TotalAnnotator
 
-TotalAnnotator is a terminal-first biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
+TotalAnnotator is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
 
 The main workflow is:
 

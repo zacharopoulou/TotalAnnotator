@@ -172,7 +172,7 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
     annotators = _prompt_multi_choice(
         input_fn=input_fn,
         output_fn=output_fn,
-        title="Choose annotators",
+        title="Choose annotators, or press Enter for default annotators",
         choices=ANNOTATOR_CHOICES,
         default_values=[value for value, _ in ANNOTATOR_CHOICES if value != "aioner"],
         validate_values=_validate_selected_annotators,
