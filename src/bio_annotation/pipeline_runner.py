@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
-from bio_annotation.annotators.apollo import DEFAULT_APOLLO_MODEL, annotate_with_apollo
+from bio_annotation.annotators.apollo import (
+    APOLLO_INSTALL_HINT,
+    DEFAULT_APOLLO_MODEL,
+    _load_apollo_pipeline,
+    annotate_with_apollo,
+)
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
@@ -31,10 +36,6 @@ SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "apollo"}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
-)
-APOLLO_INSTALL_HINT = (
-    "The apollo annotator requires the optional Hugging Face dependencies. "
-    "Install them with: uv sync --extra apollo"
 )
 
 
@@ -977,7 +978,7 @@ def validate_optional_annotator_dependencies(
     if (
         "apollo" in config.annotators
         and apollo_responses_by_document is None
-        and find_spec("transformers") is None
+        and (find_spec("transformers") is None or find_spec("torch") is None)
     ):
         raise ValueError(APOLLO_INSTALL_HINT)
     if "flair" not in config.annotators:
@@ -1049,20 +1050,6 @@ def _read_apollo_options(settings: dict[str, object]) -> dict[str, Any]:
         if isinstance(model, str) and model.strip()
         else DEFAULT_APOLLO_MODEL,
     }
-
-
-def _load_apollo_pipeline(model: str) -> Any:
-    try:
-        from transformers import pipeline
-    except ImportError as exc:
-        raise RuntimeError(APOLLO_INSTALL_HINT) from exc
-
-    return pipeline(
-        "ner",
-        model=model,
-        tokenizer=model,
-        aggregation_strategy="first",
-    )
 
 
 def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:

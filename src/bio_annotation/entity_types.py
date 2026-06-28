@@ -27,14 +27,15 @@ class AnnotatorCapability:
     normalization_fields: tuple[str, ...]
 
 
-# Clinical-AI-Apollo/Medical-NER (DeBERTa-v3, MACCROBAT) emits 41 entity labels.
-# DISEASE_DISORDER and MEDICATION map to this pipeline's canonical types; the rest
-# are declared as-is
-_APOLLO_CANONICAL_OVERRIDES: dict[str, str] = {
+# MACCROBAT clinical label set (41 labels), shared so any clinical NER annotator
+# trained on MACCROBAT (Clinical-AI-Apollo/Medical-NER, d4data/biomedical-ner-all,
+# ...) can reuse it without duplicating. DISEASE_DISORDER and MEDICATION map to
+# this pipeline's canonical types; the rest are declared as their own clinical types.
+MACCROBAT_CANONICAL_OVERRIDES: dict[str, str] = {
     "DISEASE_DISORDER": "disease",
     "MEDICATION": "drug",
 }
-_APOLLO_LABELS: tuple[str, ...] = (
+MACCROBAT_LABELS: tuple[str, ...] = (
     "DISEASE_DISORDER",
     "MEDICATION",
     "ACTIVITY",
@@ -108,18 +109,18 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
-    # Clinical-AI-Apollo/Medical-NER entity types are generated from _APOLLO_LABELS
-    # above: DISEASE_DISORDER/MEDICATION map to canonical disease/drug, every other
-    # clinical label becomes its own first-class type.
+    # Clinical-AI-Apollo/Medical-NER entity types are generated from the shared
+    # MACCROBAT_LABELS: DISEASE_DISORDER/MEDICATION map to canonical disease/drug,
+    # every other clinical label becomes its own first-class type.
     *(
         AnnotatorEntityTypeSpec(
             "apollo",
             "Clinical-AI-Apollo Medical-NER",
             label.replace("_", " "),
-            _APOLLO_CANONICAL_OVERRIDES.get(label, label.lower()),
+            MACCROBAT_CANONICAL_OVERRIDES.get(label, label.lower()),
             (),
         )
-        for label in _APOLLO_LABELS
+        for label in MACCROBAT_LABELS
     ),
 )
 

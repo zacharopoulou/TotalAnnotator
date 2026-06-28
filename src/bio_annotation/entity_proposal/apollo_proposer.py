@@ -9,6 +9,28 @@ from bio_annotation.schemas.entity import Annotation
 
 DEFAULT_APOLLO_MODEL = "Clinical-AI-Apollo/Medical-NER"
 
+APOLLO_INSTALL_HINT = (
+    "The apollo annotator requires the optional Hugging Face dependencies. "
+    "Install them with: uv sync --extra apollo"
+)
+
+# Apollo can emit spans with leading/trailing punctuation (e.g. "glioblastoma:",
+# "clinical behavior."); trim those boundary characters off the edges while
+# keeping offsets correct. Hyphen and slash are excluded since they occur inside
+# clinical terms (e.g. "mg/dL", "5-HT").
+_BOUNDARY_CHARS = " \t\n\r\f\v.,;:!?()[]{}\"'"
+
+
+def _trim_boundary(
+    text: str, start: int | None, end: int | None
+) -> tuple[str, int | None, int | None]:
+    inner = text.strip(_BOUNDARY_CHARS)
+    if not inner or not isinstance(start, int) or not isinstance(end, int):
+        return inner, start, end
+    lead = len(text) - len(text.lstrip(_BOUNDARY_CHARS))
+    new_start = start + lead
+    return inner, new_start, new_start + len(inner)
+
 
 def parse_apollo_response(
     document: Document,
@@ -37,6 +59,9 @@ def parse_apollo_response(
             start = end = None
         if not span_text:
             continue
+        span_text, start, end = _trim_boundary(span_text, start, end)
+        if not span_text:
+            continue
 
         annotations.append(
             make_annotation(
@@ -55,7 +80,10 @@ def parse_apollo_response(
 
 @lru_cache(maxsize=2)
 def _load_apollo_pipeline(model: str) -> Any:
-    from transformers import pipeline
+    try:
+        from transformers import pipeline
+    except ImportError as exc:
+        raise RuntimeError(APOLLO_INSTALL_HINT) from exc
 
     return pipeline(
         "ner",
