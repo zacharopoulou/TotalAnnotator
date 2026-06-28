@@ -1,25 +1,50 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
 from rich import box
+from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.theme import Theme
 from rich.text import Text
 
 
 THEME_WIDTH = 100
+TOTALANNOTATOR_THEME = Theme(
+    {
+        "brand": "bold cyan",
+        "accent": "bold magenta",
+        "muted": "bright_black",
+        "panel.border": "bright_cyan",
+        "panel.title": "bold cyan",
+        "table.header": "bold cyan",
+        "table.title": "bold magenta",
+        "field": "bold cyan",
+        "ok": "bold green",
+        "warning": "bold yellow",
+        "path": "bright_blue",
+    }
+)
 
 
 def render_lines(renderable: Any) -> list[str]:
     """Render a Rich object to plain terminal lines for the existing output_fn API."""
 
-    console = Console(width=THEME_WIDTH, color_system=None, force_terminal=False, record=True)
+    buffer = StringIO()
+    console = Console(
+        width=THEME_WIDTH,
+        color_system="truecolor",
+        force_terminal=True,
+        file=buffer,
+        theme=TOTALANNOTATOR_THEME,
+    )
     console.print(renderable)
-    return console.export_text(clear=True).rstrip("\n").splitlines()
+    return buffer.getvalue().rstrip("\n").splitlines()
 
 
 def emit(output_fn, lines: Iterable[str]) -> None:
@@ -28,18 +53,37 @@ def emit(output_fn, lines: Iterable[str]) -> None:
 
 
 def banner_lines() -> list[str]:
-    title = Text("TotalAnnotator", justify="center", style="bold")
-    subtitle = Text("Biomedical entity annotation cockpit", justify="center")
+    title = Text("TotalAnnotator", justify="center", style="brand")
+    subtitle = Text("Biomedical entity annotation workspace", justify="center", style="muted")
     body = Text.assemble(title, "\n", subtitle)
-    return render_lines(Panel(body, box=box.ROUNDED, padding=(1, 2)))
+    return render_lines(
+        Panel(
+            Align.center(body),
+            box=box.ROUNDED,
+            border_style="panel.border",
+            padding=(1, 2),
+        )
+    )
 
 
 def help_lines() -> list[str]:
     return render_lines(
         Panel(
-            "Choose an input source, annotators, and entity filters. "
-            "Each run writes a reproducible config, JSON results, TSV review tables, and a manifest.",
+            Text.assemble(
+                ("Choose an input source, annotators, and entity filters.\n", "muted"),
+                ("Each run writes ", "muted"),
+                ("config", "field"),
+                (", ", "muted"),
+                ("JSON", "field"),
+                (", ", "muted"),
+                ("TSV review tables", "field"),
+                (", and a ", "muted"),
+                ("manifest", "field"),
+                (".", "muted"),
+            ),
             title="Workflow",
+            title_align="left",
+            border_style="panel.border",
             box=box.ROUNDED,
             padding=(0, 1),
         )
@@ -47,13 +91,21 @@ def help_lines() -> list[str]:
 
 
 def choice_lines(title: str, choices: tuple[tuple[str, str], ...], *, default_indexes: list[int] | None = None) -> list[str]:
-    table = Table(title=title, box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
-    table.add_column("#", justify="right", no_wrap=True)
+    table = Table(
+        title=title,
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="table.header",
+        title_style="table.title",
+        border_style="panel.border",
+        pad_edge=True,
+    )
+    table.add_column("#", justify="right", no_wrap=True, style="accent")
     table.add_column("Option")
-    table.add_column("Default", justify="center", no_wrap=True)
+    table.add_column("Default", justify="center", no_wrap=True, style="ok")
     defaults = set(default_indexes or [])
     for index, (_, label) in enumerate(choices, start=1):
-        table.add_row(str(index), label, "yes" if index in defaults else "")
+        table.add_row(str(index), label, "default" if index in defaults else "")
     return render_lines(table)
 
 
@@ -62,6 +114,8 @@ def warning_lines(title: str, messages: Iterable[str]) -> list[str]:
         Panel(
             "\n".join(messages),
             title=title,
+            title_align="left",
+            border_style="warning",
             box=box.ROUNDED,
             padding=(0, 1),
         )
@@ -69,8 +123,14 @@ def warning_lines(title: str, messages: Iterable[str]) -> list[str]:
 
 
 def run_plan_lines(*, input_mode: str, annotators: list[str], entity_types: list[str]) -> list[str]:
-    table = Table(title="Run plan", box=box.SIMPLE_HEAVY, show_header=False)
-    table.add_column("Field", style="bold")
+    table = Table(
+        title="Run plan",
+        box=box.ROUNDED,
+        show_header=False,
+        title_style="table.title",
+        border_style="panel.border",
+    )
+    table.add_column("Field", style="field")
     table.add_column("Value")
     table.add_row("Input", input_mode)
     table.add_row("Annotators", ", ".join(annotators) or "all")
@@ -79,8 +139,14 @@ def run_plan_lines(*, input_mode: str, annotators: list[str], entity_types: list
 
 
 def run_summary_lines(*, document_count: int, annotation_count: int, results_path: Path, tsv_paths: dict[str, Path], config_path: Path, manifest_path: Path) -> list[str]:
-    table = Table(title="Run complete", box=box.ROUNDED, show_header=False)
-    table.add_column("Item", style="bold")
+    table = Table(
+        title="Run complete",
+        box=box.ROUNDED,
+        show_header=False,
+        title_style="table.title",
+        border_style="ok",
+    )
+    table.add_column("Item", style="field")
     table.add_column("Value")
     table.add_row("Documents", str(document_count))
     table.add_row("Annotations", str(annotation_count))
