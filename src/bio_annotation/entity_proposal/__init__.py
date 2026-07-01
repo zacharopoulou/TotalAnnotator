@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
-from bio_annotation.entity_proposal.aioner_proposer import annotate_with_aioner
 from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
 from bio_annotation.entity_proposal.pubtator3_proposer import annotate_with_pubtator3
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
+
+# AIONER's subprocess runner differs on Windows (see aioner_windows); resolve the
+# same platform-specific implementation the annotators.aioner shim uses so this
+# package's public API and run_all_annotators don't bypass it on Windows.
+if sys.platform == "win32":
+    from bio_annotation.entity_proposal.aioner_windows import annotate_with_aioner
+else:
+    from bio_annotation.entity_proposal.aioner_proposer import annotate_with_aioner
 
 
 def run_all_annotators(
