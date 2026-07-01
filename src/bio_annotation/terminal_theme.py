@@ -19,7 +19,7 @@ TOTALANNOTATOR_THEME = Theme(
     {
         "brand": "bold cyan",
         "accent": "bold magenta",
-        "muted": "bright_black",
+        "muted": "cyan",
         "panel.border": "bright_cyan",
         "panel.title": "bold cyan",
         "table.header": "bold cyan",
