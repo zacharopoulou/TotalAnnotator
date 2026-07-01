@@ -9,6 +9,24 @@ from bio_annotation.schemas.entity import Annotation
 
 DEFAULT_D4DATA_MODEL = "d4data/biomedical-ner-all"
 
+D4DATA_INSTALL_HINT = (
+    "The d4data annotator requires the optional Hugging Face dependencies. "
+    "Install them with: uv sync --extra d4data"
+)
+
+_BOUNDARY_CHARS = " \t\n\r\f\v.,;:!?()[]{}\"'"
+
+
+def _trim_boundary(text: str, start: Any, end: Any) -> tuple[str, Any, Any]:
+    """Strip leading/trailing punctuation and whitespace, correcting offsets."""
+
+    inner = text.strip(_BOUNDARY_CHARS)
+    if not inner or not isinstance(start, int) or not isinstance(end, int):
+        return inner, start, end
+    lead = len(text) - len(text.lstrip(_BOUNDARY_CHARS))
+    new_start = start + lead
+    return inner, new_start, new_start + len(inner)
+
 
 def parse_d4data_response(
     document: Document,
@@ -38,6 +56,10 @@ def parse_d4data_response(
         if not span_text:
             continue
 
+        span_text, start, end = _trim_boundary(span_text, start, end)
+        if not span_text:
+            continue
+
         annotations.append(
             make_annotation(
                 document=document,
@@ -55,7 +77,10 @@ def parse_d4data_response(
 
 @lru_cache(maxsize=2)
 def _load_d4data_pipeline(model: str) -> Any:
-    from transformers import pipeline
+    try:
+        from transformers import pipeline
+    except ImportError as exc:
+        raise RuntimeError(D4DATA_INSTALL_HINT) from exc
 
     # "first" groups sub-word tokens into whole words: this model tags every
     # sub-word as a B- entity, so "simple" would split "glioblastoma" into

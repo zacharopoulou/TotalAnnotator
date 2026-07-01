@@ -30,11 +30,11 @@ class AnnotatorCapability:
 # d4data/biomedical-ner-all (MACCROBAT) emits 41 entity labels. The two biomedical
 # ones map to this pipeline's canonical types; the rest are declared as-is so they
 # are first-class (selectable in the UI, listed in the annotator's capability).
-_D4DATA_CANONICAL_OVERRIDES: dict[str, str] = {
+MACCROBAT_CANONICAL_OVERRIDES: dict[str, str] = {
     "Disease_disorder": "disease",
     "Medication": "drug",
 }
-_D4DATA_LABELS: tuple[str, ...] = (
+MACCROBAT_LABELS: tuple[str, ...] = (
     "Disease_disorder",
     "Medication",
     "Activity",
@@ -108,7 +108,7 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
-    # d4data/biomedical-ner-all entity types are generated from _D4DATA_LABELS
+    # d4data/biomedical-ner-all entity types are generated from MACCROBAT_LABELS
     # below: Disease_disorder/Medication map to canonical disease/drug, every
     # other clinical label becomes its own first-class type.
     *(
@@ -116,10 +116,10 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
             "d4data",
             "d4data biomedical-ner-all",
             label.replace("_", " "),
-            _D4DATA_CANONICAL_OVERRIDES.get(label, label.lower()),
+            MACCROBAT_CANONICAL_OVERRIDES.get(label, label.lower()),
             (),
         )
-        for label in _D4DATA_LABELS
+        for label in MACCROBAT_LABELS
     ),
 )
 

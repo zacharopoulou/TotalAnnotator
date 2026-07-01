@@ -12,7 +12,12 @@ from typing import Any, Callable
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.bern2 import annotate_with_bern2
-from bio_annotation.annotators.d4data import DEFAULT_D4DATA_MODEL, annotate_with_d4data
+from bio_annotation.annotators.d4data import (
+    D4DATA_INSTALL_HINT,
+    DEFAULT_D4DATA_MODEL,
+    _load_d4data_pipeline,
+    annotate_with_d4data,
+)
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.entity_types import normalize_entity_type
@@ -31,10 +36,6 @@ SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "d4data"}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
-)
-D4DATA_INSTALL_HINT = (
-    "The d4data annotator requires the optional Hugging Face dependencies. "
-    "Install them with: uv sync --extra d4data"
 )
 
 
@@ -983,7 +984,7 @@ def validate_optional_annotator_dependencies(
     if (
         "d4data" in config.annotators
         and d4data_responses_by_document is None
-        and find_spec("transformers") is None
+        and (find_spec("transformers") is None or find_spec("torch") is None)
     ):
         raise ValueError(D4DATA_INSTALL_HINT)
 
@@ -1049,22 +1050,6 @@ def _read_d4data_options(settings: dict[str, object]) -> dict[str, Any]:
         if isinstance(model, str) and model.strip()
         else DEFAULT_D4DATA_MODEL,
     }
-
-
-def _load_d4data_pipeline(model: str) -> Any:
-    try:
-        from transformers import pipeline
-    except ImportError as exc:
-        raise RuntimeError(D4DATA_INSTALL_HINT) from exc
-
-    # "first" groups sub-word tokens into whole words (see d4data_proposer for why
-    # "simple" fragments this model's output).
-    return pipeline(
-        "ner",
-        model=model,
-        tokenizer=model,
-        aggregation_strategy="first",
-    )
 
 
 def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
