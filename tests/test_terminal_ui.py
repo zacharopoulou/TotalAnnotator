@@ -19,9 +19,8 @@ def test_parse_pmids_deduplicates_common_separators() -> None:
 
 
 def test_find_unsupported_entity_types_reports_exact_compatibility() -> None:
-    assert find_unsupported_entity_types(["bern2", "flair"], ["variant", "cell_line"]) == {
-        "bern2": ["cell_line"],
-        "flair": ["variant"],
+    assert find_unsupported_entity_types(["bern2", "flair"], ["variant", "cell_line", "cell_type"]) == {
+        "flair": ["variant", "cell_type"],
     }
 
 
@@ -343,5 +342,5 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
     )
 
     assert "Entity type compatibility warning:" in messages
-    assert any("BERN2 does not produce: Cell line" in message for message in messages)
     assert any("Flair / HunFlair does not produce: Variant / mutation" in message for message in messages)
+    assert not any("BERN2 does not produce" in message for message in messages)

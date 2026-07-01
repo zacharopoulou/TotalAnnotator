@@ -17,7 +17,7 @@ TotalAnnotator supports:
 - PubMed articles from inline PMIDs or a PMID file
 - local plain text from a CSV/TSV table, raw text file, or manual terminal input
 - live annotation with PubTator3, BERN2, and Flair/HunFlair
-- entity-type filtering for genes/proteins, diseases, chemicals/drugs, species, variants, and cell lines
+- entity-type filtering for genes/proteins, diseases, chemicals/drugs, species, variants, cell lines, cell types, DNA, and RNA
 - canonical JSON output plus TSV files for spreadsheet-friendly review
 - reproducible TOML configs for every terminal UI run
 - direct config-based pipeline runs for scripted workflows
@@ -143,6 +143,18 @@ timeout = 30
 
 Local BERN2 endpoints such as `localhost` or `127.0.0.1` are also supported.
 
+BERN2 supports:
+
+- gene/protein
+- disease
+- chemical/drug
+- species
+- variant/mutation
+- cell line
+- cell type
+- DNA
+- RNA
+
 ### Flair / HunFlair
 
 Flair/HunFlair runs through the configured local Flair model.
@@ -169,6 +181,9 @@ TotalAnnotator normalizes annotator labels into canonical entity types:
 | `species` | Species |
 | `variant` | Variant / mutation |
 | `cell_line` | Cell line |
+| `cell_type` | Cell type |
+| `dna` | DNA |
+| `rna` | RNA |
 
 If no entity types are selected, the pipeline keeps all returned entity types.
 
