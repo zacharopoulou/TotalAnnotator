@@ -10,6 +10,7 @@ from bio_annotation.annotators import flatten_annotations, run_all_annotators
 from bio_annotation.benchmarking.preflight import BenchmarkPreflightError
 from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
+from bio_annotation.logging_config import DEFAULT_LOG_LEVEL, configure_logging
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
 from bio_annotation.preprocessing.document_loader import load_documents_from_config
@@ -75,6 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="totalannotator",
         description="Utilities for the TotalAnnotator biomedical annotation project.",
+    )
+    parser.add_argument(
+        "--log-level",
+        default=DEFAULT_LOG_LEVEL,
+        choices=("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"),
+        help="Diagnostic log level. Default: WARNING.",
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -174,6 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    configure_logging(args.log_level)
 
     if args.command in (None, "info"):
         print("TotalAnnotator")

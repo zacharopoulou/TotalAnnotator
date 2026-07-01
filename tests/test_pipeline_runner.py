@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import csv
 import json
 from contextlib import redirect_stdout
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from bio_annotation.pipeline_runner import (
     run_pipeline_from_config,
     run_selected_annotators,
     run_selected_annotators_with_status,
+    write_pipeline_tsv_outputs,
 )
 from bio_annotation.schemas.entity import Annotation
 from bio_annotation.schemas.document import Document
@@ -160,6 +162,10 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
         },
     ]
     assert len(payload["annotations"]) == 2
+    assert payload["document_annotations"][0]["annotation_ids"] == [
+        annotation["annotation_id"] for annotation in payload["annotations"]
+    ]
+    assert "annotations" not in payload["document_annotations"][0]
 
 
 def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
@@ -481,7 +487,7 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
     assert calls == ["hunflair2"]
 
 
-def test_run_selected_annotators_records_failures(monkeypatch) -> None:
+def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
     document = Document(
         document_id="doc1",
         title="PTEN regulates glioblastoma",
@@ -494,11 +500,12 @@ def test_run_selected_annotators_records_failures(monkeypatch) -> None:
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", broken_flair)
 
-    results, statuses = run_selected_annotators_with_status(
-        document,
-        ["flair"],
-        flair_options={"model": "hunflair2"},
-    )
+    with caplog.at_level("WARNING", logger="bio_annotation.pipeline_runner"):
+        results, statuses = run_selected_annotators_with_status(
+            document,
+            ["flair"],
+            flair_options={"model": "hunflair2"},
+        )
 
     assert results == {"flair": []}
     assert statuses == [
@@ -509,6 +516,7 @@ def test_run_selected_annotators_records_failures(monkeypatch) -> None:
             "reason": "hunflair2 is unavailable",
         }
     ]
+    assert "flair unavailable: hunflair2 is unavailable" in caplog.text
 
 
 def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:
@@ -564,29 +572,90 @@ def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence(
     assert gbm["normalized_keyword"] == "gbm"
     assert gbm["variants"] == ["GBM", "gbm"]
     assert gbm["annotation_count"] == 3
+    assert gbm["annotation_ids"] == ["bern2:1", "pubtator3:1", "pubtator3:2"]
     assert gbm["mention_count"] == 2
     assert gbm["annotator_count"] == 2
     assert gbm["labels"] == ["disease"]
     assert gbm["canonical_ids"] == ["BERN:glioblastoma", "MESH:D005909"]
-    assert [
-        (item["source"], item["annotation_count"], item["canonical_ids"])
-        for item in gbm["annotators"]
-    ] == [
-        ("bern2", 1, ["BERN:glioblastoma"]),
-        ("pubtator3", 2, ["MESH:D005909"]),
-    ]
-    assert "mentions" not in gbm["annotators"][0]
+    assert "annotators" not in gbm
 
     first_mention = gbm["mentions"][0]
     assert first_mention["start"] == 10
     assert first_mention["end"] == 13
     assert first_mention["annotation_count"] == 2
     assert first_mention["annotator_count"] == 2
-    assert [item["source"] for item in first_mention["annotators"]] == ["bern2", "pubtator3"]
-    assert {item["canonical_id"] for item in first_mention["annotators"]} == {
-        "BERN:glioblastoma",
-        "MESH:D005909",
+    assert first_mention["annotation_ids"] == ["bern2:1", "pubtator3:1"]
+    assert "annotators" not in first_mention
+
+
+def test_pipeline_tsv_outputs_resolve_keyword_annotation_ids(tmp_path) -> None:
+    annotations = [
+        {
+            "document_id": "doc1",
+            "annotation_id": "bern2:1",
+            "source": "bern2",
+            "span_text": "GBM",
+            "start": 10,
+            "end": 13,
+            "entity_type": "disease",
+            "canonical_id": "BERN:glioblastoma",
+            "canonical_name": "Glioblastoma",
+            "confidence": 0.94,
+        },
+        {
+            "document_id": "doc1",
+            "annotation_id": "pubtator3:1",
+            "source": "pubtator3",
+            "span_text": "GBM",
+            "start": 10,
+            "end": 13,
+            "entity_type": "disease",
+            "canonical_id": "MESH:D005909",
+            "canonical_name": "Glioblastoma",
+            "confidence": None,
+        },
+    ]
+    payload = {
+        "documents": [{"document_id": "doc1", "pmid": "123", "title": "GBM study"}],
+        "annotations": annotations,
+        "keywords": [
+            {
+                "document_id": "doc1",
+                "keyword": "GBM",
+                "annotation_count": 2,
+                "annotator_count": 2,
+                "labels": ["disease"],
+                "canonical_ids": ["BERN:glioblastoma", "MESH:D005909"],
+                "annotation_ids": ["bern2:1", "pubtator3:1"],
+                "mentions": [
+                    {
+                        "text": "GBM",
+                        "start": 10,
+                        "end": 13,
+                        "annotation_count": 2,
+                        "annotator_count": 2,
+                        "annotation_ids": ["bern2:1", "pubtator3:1"],
+                    }
+                ],
+            }
+        ],
     }
+
+    write_pipeline_tsv_outputs(payload, tmp_path / "results.json")
+
+    with (tmp_path / "results.keyword_annotator_evidence.tsv").open(
+        encoding="utf-8",
+        newline="",
+    ) as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+
+    assert [
+        (row["annotation_id"], row["source"], row["label"], row["canonical_id"])
+        for row in rows
+    ] == [
+        ("bern2:1", "bern2", "disease", "BERN:glioblastoma"),
+        ("pubtator3:1", "pubtator3", "disease", "MESH:D005909"),
+    ]
 
 
 def test_filter_annotations_by_type_normalizes_entity_labels() -> None:
