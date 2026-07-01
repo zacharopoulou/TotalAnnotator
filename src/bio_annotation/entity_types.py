@@ -149,6 +149,24 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         },
         normalization_fields=(),
     ),
+    "medcat": AnnotatorCapability(
+        label="MedCAT",
+        tasks=("NER", "NEN"),
+        # MedCAT's entity types depend on the loaded model pack (UMLS/SNOMED), so
+        # they pass through as returned rather than mapping to the canonical set.
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "medcat"
+        ),
+        normalization_status="normalized",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "medcat"
+        },
+        normalization_fields=("cui",),
+    ),
 }
 
 ANNOTATOR_CHOICES: tuple[tuple[str, str], ...] = tuple(

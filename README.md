@@ -157,6 +157,23 @@ HunFlair supports:
 
 HunFlair does not produce variants/mutations. If the terminal UI selection includes unsupported entity types for a selected annotator, it shows a compatibility warning before continuing.
 
+### MedCAT
+
+MedCAT runs as a separate service, CogStack MedCATservice, that TotalAnnotator calls over HTTP, like BERN2. Unlike BERN2 there is no public endpoint, so you run the service yourself and point TotalAnnotator at it. The generated terminal UI config uses:
+
+```toml
+[annotators.medcat]
+runtime = "remote_api"
+endpoint = "http://localhost:5555"
+min_acc = 0.3
+```
+
+The endpoint defaults to `http://localhost:5555` (the CogStack docker-compose default) and can be overridden with the `MEDCAT_API_URL` environment variable or the `endpoint` setting. `min_acc` (0..1) drops low-confidence concepts.
+
+To start the service: clone [CogStack/MedCATservice](https://github.com/CogStack/MedCATservice), download a model pack (the MedMen demo, or a clinical UMLS/SNOMED pack for real use), then run `docker compose up -d` from its `docker/` folder and check `http://localhost:5555/api/info`. If MedCAT is selected in the terminal UI and no service is reachable, TotalAnnotator warns before the run; if none is reachable at run time, the MedCAT step simply returns no annotations and the rest of the run continues.
+
+MedCAT entity types are the model pack's semantic types (UMLS TUIs), so they pass through as returned rather than mapping to the canonical types below.
+
 ## Entity Types
 
 TotalAnnotator normalizes annotator labels into canonical entity types:

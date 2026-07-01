@@ -14,6 +14,7 @@ from bio_annotation.entity_proposal.aioner_proposer import (
     DEFAULT_AIONER_PROJECT,
 )
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
+from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
     ANNOTATOR_DISPLAY_NAMES,
@@ -90,6 +91,15 @@ def run_terminal_annotation_ui(
                 "Run tools/aioner/setup.sh first, or set AIONER_REPO / AIONER_MODEL; "
                 "otherwise the AIONER step will be skipped this run."
             )
+    if "medcat" in answers.annotators:
+        medcat_endpoint = medcat_config_endpoint()
+        if not _medcat_service_reachable(medcat_endpoint):
+            output_fn(
+                f"Warning: no MedCAT service reachable at {medcat_endpoint}. "
+                "Start CogStack MedCATservice (see the MedCAT section in README) "
+                "or set MEDCAT_API_URL; otherwise the MedCAT step will return no "
+                "annotations this run."
+            )
     output_fn("")
     output_fn("Running annotation...")
     payload = pipeline_run_fn(paths.config_path)
@@ -139,9 +149,9 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators",
         choices=ANNOTATOR_CHOICES,
-        # AIONER requires a separate environment + downloaded models, so it is
-        # offered as a choice but not pre-selected by default.
-        default_values=[value for value, _ in ANNOTATOR_CHOICES if value != "aioner"],
+        # AIONER needs a separate environment + models and MedCAT needs a running
+        # MedCATservice, so both are offered as choices but not pre-selected.
+        default_values=[value for value, _ in ANNOTATOR_CHOICES if value not in {"aioner", "medcat"}],
         validate_values=_validate_selected_annotators,
     )
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
@@ -189,6 +199,24 @@ def aioner_config_paths() -> tuple[str, str]:
     return repo, model
 
 
+def medcat_config_endpoint() -> str:
+    return os.environ.get("MEDCAT_API_URL") or DEFAULT_MEDCAT_API_URL
+
+
+def _medcat_service_reachable(endpoint: str, *, timeout: float = 3.0) -> bool:
+    """Best-effort check that a MedCATservice answers at the endpoint's /api/info."""
+    from urllib import request as urlrequest
+
+    base = endpoint.rstrip("/")
+    if base.endswith("/api/process"):
+        base = base[: -len("/api/process")]
+    try:
+        with urlrequest.urlopen(base + "/api/info", timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -> str:
     lines = ["[input]"]
     if answers.input_mode == "pmids":
@@ -211,6 +239,8 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
     if "aioner" in answers.annotators:
         aioner_repo, aioner_model = aioner_config_paths()
         lines += ["", "[annotators.aioner]", 'runtime = "local_subprocess"', f"repo = {_toml_string(aioner_repo)}", f"model = {_toml_string(aioner_model)}", f"entity = {_toml_string(DEFAULT_AIONER_ENTITY)}", f"project = {_toml_string(DEFAULT_AIONER_PROJECT)}"]
+    if "medcat" in answers.annotators:
+        lines += ["", "[annotators.medcat]", 'runtime = "remote_api"', f"endpoint = {_toml_string(medcat_config_endpoint())}", "min_acc = 0.3"]
     lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
     return "\n".join(lines)
 
