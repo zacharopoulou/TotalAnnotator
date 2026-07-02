@@ -19,6 +19,10 @@ from bio_annotation.annotators.d4data import (
     DEFAULT_D4DATA_MODEL,
     annotate_with_d4data,
 )
+from bio_annotation.annotators.apollo import (
+    DEFAULT_APOLLO_MODEL,
+    annotate_with_apollo,
+)
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
@@ -548,7 +552,7 @@ def test_aioner_call_requires_configuration(monkeypatch) -> None:
 
 def test_d4data_adapter_parses_pipeline_output_and_normalizes_types() -> None:
     document = sample_document()
-    # HuggingFace token-classification output (aggregation_strategy="simple").
+    # HuggingFace token-classification output (aggregation_strategy="first").
     # "Disease_disorder"/"Medication" must normalize to canonical "disease"/"drug";
     # unmapped clinical labels like "Sign_symptom" pass through. The span text is
     # sliced from document.text, so a subword "word" artifact is ignored.
@@ -571,6 +575,31 @@ def test_d4data_adapter_parses_pipeline_output_and_normalizes_types() -> None:
     assert all(annotation.canonical_id is None for annotation in annotations)
 
 
+def test_apollo_adapter_parses_pipeline_output_and_normalizes_types() -> None:
+    document = sample_document()
+    # HuggingFace token-classification output (aggregation_strategy="first").
+    # "DISEASE_DISORDER"/"MEDICATION" must normalize to canonical "disease"/"drug";
+    # unmapped clinical labels like "SIGN_SYMPTOM" pass through. The span text is
+    # sliced from document.text, so a subword "word" artifact is ignored.
+    response = [
+        {"entity_group": "DISEASE_DISORDER", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
+        {"entity_group": "MEDICATION", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
+        {"entity_group": "SIGN_SYMPTOM", "score": 0.80, "word": "biomarkers", "start": 49, "end": 59},
+    ]
+
+    annotations = annotate_with_apollo(document, response=response)
+
+    assert len(annotations) == 3
+    assert all(annotation.source == "apollo" for annotation in annotations)
+    assert annotations[0].entity_type == "disease"
+    assert annotations[0].span_text == "glioblastoma"
+    assert annotations[0].start == 15
+    assert annotations[0].end == 27
+    assert annotations[1].entity_type == "drug"
+    assert annotations[2].entity_type == "sign_symptom"
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
 def test_d4data_adapter_uses_request_fn() -> None:
     document = sample_document()
     calls: list[Document] = []
@@ -582,6 +611,23 @@ def test_d4data_adapter_uses_request_fn() -> None:
         ]
 
     annotations = annotate_with_d4data(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "disease"
+
+
+def test_apollo_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> list[dict[str, object]]:
+        calls.append(doc)
+        return [
+            {"entity_group": "DISEASE_DISORDER", "score": 0.9, "word": "glioblastoma", "start": 15, "end": 27}
+        ]
+
+    annotations = annotate_with_apollo(document, request_fn=fake_request)
 
     assert calls == [document]
     assert len(annotations) == 1
@@ -612,6 +658,33 @@ def test_d4data_adapter_loads_configured_model() -> None:
     assert loaded_models == [DEFAULT_D4DATA_MODEL]
     assert len(annotations) == 1
     assert annotations[0].source == "d4data"
+    assert annotations[0].entity_type == "drug"
+
+
+def test_apollo_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakePipeline:
+        def __call__(self, text: str) -> list[dict[str, object]]:
+            assert text == document.text
+            return [
+                {"entity_group": "MEDICATION", "score": 0.88, "word": "PTEN", "start": 0, "end": 4}
+            ]
+
+    def fake_loader(model: str) -> FakePipeline:
+        loaded_models.append(model)
+        return FakePipeline()
+
+    annotations = annotate_with_apollo(
+        document,
+        model=DEFAULT_APOLLO_MODEL,
+        pipeline_loader=fake_loader,
+    )
+
+    assert loaded_models == [DEFAULT_APOLLO_MODEL]
+    assert len(annotations) == 1
+    assert annotations[0].source == "apollo"
     assert annotations[0].entity_type == "drug"
 
 
@@ -684,6 +757,16 @@ def test_cli_inspect_config_runs() -> None:
     assert output["annotator_settings"]["pubtator3"]["runtime"] == "remote_api"
     assert output["annotator_settings"]["pubtator3"]["format"] == "biocjson"
     assert output["annotator_settings"]["pubtator3"]["endpoint"] == "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
+
+
+def test_cli_accepts_global_log_level_before_subcommand() -> None:
+    stream = StringIO()
+    with redirect_stdout(stream):
+        exit_code = main(["--log-level", "ERROR", "inspect-config"])
+
+    output = json.loads(stream.getvalue())
+    assert exit_code == 0
+    assert output["input_mode"] == "pmids"
 
 
 def test_cli_load_documents_runs(monkeypatch) -> None:
