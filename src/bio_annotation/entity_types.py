@@ -45,6 +45,10 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("bern2", "BERN2", "Drug", "drug", ("DrugBank",)),
     AnnotatorEntityTypeSpec("bern2", "BERN2", "Species", "species", ("NCBI Taxonomy",)),
     AnnotatorEntityTypeSpec("bern2", "BERN2", "Mutation / variant", "variant", ("dbSNP",)),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "Cell line", "cell_line", ("Cellosaurus",)),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "Cell type", "cell_type", ("Cell Ontology",)),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "DNA", "dna", ()),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "RNA", "rna", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Gene / protein", "gene", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Disease", "disease", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Chemical / drug", "drug", ()),
@@ -66,16 +70,45 @@ ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "species": "Species",
     "variant": "Variant / mutation",
     "cell_line": "Cell line",
+    "cell_type": "Cell type",
+    "dna": "DNA",
+    "rna": "RNA",
 }
 ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
     (entity_type, ENTITY_TYPE_DISPLAY_NAMES[entity_type])
-    for entity_type in ("gene", "disease", "drug", "species", "variant", "cell_line")
+    for entity_type in (
+        "gene",
+        "disease",
+        "drug",
+        "species",
+        "variant",
+        "cell_line",
+        "cell_type",
+        "dna",
+        "rna",
+    )
 )
 ENTITY_TYPE_ALIASES: dict[str, str] = {
     re.sub(r"[^a-z0-9]+", "_", spec.source_entity_type.strip().lower()).strip("_"): spec.canonical_entity_type
     for spec in ANNOTATOR_ENTITY_TYPE_SPECS
 }
 ENTITY_TYPE_ALIASES.update({canonical: canonical for canonical in ENTITY_TYPE_DISPLAY_NAMES})
+ENTITY_TYPE_ALIASES.update(
+    {
+        "cellline": "cell_line",
+        "cell_line": "cell_line",
+        "celltype": "cell_type",
+        "cell_type": "cell_type",
+        "chemical": "drug",
+        "drug": "drug",
+        "gene": "gene",
+        "protein": "gene",
+        "mutation": "variant",
+        "variant": "variant",
+        "dna": "dna",
+        "rna": "rna",
+    }
+)
 
 
 ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {

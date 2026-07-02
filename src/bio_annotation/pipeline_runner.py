@@ -16,6 +16,7 @@ from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
+from bio_annotation.report import write_html_report
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
     load_documents_from_pmid_file,
@@ -202,6 +203,7 @@ def write_pipeline_output(payload: dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     write_pipeline_tsv_outputs(payload, output_path)
+    write_html_report(payload, output_path.with_suffix(".html"))
 
 
 def timestamped_output_path(output_path: Path, *, now: datetime | None = None) -> Path:
