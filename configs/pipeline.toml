@@ -31,6 +31,11 @@ model = "AIONER/pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
 entity = "ALL"
 project = "tools/aioner"
 
+# Clinical-AI-Apollo/Medical-NER is a local HuggingFace clinical NER model; add
+# "apollo" to enabled above after installing the optional deps: uv sync --extra apollo
+[annotators.apollo]
+model = "Clinical-AI-Apollo/Medical-NER"
+
 [filters]
 entity_types = []
 

@@ -6,6 +6,7 @@ from pathlib import Path
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.terminal_ui import (
     TerminalUIAnswers,
+    _entity_type_choices_for,
     build_terminal_ui_config_text,
     create_run_paths,
     find_unsupported_entity_types,
@@ -16,6 +17,23 @@ from bio_annotation.terminal_ui import (
 
 def test_parse_pmids_deduplicates_common_separators() -> None:
     assert parse_pmids("123, 456\n123 789") == ["123", "456", "789"]
+
+
+def test_entity_type_choices_are_annotator_aware() -> None:
+    # Without apollo, only the canonical bio types are offered.
+    bio = [value for value, _ in _entity_type_choices_for(["pubtator3", "bern2", "flair"])]
+    assert "disease" in bio
+    assert "sign_symptom" not in bio
+
+    # Selecting apollo surfaces its clinical types as selectable choices, with the
+    # canonical bio types still listed first.
+    with_apollo = _entity_type_choices_for(["pubtator3", "apollo"])
+    values = [value for value, _ in with_apollo]
+    assert values[: len(bio)] == bio
+    assert "sign_symptom" in values
+    assert "lab_value" in values
+    labels = dict(with_apollo)
+    assert labels["sign_symptom"] == "Sign symptom"
 
 
 def test_find_unsupported_entity_types_reports_exact_compatibility() -> None:
