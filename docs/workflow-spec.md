@@ -134,7 +134,7 @@ sources = []
 enabled = ["bern2", "pubtator", "flair"]
 
 [filters]
-entity_types = ["gene", "drug", "mutation"]
+entity_types = ["gene", "drug", "variant"]
 
 [output]
 path = "outputs/current_run.json"
@@ -179,9 +179,12 @@ Example project vocabulary:
 - `protein`
 - `drug`
 - `disease`
-- `mutation`
+- `variant`
 - `species`
 - `cell_line`
+- `cell_type`
+- `dna`
+- `rna`
 
 Important: this mapping should be internal adapter logic, not user-facing
 configuration. A user should not need to write mapping tables to run a new
@@ -202,7 +205,7 @@ Example:
 
 ```toml
 [filters]
-entity_types = ["gene", "drug", "mutation"]
+entity_types = ["gene", "drug", "variant"]
 ```
 
 Before running the workflow, TotalAnnotator should validate whether the selected
@@ -213,7 +216,7 @@ The system should report compatibility in three levels:
 - `Info`
   Example: `pubtator label "Chemical" will be reported as project type "drug"`
 - `Warning`
-  Example: `flair does not provide "mutation"; this type will only be collected from bern2 and pubtator`
+  Example: `flair does not provide "variant"; this type will only be collected from bern2 and pubtator`
 - `Error`
   Example: `selected annotators do not provide the requested entity type "cell_line"`
 

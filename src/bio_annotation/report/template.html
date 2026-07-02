@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TotalAnnotator results</title>
+<style>
+:root {
+  --bg: #f6f4f9;
+  --bg-card: #ffffff;
+  --text: #1f1d2b;
+  --text-muted: #6b6878;
+  --text-soft: #8c8aa1;
+  --border: #e3dfee;
+  --border-soft: #efeaf6;
+  --accent: #4a3c8f;
+  --accent-soft: #6c5fb5;
+  --accent-bg: #ece7f7;
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: var(--sans);
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 1.5em 4em;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.55;
+}
+h1, h2, h3, h4 {
+  font-family: var(--serif);
+  color: var(--text);
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+h1 { font-size: 2em; margin: 0; }
+h2 { font-size: 1.55em; margin: 0.4em 0 0.2em; }
+h3 { font-size: 1.05em; margin: 2em 0 0.5em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; font-family: var(--sans); }
+h4 { font-size: 0.78em; margin: 0 0 0.8em; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-weight: 700; font-family: var(--sans); }
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms; }
+a:hover { border-bottom-color: var(--accent); }
+
+.site-header {
+  padding: 2em 0 1em;
+  margin-bottom: 1.5em;
+  border-bottom: 1px solid var(--border);
+}
+.site-header h1 { font-family: var(--serif); color: var(--accent); }
+.site-header p { margin: 0.4em 0 0; color: var(--text-muted); font-size: 0.95em; font-style: italic; }
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 2em;
+  align-items: center;
+  margin-bottom: 2em;
+  padding: 1.6em 1.8em;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
+}
+.summary-headline .lede { font-size: 1.1em; margin: 0 0 0.3em; color: var(--text-muted); }
+.summary-headline .meta { margin: 0; color: var(--text-soft); font-size: 0.92em; }
+.big-number { font-family: var(--serif); color: var(--accent); font-size: 1.6em; font-weight: 700; padding: 0 0.05em; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin-bottom: 2em;
+  font-size: 0.82em;
+  color: var(--text-muted);
+}
+.legend-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: var(--serif);
+  cursor: default;
+  user-select: none;
+}
+.legend-chip-gene      { background: #cfe8c9; color: #235c27; }
+.legend-chip-disease   { background: #f6cccb; color: #7a2a2a; }
+.legend-chip-drug      { background: #fbddae; color: #6b4310; }
+.legend-chip-species   { background: #c6d9f6; color: #1f4a82; }
+.legend-chip-variant   { background: #ecc8ec; color: #6a2f7a; }
+.legend-chip-cell_line { background: #d3c4f0; color: #45308f; }
+.legend-chip-dna       { background: #b6e6da; color: #0f5d51; }
+.legend-chip-rna       { background: #f1e59f; color: #6b5810; }
+.legend-chip-cell_type { background: #e0d3c2; color: #5e4630; }
+.legend-chip-unmatched { background: #fbeb8a; color: #5c4910; }
+
+.hint {
+  font-size: 0.9em;
+  color: var(--text-muted);
+  margin: 0 0 0.8em;
+}
+
+.document {
+  margin-bottom: 1.2em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+.document > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 0.7em;
+  padding: 1em 1.3em;
+}
+.document > summary::-webkit-details-marker { display: none; }
+.document > summary::before {
+  content: "▸";
+  color: var(--text-soft);
+  display: inline-block;
+  transition: transform 120ms;
+}
+.document[open] > summary::before { transform: rotate(90deg); }
+.document > summary:hover { background: var(--border-soft); }
+.doc-summary-title { font-family: var(--serif); font-weight: 700; font-size: 1.08em; flex: 1; color: var(--text); }
+.doc-summary-count { color: var(--text-muted); font-size: 0.85em; white-space: nowrap; }
+.doc-body { padding: 0 1.3em 1.4em; }
+.document .meta { font-size: 0.88em; color: var(--text-muted); margin-top: 0.1em; }
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 2em;
+  margin-top: 1em;
+  align-items: start;
+}
+.doc-main > h3:first-child { margin-top: 0; }
+.doc-main { min-width: 0; }
+
+.annotated-text {
+  background: var(--bg-card);
+  padding: 1.6em 1.8em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  line-height: 1.85;
+  font-size: 1em;
+  font-family: var(--serif);
+  color: var(--text);
+}
+
+mark.entity {
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: var(--serif);
+  cursor: pointer;
+  border-bottom: 1px dotted transparent;
+  transition: border-bottom-color 120ms;
+}
+mark.entity:hover { border-bottom-color: rgba(31, 29, 43, 0.4); }
+mark.entity           { background: transparent; }
+mark.entity-gene      { background: #cfe8c9; color: #235c27; }
+mark.entity-disease   { background: #f6cccb; color: #7a2a2a; }
+mark.entity-drug      { background: #fbddae; color: #6b4310; }
+mark.entity-species   { background: #c6d9f6; color: #1f4a82; }
+mark.entity-variant   { background: #ecc8ec; color: #6a2f7a; }
+mark.entity-cell_line { background: #d3c4f0; color: #45308f; }
+mark.entity-dna       { background: #b6e6da; color: #0f5d51; }
+mark.entity-rna       { background: #f1e59f; color: #6b5810; }
+mark.entity-cell_type { background: #e0d3c2; color: #5e4630; }
+mark.entity-unknown   { background: #e6e3ec; color: var(--text-muted); }
+mark.entity-unmatched { background: #fbeb8a; color: #5c4910; border-bottom: 1px dashed #b8941c; }
+mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.stats-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.3em 1.4em;
+  align-self: start;
+  box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
+}
+.stats-panel h4 { margin-bottom: 1em; }
+.stats-group { margin-bottom: 0.3em; }
+.stats-group:last-of-type { margin-bottom: 0; }
+.stats-group summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.5em 0;
+  border-bottom: 1px solid var(--border-soft);
+  cursor: pointer;
+  list-style: none;
+  outline: none;
+}
+.stats-group summary::-webkit-details-marker { display: none; }
+.stats-group summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.4em;
+  color: var(--text-soft);
+  font-size: 0.7em;
+  transform: translateY(-1px);
+  transition: transform 120ms;
+}
+.stats-group[open] summary::before { transform: rotate(90deg) translateX(-1px); }
+.stats-group summary:hover { background: var(--border-soft); }
+.stats-type {
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  flex: 1;
+}
+.stats-group-disease .stats-type   { color: #b35a5a; }
+.stats-group-drug .stats-type      { color: #9c7321; }
+.stats-group-gene .stats-type      { color: #5f8a52; }
+.stats-group-species .stats-type   { color: #4f7aac; }
+.stats-group-variant .stats-type   { color: #9c5172; }
+.stats-group-cell_line .stats-type { color: #6a5aa0; }
+.stats-group-dna .stats-type       { color: #2f8f80; }
+.stats-group-rna .stats-type       { color: #9c842a; }
+.stats-group-cell_type .stats-type { color: #876b4a; }
+.stats-type-total {
+  font-size: 0.78em;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+.stats-list {
+  list-style: none;
+  padding: 0.5em 0 0.2em 1.2em;
+  margin: 0;
+  font-size: 0.92em;
+}
+.stats-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px max-content;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.22em 0;
+}
+.stats-keyword {
+  justify-self: start;
+  max-width: 100%;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.05em 0.4em;
+  border-radius: 3px;
+}
+.stats-bar-track {
+  height: 5px;
+  background: var(--border-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  width: 100%;
+}
+.stats-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-soft);
+  border-radius: 3px;
+  transition: width 200ms;
+}
+.stats-group-disease .stats-bar-fill   { background: #eaa9a8; }
+.stats-group-drug .stats-bar-fill      { background: #f2c47c; }
+.stats-group-gene .stats-bar-fill      { background: #a6d49b; }
+.stats-group-species .stats-bar-fill   { background: #9fbeea; }
+.stats-group-variant .stats-bar-fill   { background: #d9a7d9; }
+.stats-group-cell_line .stats-bar-fill { background: #b7a3e5; }
+.stats-group-dna .stats-bar-fill       { background: #8ad6c4; }
+.stats-group-rna .stats-bar-fill       { background: #e2d06a; }
+.stats-group-cell_type .stats-bar-fill { background: #ccb89c; }
+/* Each bioconcept carries the same highlight color it has in the text. */
+.stats-group-gene      .stats-keyword { background: #cfe8c9; color: #235c27; }
+.stats-group-disease   .stats-keyword { background: #f6cccb; color: #7a2a2a; }
+.stats-group-drug      .stats-keyword { background: #fbddae; color: #6b4310; }
+.stats-group-species   .stats-keyword { background: #c6d9f6; color: #1f4a82; }
+.stats-group-variant   .stats-keyword { background: #ecc8ec; color: #6a2f7a; }
+.stats-group-cell_line .stats-keyword { background: #d3c4f0; color: #45308f; }
+.stats-group-dna       .stats-keyword { background: #b6e6da; color: #0f5d51; }
+.stats-group-rna       .stats-keyword { background: #f1e59f; color: #6b5810; }
+.stats-group-cell_type .stats-keyword { background: #e0d3c2; color: #5e4630; }
+.stats-count {
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  text-align: right;
+  min-width: 1.5em;
+}
+.stats-more { color: var(--text-soft); font-style: italic; font-size: 0.85em; padding-top: 0.4em; }
+
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.3em 1.6em 1.5em;
+  margin-bottom: 1.5em;
+  box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
+}
+.chart-card h4 { margin: 0 0 1em 0; }
+
+.type-histogram { list-style: none; margin: 0; padding: 0; }
+.hist-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 50px;
+  align-items: center;
+  gap: 0.9em;
+  padding: 0.35em 0;
+}
+.hist-label {
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.hist-row-disease .hist-label   { color: #b35a5a; }
+.hist-row-drug .hist-label      { color: #9c7321; }
+.hist-row-gene .hist-label      { color: #5f8a52; }
+.hist-row-species .hist-label   { color: #4f7aac; }
+.hist-row-variant .hist-label   { color: #9c5172; }
+.hist-row-cell_line .hist-label { color: #6a5aa0; }
+.hist-row-dna .hist-label       { color: #2f8f80; }
+.hist-row-rna .hist-label       { color: #9c842a; }
+.hist-row-cell_type .hist-label { color: #876b4a; }
+.hist-track {
+  height: 10px;
+  background: var(--border-soft);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.hist-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  transition: width 250ms ease-out;
+}
+.hist-row-disease .hist-fill   { background: #eaa9a8; }
+.hist-row-drug .hist-fill      { background: #f2c47c; }
+.hist-row-gene .hist-fill      { background: #a6d49b; }
+.hist-row-species .hist-fill   { background: #9fbeea; }
+.hist-row-variant .hist-fill   { background: #d9a7d9; }
+.hist-row-cell_line .hist-fill { background: #b7a3e5; }
+.hist-row-dna .hist-fill       { background: #8ad6c4; }
+.hist-row-rna .hist-fill       { background: #e2d06a; }
+.hist-row-cell_type .hist-fill { background: #ccb89c; }
+.hist-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+  font-weight: 600;
+}
+
+.doc-overview { list-style: none; margin: 0; padding: 0; }
+.doc-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(160px, 30%) 50px;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.45em 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-link {
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.doc-title {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+.doc-track {
+  height: 12px;
+  background: var(--border-soft);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.doc-bar {
+  display: flex;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.doc-seg { display: block; height: 100%; }
+.doc-seg-disease   { background: #c96b6b; }
+.doc-seg-drug      { background: #d99a3e; }
+.doc-seg-gene      { background: #5fa052; }
+.doc-seg-species   { background: #5a86c4; }
+.doc-seg-variant   { background: #b25fb2; }
+.doc-seg-cell_line { background: #7d5fc4; }
+.doc-seg-dna       { background: #2fa899; }
+.doc-seg-rna       { background: #c9b03e; }
+.doc-seg-cell_type { background: #9c7a52; }
+.doc-seg-rna       { background: #5e8b8f; }
+.doc-seg-dna       { background: #88a0a3; }
+.doc-seg-cell_type { background: #ae7c92; }
+.doc-seg-unknown   { background: var(--text-soft); }
+.doc-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.comparison-section { margin-top: 1.5em; }
+.comparison-section summary {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+  cursor: pointer;
+  list-style: none;
+  outline: none;
+  padding: 0.4em 0;
+}
+.comparison-section summary::-webkit-details-marker { display: none; }
+.comparison-section summary h3 { margin: 0; }
+.comparison-section summary::after {
+  content: "▸";
+  color: var(--text-soft);
+  margin-left: auto;
+  font-size: 0.85em;
+  transition: transform 120ms;
+}
+.comparison-section[open] summary::after { transform: rotate(90deg); }
+.comparison-section[open] summary .hint { color: var(--text-muted); }
+.comparison-section .hint { margin: 0; }
+.comparison-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-top: 0.8em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+.comparison-scroll .comparison { border: none; border-radius: 0; }
+.comparison-scroll thead { position: sticky; top: 0; z-index: 1; }
+
+.comparison {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 0.92em;
+}
+.comparison th, .comparison td {
+  text-align: left;
+  padding: 0.7em 1em;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: top;
+}
+.comparison tr:last-child td { border-bottom: none; }
+.comparison th {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.comparison code {
+  background: var(--accent-bg);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+.comparison .entity-type {
+  font-weight: 600;
+  font-size: 0.92em;
+}
+.comparison .absent { color: var(--text-soft); }
+.comparison small { color: var(--text-muted); font-size: 0.85em; }
+
+.entity-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 29, 43, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 1em 1em;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+.entity-popup-overlay.hidden { display: none; }
+.entity-popup-card {
+  background: var(--bg-card);
+  border-radius: 8px;
+  box-shadow: 0 20px 50px rgba(31, 29, 43, 0.3);
+  width: min(560px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 1.4em 1.6em 1.6em;
+}
+.entity-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 0.8em;
+  margin-bottom: 1em;
+}
+.entity-popup-header h3 { margin: 0; text-transform: none; letter-spacing: 0; font-family: var(--serif); font-size: 1.3em; color: var(--text); }
+.entity-popup-close {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  font-size: 1.5em;
+  line-height: 1;
+  padding: 0 0.2em;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.entity-popup-close:hover { color: var(--accent); }
+.entity-popup-info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4em 1.2em;
+  margin: 0 0 1.2em 0;
+  font-size: 0.95em;
+}
+.entity-popup-info dt { color: var(--text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 0.1em; }
+.entity-popup-info dd { margin: 0; word-break: break-word; }
+.entity-popup-sources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4em 1.5em;
+  font-size: 0.92em;
+  align-items: start;
+}
+.entity-popup-col-title {
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border-soft);
+}
+.entity-popup-source { margin-bottom: 0.6em; }
+.entity-popup-source:last-child { margin-bottom: 0; }
+.entity-popup-source-name { font-weight: 600; color: var(--accent); }
+.entity-popup-source-id { margin: 0.1em 0 0 0.2em; }
+.entity-popup-source-none { color: var(--text-muted); }
+.entity-popup-source-detail { color: var(--text-muted); font-size: 0.9em; }
+.entity-popup-empty { grid-column: 1 / -1; color: var(--text-muted); font-style: italic; }
+
+@media (max-width: 900px) {
+  .summary { grid-template-columns: 1fr; }
+  .doc-grid { grid-template-columns: 1fr; }
+  .stats-panel { order: 2; }
+}
+</style>
+</head>
+<body>
+<header class="site-header">
+  <h1>TotalAnnotator</h1>
+  <p>Static annotation report. Re-open this file any time to revisit the run.</p>
+</header>
+
+<!--CONTENT-->
+
+<div class="entity-popup-overlay hidden" id="entity-popup" aria-hidden="true" role="dialog">
+  <div class="entity-popup-card">
+    <div class="entity-popup-header">
+      <h3 id="entity-popup-title">Entity</h3>
+      <button class="entity-popup-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <dl class="entity-popup-info"></dl>
+    <h4>Found by</h4>
+    <div class="entity-popup-sources"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const popup = document.getElementById("entity-popup");
+  if (!popup) return;
+  const titleEl = popup.querySelector("#entity-popup-title");
+  const infoEl = popup.querySelector(".entity-popup-info");
+  const sourcesEl = popup.querySelector(".entity-popup-sources");
+  const closeBtn = popup.querySelector(".entity-popup-close");
+
+  const ENTITY_TYPE_LABELS = {
+    gene: "Gene / protein",
+    disease: "Disease",
+    drug: "Chemical / drug",
+    species: "Species",
+    variant: "Variant / mutation",
+    cell_line: "Cell line",
+    unknown: "Entity",
+  };
+  const ANNOTATOR_LABELS = {
+    pubtator3: "PubTator3",
+    bern2: "BERN2",
+    flair: "Flair / HunFlair",
+  };
+
+  // Display IDs with a consistent prefix casing regardless of which annotator
+  // emitted them (e.g. mesh: and MESH: both render as MESH:).
+  const ID_PREFIX_CANONICAL = {
+    mesh: "MESH",
+    ncbigene: "NCBIGene", ncbi_gene: "NCBIGene", "ncbi-gene": "NCBIGene",
+    ncbitaxon: "NCBITaxon", ncbitaxonomy: "NCBITaxon", ncbi_taxonomy: "NCBITaxon",
+    taxonomy: "NCBITaxon", taxon: "NCBITaxon",
+    dbsnp: "dbSNP", chebi: "CHEBI", drugbank: "DrugBank",
+    cellosaurus: "CVCL", cvcl: "CVCL", omim: "OMIM", mim: "OMIM",
+    cl: "CL", go: "GO", doid: "DOID", uberon: "UBERON", bto: "BTO", fma: "FMA", pato: "PATO",
+  };
+  function formatId(canonicalId, entityType) {
+    if (!canonicalId) return canonicalId;
+    const s = String(canonicalId).trim();
+    const idx = s.indexOf(":");
+    if (idx === -1) {
+      // Bare numeric id: add the prefix the prefixed annotators use, so e.g.
+      // PubTator3 "9606" matches BERN2 "NCBITaxon:9606".
+      if (/^\d+$/.test(s)) {
+        if (entityType === "gene") return "NCBIGene:" + s;
+        if (entityType === "species") return "NCBITaxon:" + s;
+      }
+      return s;
+    }
+    const canon = ID_PREFIX_CANONICAL[s.slice(0, idx).toLowerCase()];
+    return canon ? canon + ":" + s.slice(idx + 1) : s;
+  }
+  // An annotator did NEN for this entity only if it returned a usable id.
+  const NULL_IDS = new Set(["", "-", "cui-less", "none", "null"]);
+  function isRealId(id) {
+    return id != null && !NULL_IDS.has(String(id).trim().toLowerCase());
+  }
+
+  function databaseLink(canonicalId, entityType) {
+    if (!canonicalId) return null;
+    const id = String(canonicalId).trim();
+    const mesh = id.match(/^mesh:(.+)$/i);
+    if (mesh) return { url: `https://meshb.nlm.nih.gov/record/ui?ui=${encodeURIComponent(mesh[1])}` };
+    const gene = id.match(/^ncbi[_-]?gene:(.+)$/i);
+    if (gene) return { url: `https://www.ncbi.nlm.nih.gov/gene/${encodeURIComponent(gene[1])}` };
+    const tax = id.match(/^(?:ncbi[_-]?taxonomy|ncbitaxon|taxonomy|taxon):(.+)$/i);
+    if (tax) return { url: `https://www.ncbi.nlm.nih.gov/taxonomy/${encodeURIComponent(tax[1])}` };
+    const snp = id.match(/^(?:dbsnp|rs):(.+)$/i);
+    if (snp) return { url: `https://www.ncbi.nlm.nih.gov/snp/${encodeURIComponent(snp[1])}` };
+    const chebi = id.match(/^chebi:(.+)$/i);
+    if (chebi) return { url: `https://www.ebi.ac.uk/chebi/searchId.do?chebiId=CHEBI:${encodeURIComponent(chebi[1])}` };
+    const drugbank = id.match(/^drugbank:(.+)$/i);
+    if (drugbank) return { url: `https://go.drugbank.com/drugs/${encodeURIComponent(drugbank[1])}` };
+    const cvcl = id.match(/^(?:cellosaurus|cvcl):(.+)$/i);
+    if (cvcl) {
+      const ref = cvcl[1].startsWith("CVCL_") ? cvcl[1] : `CVCL_${cvcl[1]}`;
+      return { url: `https://www.cellosaurus.org/${encodeURIComponent(ref)}` };
+    }
+    const omim = id.match(/^(?:omim|mim):(.+)$/i);
+    if (omim) return { url: `https://www.omim.org/entry/${encodeURIComponent(omim[1])}` };
+    if (entityType === "gene" && /^\d+$/.test(id)) {
+      return { url: `https://www.ncbi.nlm.nih.gov/gene/${encodeURIComponent(id)}` };
+    }
+    if (entityType === "species" && /^\d+$/.test(id)) {
+      return { url: `https://www.ncbi.nlm.nih.gov/taxonomy/${encodeURIComponent(id)}` };
+    }
+    const obo = id.match(/^(cl|go|doid|uberon|bto|fma|pato):(.+)$/i);
+    if (obo) return { url: `https://purl.obolibrary.org/obo/${obo[1].toUpperCase()}_${encodeURIComponent(obo[2])}` };
+    return null;
+  }
+
+  function appendInfo(label, value, link) {
+    if (value === null || value === undefined || value === "") return;
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    if (link) {
+      const anchor = document.createElement("a");
+      anchor.href = link; anchor.target = "_blank"; anchor.rel = "noopener";
+      anchor.textContent = value;
+      dd.appendChild(anchor);
+    } else {
+      dd.textContent = value;
+    }
+    infoEl.appendChild(dt);
+    infoEl.appendChild(dd);
+  }
+
+  function appendDetail(parent, hit) {
+    const detail = [];
+    if (typeof hit.confidence === "number") detail.push("conf " + hit.confidence.toFixed(3));
+    const mentions = typeof hit.mentions === "number" ? hit.mentions : 1;
+    if (mentions > 1) detail.push(mentions + " mentions");
+    if (detail.length === 0) return;
+    const small = document.createElement("span");
+    small.className = "entity-popup-source-detail";
+    small.textContent = " (" + detail.join(", ") + ")";
+    parent.appendChild(small);
+  }
+
+  // An annotator counts as NEN for this entity if any of its hits has a real id.
+  function annotatorIsNen(hits) {
+    return hits.some((h) => isRealId(h.canonical_id));
+  }
+
+  // Left ("NEN") column: annotator name plus each normalized id/name.
+  function renderNenEntry(name, hits, entityType) {
+    const div = document.createElement("div");
+    div.className = "entity-popup-source";
+    const nm = document.createElement("div");
+    nm.className = "entity-popup-source-name";
+    nm.textContent = ANNOTATOR_LABELS[name] || name;
+    div.appendChild(nm);
+    for (const hit of hits) {
+      if (!isRealId(hit.canonical_id)) continue;
+      const line = document.createElement("div");
+      line.className = "entity-popup-source-id";
+      const link = databaseLink(hit.canonical_id, entityType);
+      if (link) {
+        const a = document.createElement("a");
+        a.href = link.url; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = formatId(hit.canonical_id, entityType);
+        line.appendChild(a);
+      } else {
+        line.appendChild(document.createTextNode(formatId(hit.canonical_id, entityType)));
+      }
+      if (hit.canonical_name && hit.canonical_name !== hit.canonical_id) {
+        line.appendChild(document.createTextNode(" · " + hit.canonical_name));
+      }
+      appendDetail(line, hit);
+      div.appendChild(line);
+    }
+    return div;
+  }
+
+  // Right ("NER only") column: annotator name and detail, no id.
+  function renderNerEntry(name, hits) {
+    const div = document.createElement("div");
+    div.className = "entity-popup-source";
+    const nm = document.createElement("span");
+    nm.className = "entity-popup-source-name";
+    nm.textContent = ANNOTATOR_LABELS[name] || name;
+    div.appendChild(nm);
+    if (hits.length > 0) appendDetail(div, hits[0]);
+    return div;
+  }
+
+  function renderColumn(title, names, renderEntry) {
+    const col = document.createElement("div");
+    col.className = "entity-popup-col";
+    const heading = document.createElement("div");
+    heading.className = "entity-popup-col-title";
+    heading.textContent = title;
+    col.appendChild(heading);
+    if (names.length === 0) {
+      const none = document.createElement("div");
+      none.className = "entity-popup-source-none";
+      none.textContent = "-";
+      col.appendChild(none);
+    } else {
+      for (const n of names) col.appendChild(renderEntry(n));
+    }
+    return col;
+  }
+
+  function openPopup(mark) {
+    let data;
+    try { data = JSON.parse(mark.dataset.entity || "{}"); }
+    catch (err) { console.error("Failed to parse entity data", err); return; }
+    titleEl.textContent = ENTITY_TYPE_LABELS[data.entity_type] || data.entity_type || "Entity";
+    infoEl.innerHTML = "";
+    sourcesEl.innerHTML = "";
+    appendInfo("Keyword", data.keyword);
+    appendInfo("Canonical name", data.canonical_name);
+    const idLink = databaseLink(data.canonical_id, data.entity_type);
+    appendInfo("Canonical id", formatId(data.canonical_id, data.entity_type), idLink ? idLink.url : null);
+
+    const sources = data.by_source || {};
+    // Shows annotators in this order: PubTator3, then BERN2, then Flair.
+    const SOURCE_ORDER = { pubtator3: 0, bern2: 1, flair: 2 };
+    const rank = (n) => (n in SOURCE_ORDER ? SOURCE_ORDER[n] : 99);
+    const names = Object.keys(sources).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    if (names.length === 0) {
+      const note = document.createElement("p");
+      note.className = "entity-popup-empty";
+      note.textContent = "No annotator details available.";
+      sourcesEl.appendChild(note);
+    } else {
+      // Split by whether each annotator normalized THIS entity (NEN) or only
+      // tagged it (NER only). The same annotator (e.g. BERN2) can fall in either
+      // column depending on the entity.
+      const nenNames = names.filter((n) => annotatorIsNen(sources[n]));
+      const nerNames = names.filter((n) => !annotatorIsNen(sources[n]));
+      sourcesEl.appendChild(renderColumn("NEN", nenNames, (n) => renderNenEntry(n, sources[n], data.entity_type)));
+      sourcesEl.appendChild(renderColumn("NER only", nerNames, (n) => renderNerEntry(n, sources[n])));
+    }
+    popup.classList.remove("hidden");
+    popup.setAttribute("aria-hidden", "false");
+    closeBtn.focus();
+  }
+  function closePopup() {
+    popup.classList.add("hidden");
+    popup.setAttribute("aria-hidden", "true");
+  }
+
+  document.addEventListener("click", (event) => {
+    const mark = event.target.closest("mark.entity");
+    if (mark && mark.dataset.entity) { event.preventDefault(); openPopup(mark); return; }
+    if (event.target === popup) closePopup();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      const mark = event.target.closest && event.target.closest("mark.entity");
+      if (mark && mark.dataset.entity) { event.preventDefault(); openPopup(mark); }
+    }
+    if (event.key === "Escape" && !popup.classList.contains("hidden")) closePopup();
+  });
+  closeBtn.addEventListener("click", closePopup);
+})();
+</script>
+</body>
+</html>

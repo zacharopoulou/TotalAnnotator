@@ -13,7 +13,9 @@ from bio_annotation.entity_proposal.aioner_proposer import (
     DEFAULT_AIONER_ENTITY,
     DEFAULT_AIONER_PROJECT,
 )
+from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
+from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
     ANNOTATOR_DISPLAY_NAMES,
@@ -90,11 +92,27 @@ def run_terminal_annotation_ui(
                 "Run tools/aioner/setup.sh first, or set AIONER_REPO / AIONER_MODEL; "
                 "otherwise the AIONER step will be skipped this run."
             )
+    if "medcat" in answers.annotators:
+        medcat_endpoint = medcat_config_endpoint()
+        if not _medcat_service_reachable(medcat_endpoint):
+            output_fn(
+                f"Warning: no MedCAT service reachable at {medcat_endpoint}. "
+                "Start CogStack MedCATservice (see the MedCAT section in README) "
+                "or set MEDCAT_API_URL; otherwise the MedCAT step will return no "
+                "annotations this run."
+            )
     output_fn("")
     output_fn("Running annotation...")
     payload = pipeline_run_fn(paths.config_path)
     write_pipeline_tsv_outputs(payload, paths.results_path)
     write_json(paths.manifest_path, build_run_manifest(answers, paths, payload))
+    output_info = payload.get("output") if isinstance(payload.get("output"), dict) else None
+    pipeline_results_path = (
+        Path(output_info["path"]) if output_info and output_info.get("path") else paths.results_path
+    )
+    # The report is written by the shared writer (write_pipeline_output); here we
+    # only resolve its path to display it.
+    report_path = pipeline_results_path.with_suffix(".html")
     output_fn("")
     output_fn("Run complete")
     output_fn(f"Documents: {payload.get('document_count', 0)}")
@@ -104,6 +122,8 @@ def run_terminal_annotation_ui(
         output_fn(f"{label}: {path}")
     output_fn(f"Config: {paths.config_path}")
     output_fn(f"Manifest: {paths.manifest_path}")
+    output_fn(f"HTML report: {report_path}")
+    output_fn(f"Open {report_path.as_uri()} in your browser to view the annotated results.")
     return payload
 
 
@@ -139,9 +159,13 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators",
         choices=ANNOTATOR_CHOICES,
-        # AIONER requires a separate environment + downloaded models, so it is
-        # offered as a choice but not pre-selected by default.
-        default_values=[value for value, _ in ANNOTATOR_CHOICES if value != "aioner"],
+        # AIONER needs a separate environment + models, apollo downloads a local
+        # model, and MedCAT needs a running MedCATservice, so none are pre-selected.
+        default_values=[
+            value
+            for value, _ in ANNOTATOR_CHOICES
+            if value not in {"aioner", "apollo", "medcat"}
+        ],
         validate_values=_validate_selected_annotators,
     )
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
@@ -189,6 +213,24 @@ def aioner_config_paths() -> tuple[str, str]:
     return repo, model
 
 
+def medcat_config_endpoint() -> str:
+    return os.environ.get("MEDCAT_API_URL") or DEFAULT_MEDCAT_API_URL
+
+
+def _medcat_service_reachable(endpoint: str, *, timeout: float = 3.0) -> bool:
+    """Best-effort check that a MedCATservice answers at the endpoint's /api/info."""
+    from urllib import request as urlrequest
+
+    base = endpoint.rstrip("/")
+    if base.endswith("/api/process"):
+        base = base[: -len("/api/process")]
+    try:
+        with urlrequest.urlopen(base + "/api/info", timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -> str:
     lines = ["[input]"]
     if answers.input_mode == "pmids":
@@ -211,6 +253,10 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
     if "aioner" in answers.annotators:
         aioner_repo, aioner_model = aioner_config_paths()
         lines += ["", "[annotators.aioner]", 'runtime = "local_subprocess"', f"repo = {_toml_string(aioner_repo)}", f"model = {_toml_string(aioner_model)}", f"entity = {_toml_string(DEFAULT_AIONER_ENTITY)}", f"project = {_toml_string(DEFAULT_AIONER_PROJECT)}"]
+    if "apollo" in answers.annotators:
+        lines += ["", "[annotators.apollo]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_APOLLO_MODEL)}"]
+    if "medcat" in answers.annotators:
+        lines += ["", "[annotators.medcat]", 'runtime = "remote_api"', f"endpoint = {_toml_string(medcat_config_endpoint())}", "min_acc = 0.3"]
     lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
     return "\n".join(lines)
 
@@ -257,9 +303,22 @@ def find_unsupported_entity_types(annotators: list[str], entity_types: list[str]
     return {a: missing for a in annotators if (missing := [e for e in entity_types if e not in ANNOTATOR_ENTITY_TYPES.get(a, set())])}
 
 
+def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ...]:
+    available: set[str] = set()
+    for annotator in annotators:
+        available |= ANNOTATOR_ENTITY_TYPES.get(annotator, set())
+    if not available:
+        return ENTITY_TYPE_CHOICES
+    canonical_order = [value for value, _ in ENTITY_TYPE_CHOICES]
+    ordered = [value for value in canonical_order if value in available]
+    ordered.extend(sorted(available - set(canonical_order)))
+    return tuple((value, _entity_type_label(value)) for value in ordered)
+
+
 def _prompt_entity_types(*, input_fn: InputFn, output_fn: OutputFn, annotators: list[str]) -> list[str]:
+    choices = _entity_type_choices_for(annotators)
     while True:
-        entity_types = _prompt_multi_choice(input_fn=input_fn, output_fn=output_fn, title="Choose entity types to include, or press Enter for all entity types", choices=ENTITY_TYPE_CHOICES, default_values=[], allow_empty=True)
+        entity_types = _prompt_multi_choice(input_fn=input_fn, output_fn=output_fn, title="Choose entity types to include, or press Enter for all entity types", choices=choices, default_values=[], allow_empty=True)
         unsupported = find_unsupported_entity_types(annotators, entity_types)
         if not unsupported:
             return entity_types
@@ -385,7 +444,10 @@ def _annotator_label(annotator: str) -> str:
 
 
 def _entity_type_label(entity_type: str) -> str:
-    return ENTITY_TYPE_DISPLAY_NAMES.get(entity_type, entity_type)
+    return ENTITY_TYPE_DISPLAY_NAMES.get(
+        entity_type,
+        entity_type.replace("_", " ").capitalize(),
+    )
 
 
 def _toml_string(value: str) -> str:
