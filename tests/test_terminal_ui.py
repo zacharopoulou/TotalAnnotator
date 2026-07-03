@@ -20,10 +20,14 @@ def test_parse_pmids_deduplicates_common_separators() -> None:
 
 
 def test_entity_type_choices_are_annotator_aware() -> None:
-    # Without apollo, only the canonical bio types are offered.
-    bio = [value for value, _ in _entity_type_choices_for(["pubtator3", "bern2", "flair"])]
-    assert "disease" in bio
-    assert "sign_symptom" not in bio
+    # Without a clinical annotator, no clinical types like sign_symptom are offered.
+    without_clinical = [value for value, _ in _entity_type_choices_for(["pubtator3", "bern2", "flair"])]
+    assert "disease" in without_clinical
+    assert "sign_symptom" not in without_clinical
+
+    # The bio types a pubtator3 selection offers, used as the expected leading prefix
+    # for a clinical selection that shares pubtator3 (but not bern2's cell/dna/rna).
+    bio = [value for value, _ in _entity_type_choices_for(["pubtator3"])]
 
     # Selecting apollo surfaces its clinical types as selectable choices, with the
     # canonical bio types still listed first.
