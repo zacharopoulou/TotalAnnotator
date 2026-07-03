@@ -20,27 +20,33 @@ def test_parse_pmids_deduplicates_common_separators() -> None:
 
 
 def test_entity_type_choices_are_annotator_aware() -> None:
-    # Without d4data, only the canonical bio types are offered.
+    # Without apollo, only the canonical bio types are offered.
     bio = [value for value, _ in _entity_type_choices_for(["pubtator3", "bern2", "flair"])]
     assert "disease" in bio
     assert "sign_symptom" not in bio
 
-    # Selecting d4data surfaces its clinical types as selectable choices, with the
-    # canonical bio types still listed first.
-    with_d4data = _entity_type_choices_for(["pubtator3", "d4data"])
-    values = [value for value, _ in with_d4data]
-    assert values[: len(bio)] == bio
+    # Selecting MACCROBAT-based local models surfaces clinical types as selectable
+    # choices, with the canonical bio types still listed first.
+    with_apollo = _entity_type_choices_for(["pubtator3", "apollo"])
+    values = [value for value, _ in with_apollo]
+    expected_prefix = [value for value in bio if value in values]
+    assert values[: len(expected_prefix)] == expected_prefix
     assert "sign_symptom" in values
     assert "lab_value" in values
-    # Clinical labels get a readable display name.
-    labels = dict(with_d4data)
+    labels = dict(with_apollo)
     assert labels["sign_symptom"] == "Sign symptom"
+
+    with_d4data = _entity_type_choices_for(["pubtator3", "d4data"])
+    d4data_values = [value for value, _ in with_d4data]
+    expected_d4data_prefix = [value for value in bio if value in d4data_values]
+    assert d4data_values[: len(expected_d4data_prefix)] == expected_d4data_prefix
+    assert "sign_symptom" in d4data_values
+    assert "lab_value" in d4data_values
 
 
 def test_find_unsupported_entity_types_reports_exact_compatibility() -> None:
-    assert find_unsupported_entity_types(["bern2", "flair"], ["variant", "cell_line"]) == {
-        "bern2": ["cell_line"],
-        "flair": ["variant"],
+    assert find_unsupported_entity_types(["bern2", "flair"], ["variant", "cell_line", "cell_type"]) == {
+        "flair": ["variant", "cell_type"],
     }
 
 
@@ -362,5 +368,5 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
     )
 
     assert "Entity type compatibility warning:" in messages
-    assert any("BERN2 does not produce: Cell line" in message for message in messages)
     assert any("Flair / HunFlair does not produce: Variant / mutation" in message for message in messages)
+    assert not any("BERN2 does not produce" in message for message in messages)

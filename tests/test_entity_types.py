@@ -25,9 +25,9 @@ def test_entity_type_specs_are_the_source_of_truth() -> None:
     }
     assert (
         "bern2",
-        "Drug",
-        "drug",
-        ("DrugBank",),
+        "Cell type",
+        "cell_type",
+        ("Cell Ontology",),
     ) in {
         (spec.annotator, spec.source_entity_type, spec.canonical_entity_type, spec.database_ids)
         for spec in ANNOTATOR_ENTITY_TYPE_SPECS
@@ -39,7 +39,12 @@ def test_normalize_entity_type_uses_explicit_table_rows() -> None:
     assert normalize_entity_type("Gene / protein") == "gene"
     assert normalize_entity_type("Chemical / drug") == "drug"
     assert normalize_entity_type("Mutation / variant") == "variant"
+    assert normalize_entity_type("Mutation") == "variant"
+    assert normalize_entity_type("CellLine") == "cell_line"
     assert normalize_entity_type("Cell line") == "cell_line"
+    assert normalize_entity_type("cell_type") == "cell_type"
+    assert normalize_entity_type("DNA") == "dna"
+    assert normalize_entity_type("RNA") == "rna"
     assert normalize_entity_type("micro_rna") == "micro_rna"
     assert normalize_entity_type("chemical_entity") == "chemical_entity"
 
@@ -52,7 +57,9 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
     assert annotator_supports_nen("bern2") is True
     assert annotator_supports_nen("flair") is False
     assert "variant" in ANNOTATOR_ENTITY_TYPES["bern2"]
-    assert "cell_line" not in ANNOTATOR_ENTITY_TYPES["bern2"]
+    assert {"cell_line", "cell_type", "dna", "rna"} <= ANNOTATOR_ENTITY_TYPES["bern2"]
+    assert "cell_type" not in ANNOTATOR_ENTITY_TYPES["pubtator3"]
+    assert "dna" not in ANNOTATOR_ENTITY_TYPES["flair"]
     assert "mirna" not in ANNOTATOR_ENTITY_TYPES["flair"]
 
 
@@ -72,5 +79,7 @@ def test_normalization_databases_are_source_backed() -> None:
     assert normalization_databases("Chemical / drug", "pubtator3") == ("MeSH",)
     assert normalization_databases("variant", "pubtator3") == ("dbSNP", "ClinGen Allele Registry")
     assert normalization_databases("Drug", "bern2") == ("DrugBank",)
+    assert normalization_databases("cell_type", "bern2") == ("Cell Ontology",)
+    assert normalization_databases("cell_line", "bern2") == ("Cellosaurus",)
     assert normalization_databases("species", "bern2") == ("NCBI Taxonomy",)
     assert normalization_databases("gene", "flair") == ()
