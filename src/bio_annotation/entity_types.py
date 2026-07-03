@@ -126,6 +126,17 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
         )
         for label in MACCROBAT_LABELS
     ),
+    # d4data/biomedical-ner-all uses the same MACCROBAT clinical label family.
+    *(
+        AnnotatorEntityTypeSpec(
+            "d4data",
+            "d4data biomedical-ner-all",
+            label.replace("_", " "),
+            MACCROBAT_CANONICAL_OVERRIDES.get(label, label.lower()),
+            (),
+        )
+        for label in MACCROBAT_LABELS
+    ),
 )
 
 
@@ -261,6 +272,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "apollo"
+        },
+        normalization_fields=(),
+    ),
+    "d4data": AnnotatorCapability(
+        label="d4data biomedical-ner-all",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
         },
         normalization_fields=(),
     ),

@@ -7,6 +7,7 @@ from typing import Any
 
 from bio_annotation.entity_proposal.apollo_proposer import annotate_with_apollo
 from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
+from bio_annotation.entity_proposal.d4data_proposer import annotate_with_d4data
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
 from bio_annotation.entity_proposal.medcat_proposer import annotate_with_medcat
 from bio_annotation.entity_proposal.pubtator3_proposer import annotate_with_pubtator3
@@ -39,6 +40,9 @@ def run_all_annotators(
     apollo_response: Any = None,
     apollo_request_fn: Any = None,
     apollo_pipeline: Any = None,
+    d4data_response: Any = None,
+    d4data_request_fn: Any = None,
+    d4data_pipeline: Any = None,
     medcat_response: Any = None,
     medcat_request_fn: Any = None,
     medcat_endpoint: str | None = None,
@@ -84,6 +88,18 @@ def run_all_annotators(
             request_fn=apollo_request_fn,
             pipeline=apollo_pipeline,
         )
+    # Only invoke d4data when a response, request function, or pipeline is provided.
+    if (
+        d4data_response is not None
+        or d4data_request_fn is not None
+        or d4data_pipeline is not None
+    ):
+        results["d4data"] = annotate_with_d4data(
+            document,
+            response=d4data_response,
+            request_fn=d4data_request_fn,
+            pipeline=d4data_pipeline,
+        )
     # Only invoke MedCAT when a response, request function, or endpoint is provided.
     if (
         medcat_response is not None
@@ -101,7 +117,7 @@ def run_all_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "apollo", "medcat"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "apollo", "d4data", "medcat"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -110,6 +126,7 @@ __all__ = [
     "annotate_with_aioner",
     "annotate_with_apollo",
     "annotate_with_bern2",
+    "annotate_with_d4data",
     "annotate_with_flair",
     "annotate_with_medcat",
     "annotate_with_pubtator3",

@@ -2476,6 +2476,10 @@ benchmarks = [
     { name = "pandas" },
     { name = "tabulate" },
 ]
+d4data = [
+    { name = "torch" },
+    { name = "transformers" },
+]
 flair = [
     { name = "flair" },
 ]
@@ -2493,10 +2497,12 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
     { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
     { name = "torch", marker = "extra == 'apollo'", specifier = ">=2.0" },
-    { name = "totalannotator", extras = ["flair", "apollo", "benchmarks"], marker = "extra == 'all'" },
+    { name = "torch", marker = "extra == 'd4data'", specifier = ">=2.0" },
+    { name = "totalannotator", extras = ["flair", "apollo", "d4data", "benchmarks"], marker = "extra == 'all'" },
     { name = "transformers", marker = "extra == 'apollo'", specifier = ">=4.30,<5" },
+    { name = "transformers", marker = "extra == 'd4data'", specifier = ">=4.30,<5" },
 ]
-provides-extras = ["flair", "apollo", "benchmarks", "all"]
+provides-extras = ["flair", "apollo", "d4data", "benchmarks", "all"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]

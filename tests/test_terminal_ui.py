@@ -29,15 +29,23 @@ def test_entity_type_choices_are_annotator_aware() -> None:
     # for a clinical selection that shares pubtator3 (but not bern2's cell/dna/rna).
     bio = [value for value, _ in _entity_type_choices_for(["pubtator3"])]
 
-    # Selecting apollo surfaces its clinical types as selectable choices, with the
-    # canonical bio types still listed first.
+    # Selecting MACCROBAT-based local models surfaces clinical types as selectable
+    # choices, with the canonical bio types still listed first.
     with_apollo = _entity_type_choices_for(["pubtator3", "apollo"])
     values = [value for value, _ in with_apollo]
-    assert values[: len(bio)] == bio
+    expected_prefix = [value for value in bio if value in values]
+    assert values[: len(expected_prefix)] == expected_prefix
     assert "sign_symptom" in values
     assert "lab_value" in values
     labels = dict(with_apollo)
     assert labels["sign_symptom"] == "Sign symptom"
+
+    with_d4data = _entity_type_choices_for(["pubtator3", "d4data"])
+    d4data_values = [value for value, _ in with_d4data]
+    expected_d4data_prefix = [value for value in bio if value in d4data_values]
+    assert d4data_values[: len(expected_d4data_prefix)] == expected_d4data_prefix
+    assert "sign_symptom" in d4data_values
+    assert "lab_value" in d4data_values
 
 
 def test_find_unsupported_entity_types_reports_exact_compatibility() -> None:

@@ -36,6 +36,11 @@ project = "tools/aioner"
 [annotators.apollo]
 model = "Clinical-AI-Apollo/Medical-NER"
 
+# d4data is a local HuggingFace clinical NER model; add "d4data" to enabled above
+# after installing the optional deps with: uv sync --extra d4data
+[annotators.d4data]
+model = "d4data/biomedical-ner-all"
+
 [filters]
 entity_types = []
 
