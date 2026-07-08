@@ -41,6 +41,8 @@ stanza = [
 ]
 scispacy = [
     # scispaCy model packages are installed separately from their release URLs.
+    # spaCy/thinc wheels used by scispaCy 0.5.x are not yet NumPy 2 ABI-safe.
+    "numpy>=1.26,<2.0",
     "scispacy>=0.5.5",
 ]
 benchmarks = [
