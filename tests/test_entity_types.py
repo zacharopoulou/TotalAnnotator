@@ -47,6 +47,12 @@ def test_normalize_entity_type_uses_explicit_table_rows() -> None:
     assert normalize_entity_type("RNA") == "rna"
     assert normalize_entity_type("micro_rna") == "micro_rna"
     assert normalize_entity_type("chemical_entity") == "chemical_entity"
+    assert normalize_entity_type("AMINO_ACID") == "amino_acid"
+    assert normalize_entity_type("GENE_OR_GENE_PRODUCT") == "gene"
+    assert normalize_entity_type("SIMPLE_CHEMICAL") == "drug"
+    assert normalize_entity_type("CELL") == "cell"
+    assert normalize_entity_type("CELL_TYPE") == "cell_type"
+    assert normalize_entity_type("PATHOLOGICAL_FORMATION") == "pathological_formation"
 
 
 def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> None:
@@ -61,11 +67,40 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
     assert "cell_type" not in ANNOTATOR_ENTITY_TYPES["pubtator3"]
     assert "dna" not in ANNOTATOR_ENTITY_TYPES["flair"]
     assert "mirna" not in ANNOTATOR_ENTITY_TYPES["flair"]
+    assert ANNOTATOR_ENTITY_TYPES["stanza_bc5cdr"] == {"drug", "disease"}
+    assert ANNOTATOR_ENTITY_TYPES["stanza_jnlpba"] == {
+        "gene",
+        "dna",
+        "rna",
+        "cell_line",
+        "cell_type",
+    }
+    assert {
+        "amino_acid",
+        "anatomical_system",
+        "cancer",
+        "cell",
+        "cellular_component",
+        "developing_anatomical_structure",
+        "gene",
+        "immaterial_anatomical_entity",
+        "multi_tissue_structure",
+        "organ",
+        "species",
+        "organism_subdivision",
+        "organism_substance",
+        "pathological_formation",
+        "drug",
+        "tissue",
+    } <= ANNOTATOR_ENTITY_TYPES["stanza_bionlp13cg"]
 
 
 def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior() -> None:
     assert ENTITY_TYPE_DISPLAY_NAMES["gene"] == "Gene / protein"
     assert ENTITY_TYPE_DISPLAY_NAMES["drug"] == "Chemical / drug"
+    assert ENTITY_TYPE_DISPLAY_NAMES["cell"] == "Cell"
+    assert ENTITY_TYPE_DISPLAY_NAMES["cancer"] == "Cancer"
+    assert ENTITY_TYPE_DISPLAY_NAMES["pathological_formation"] == "Pathological formation"
     assert annotator_normalization_status("pubtator3") == "normalized"
     assert annotator_normalization_status("bern2") == "normalized"
     assert annotator_normalization_status("flair") == "not_returned"

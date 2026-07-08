@@ -868,6 +868,39 @@ def test_stanza_bionlp13cg_runs_pipeline() -> None:
     assert annotations[0].entity_type == "gene"
 
 
+def test_stanza_bionlp13cg_maps_documented_entity_types() -> None:
+    document = sample_document()
+    labels = [
+        ("AMINO_ACID", "amino_acid"),
+        ("ANATOMICAL_SYSTEM", "anatomical_system"),
+        ("CANCER", "cancer"),
+        ("CELL", "cell"),
+        ("CELLULAR_COMPONENT", "cellular_component"),
+        ("DEVELOPING_ANATOMICAL_STRUCTURE", "developing_anatomical_structure"),
+        ("GENE_OR_GENE_PRODUCT", "gene"),
+        ("IMMATERIAL_ANATOMICAL_ENTITY", "immaterial_anatomical_entity"),
+        ("MULTI-TISSUE_STRUCTURE", "multi_tissue_structure"),
+        ("ORGAN", "organ"),
+        ("ORGANISM", "species"),
+        ("ORGANISM_SUBDIVISION", "organism_subdivision"),
+        ("ORGANISM_SUBSTANCE", "organism_substance"),
+        ("PATHOLOGICAL_FORMATION", "pathological_formation"),
+        ("SIMPLE_CHEMICAL", "drug"),
+        ("TISSUE", "tissue"),
+    ]
+    entities = [
+        FakeStanzaEntity("PTEN", label, 0, 4)
+        for label, _ in labels
+    ]
+
+    annotations = annotate_with_stanza(document, "bionlp13cg", entities=entities)
+
+    assert all(annotation.source == "stanza_bionlp13cg" for annotation in annotations)
+    assert [annotation.entity_type for annotation in annotations] == [
+        expected for _, expected in labels
+    ]
+
+
 def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
     document = sample_document()
     loaded: list[tuple[str, str]] = []
@@ -877,7 +910,10 @@ def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
         return lambda text: FakeStanzaDoc(
             [
                 FakeStanzaEntity("PTEN", "PROTEIN", 0, 4),
+                FakeStanzaEntity("DNA", "DNA", 5, 8),
+                FakeStanzaEntity("RNA", "RNA", 9, 12),
                 FakeStanzaEntity("T cells", "CELL_TYPE", 15, 22),
+                FakeStanzaEntity("HeLa", "CELL_LINE", 23, 27),
             ]
         )
 
@@ -888,7 +924,13 @@ def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
     assert loaded == [("genia", "jnlpba")]
     assert all(a.source == "stanza_jnlpba" for a in annotations)
     # CELL_TYPE must stay cell_type, not be mislabeled as cell_line.
-    assert [a.entity_type for a in annotations] == ["gene", "cell_type"]
+    assert [a.entity_type for a in annotations] == [
+        "gene",
+        "dna",
+        "rna",
+        "cell_type",
+        "cell_line",
+    ]
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
