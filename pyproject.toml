@@ -17,6 +17,13 @@ dependencies = [
 flair = [
     "flair==0.15.1",
 ]
+clinicalbert = [
+    # ClinicalBERT (samrawal/bert-base-uncased_clinical-ner) --> HuggingFace
+    # transformers token-classification model; it needs transformers + a torch
+    # backend to run locally.
+    "transformers>=4.30,<5",
+    "torch>=2.0",
+]
 apollo = [
     # Clinical-AI-Apollo/Medical-NER is a HuggingFace transformers token-
     # classification model; it needs transformers + a torch backend to run locally.
@@ -37,7 +44,7 @@ benchmarks = [
     "tabulate>=0.9",
 ]
 all = [
-    "totalannotator[flair,apollo,d4data,benchmarks]",
+    "totalannotator[flair,clinicalbert,apollo,d4data,benchmarks]",
 ]
 
 [project.scripts]

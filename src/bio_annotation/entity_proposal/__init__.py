@@ -7,6 +7,7 @@ from typing import Any
 
 from bio_annotation.entity_proposal.apollo_proposer import annotate_with_apollo
 from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
+from bio_annotation.entity_proposal.clinicalbert_proposer import annotate_with_clinicalbert
 from bio_annotation.entity_proposal.d4data_proposer import annotate_with_d4data
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
 from bio_annotation.entity_proposal.medcat_proposer import annotate_with_medcat
@@ -37,6 +38,9 @@ def run_all_annotators(
     pubtator3_endpoint: str | None = None,
     aioner_response: Any = None,
     aioner_request_fn: Any = None,
+    clinicalbert_response: Any = None,
+    clinicalbert_request_fn: Any = None,
+    clinicalbert_pipeline: Any = None,
     apollo_response: Any = None,
     apollo_request_fn: Any = None,
     apollo_pipeline: Any = None,
@@ -75,6 +79,18 @@ def run_all_annotators(
             document,
             response=aioner_response,
             request_fn=aioner_request_fn,
+        )
+    # Only invoke ClinicalBERT when a response, request function, or pipeline is provided.
+    if (
+        clinicalbert_response is not None
+        or clinicalbert_request_fn is not None
+        or clinicalbert_pipeline is not None
+    ):
+        results["clinicalbert"] = annotate_with_clinicalbert(
+            document,
+            response=clinicalbert_response,
+            request_fn=clinicalbert_request_fn,
+            pipeline=clinicalbert_pipeline,
         )
     # Only invoke apollo when a response, request function, or pipeline is provided.
     if (
@@ -117,7 +133,7 @@ def run_all_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "apollo", "d4data", "medcat"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -126,6 +142,7 @@ __all__ = [
     "annotate_with_aioner",
     "annotate_with_apollo",
     "annotate_with_bern2",
+    "annotate_with_clinicalbert",
     "annotate_with_d4data",
     "annotate_with_flair",
     "annotate_with_medcat",
