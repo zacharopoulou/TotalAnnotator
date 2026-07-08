@@ -15,6 +15,10 @@ from bio_annotation.annotators.aioner import (
     build_aioner_pubtator_input,
     call_aioner,
 )
+from bio_annotation.annotators.clinicalbert import (
+    DEFAULT_CLINICALBERT_MODEL,
+    annotate_with_clinicalbert,
+)
 from bio_annotation.annotators.apollo import (
     DEFAULT_APOLLO_MODEL,
     annotate_with_apollo,
@@ -32,7 +36,9 @@ from bio_annotation.annotators.scispacy import (
     annotate_with_scispacy_bc5cdr,
     annotate_with_scispacy_bionlp13cg,
     annotate_with_scispacy_jnlpba,
+    annotate_with_scispacy_umls,
 )
+from bio_annotation.annotators.stanza import annotate_with_stanza
 from bio_annotation.schemas.document import Document
 
 
@@ -557,6 +563,94 @@ def test_aioner_call_requires_configuration(monkeypatch) -> None:
         call_aioner(document)
 
 
+def test_clinicalbert_adapter_parses_pipeline_output_and_normalizes_types() -> None:
+    document = sample_document()
+    # HuggingFace token-classification output. The clinical labels problem / test
+    # / treatment are kept as their own types. Span text is sliced from
+    # document.text, so the model's "word" field is ignored.
+    response = [
+        {"entity_group": "problem", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
+        {"entity_group": "treatment", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
+        {"entity_group": "test", "score": 0.80, "word": "x", "start": 49, "end": 59},
+    ]
+
+    annotations = annotate_with_clinicalbert(document, response=response)
+
+    assert len(annotations) == 3
+    assert all(annotation.source == "clinicalbert" for annotation in annotations)
+    assert annotations[0].entity_type == "problem"
+    assert annotations[0].span_text == "glioblastoma"
+    assert annotations[0].start == 15
+    assert annotations[0].end == 27
+    assert annotations[1].entity_type == "treatment"
+    assert annotations[2].entity_type == "test"
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
+def test_clinicalbert_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> list[dict[str, object]]:
+        calls.append(doc)
+        return [
+            {"entity_group": "problem", "score": 0.9, "word": "glioblastoma", "start": 15, "end": 27}
+        ]
+
+    annotations = annotate_with_clinicalbert(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "problem"
+
+
+def test_clinicalbert_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakePipeline:
+        def __call__(self, text: str) -> list[dict[str, object]]:
+            assert text == document.text
+            return [
+                {"entity_group": "treatment", "score": 0.88, "word": "PTEN", "start": 0, "end": 4}
+            ]
+
+    def fake_loader(model: str) -> FakePipeline:
+        loaded_models.append(model)
+        return FakePipeline()
+
+    annotations = annotate_with_clinicalbert(
+        document,
+        model=DEFAULT_CLINICALBERT_MODEL,
+        pipeline_loader=fake_loader,
+    )
+
+    assert loaded_models == [DEFAULT_CLINICALBERT_MODEL]
+    assert len(annotations) == 1
+    assert annotations[0].source == "clinicalbert"
+    assert annotations[0].entity_type == "treatment"
+
+
+def test_clinicalbert_adapter_trims_leading_articles_and_drops_noise() -> None:
+    document = sample_document()
+    # On out-of-domain text the i2b2 model tags articles and stray punctuation.
+    # Leading "a"/"an"/"the" are stripped; bare articles and lone "-" are dropped.
+    response = [
+        {"entity_group": "problem", "score": 0.9, "word": "a stop codon"},
+        {"entity_group": "problem", "score": 0.9, "word": "an 11-base pair insertion"},
+        {"entity_group": "problem", "score": 0.9, "word": "a"},
+        {"entity_group": "problem", "score": 0.9, "word": "-"},
+        {"entity_group": "problem", "score": 0.9, "word": "the"},
+        {"entity_group": "problem", "score": 0.9, "word": "breast cancer"},
+    ]
+
+    annotations = annotate_with_clinicalbert(document, response=response)
+
+    spans = [annotation.span_text for annotation in annotations]
+    assert spans == ["stop codon", "11-base pair insertion", "breast cancer"]
+    assert all(annotation.entity_type == "problem" for annotation in annotations)
+
+
 def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:
     # The Windows runner must hand AIONER forward-slash paths (it splits the model
     # path on "/") and decode the subprocess as UTF-8. Imported directly so the
@@ -741,19 +835,11 @@ def test_d4data_adapter_loads_configured_model() -> None:
     assert annotations[0].entity_type == "drug"
 
 
-@dataclass
-class FakeSpacyEntity:
-    text: str
-    label_: str
-    start_char: int
-    end_char: int
-
-
 def test_scispacy_jnlpba_adapter_parses_spacy_entities_and_normalizes_types() -> None:
     document = sample_document()
     response = [
-        FakeSpacyEntity("PTEN", "PROTEIN", 0, 4),
-        FakeSpacyEntity("miR-21", "RNA", 37, 43),
+        FakeScispacyEntity("PTEN", "PROTEIN", 0, 4),
+        FakeScispacyEntity("miR-21", "RNA", 9, 15),
     ]
 
     annotations = annotate_with_scispacy_jnlpba(document, response=response)
@@ -763,16 +849,14 @@ def test_scispacy_jnlpba_adapter_parses_spacy_entities_and_normalizes_types() ->
         "scispacy_jnlpba",
     ]
     assert [annotation.entity_type for annotation in annotations] == ["gene", "rna"]
-    assert annotations[0].span_text == "PTEN"
-    assert annotations[0].start == 0
-    assert annotations[0].end == 4
+    assert all(annotation.canonical_id is None for annotation in annotations)
 
 
 def test_scispacy_bc5cdr_adapter_maps_chemical_to_drug() -> None:
     document = sample_document()
     response = [
-        FakeSpacyEntity("glioblastoma", "DISEASE", 15, 27),
-        FakeSpacyEntity("PTEN", "CHEMICAL", 0, 4),
+        FakeScispacyEntity("glioblastoma", "DISEASE", 36, 48),
+        FakeScispacyEntity("cisplatin", "CHEMICAL", 0, 9),
     ]
 
     annotations = annotate_with_scispacy_bc5cdr(document, response=response)
@@ -789,8 +873,8 @@ def test_scispacy_bionlp13cg_adapter_maps_complete_requested_labels() -> None:
     labels = [
         ("AMINO_ACID", "amino_acid"),
         ("ANATOMICAL_SYSTEM", "anatomical_system"),
-        ("CANCER", "disease"),
-        ("CELL", "cell_type"),
+        ("CANCER", "cancer"),
+        ("CELL", "cell"),
         ("CELLULAR_COMPONENT", "cellular_component"),
         ("DEVELOPING_ANATOMICAL_STRUCTURE", "developing_anatomical_structure"),
         ("GENE_OR_GENE_PRODUCT", "gene"),
@@ -805,8 +889,8 @@ def test_scispacy_bionlp13cg_adapter_maps_complete_requested_labels() -> None:
         ("TISSUE", "tissue"),
     ]
     response = [
-        FakeSpacyEntity("PTEN", label, 0, 4)
-        for label, _ in labels
+        FakeScispacyEntity(label, label, index, index + len(label))
+        for index, (label, _) in enumerate(labels)
     ]
 
     annotations = annotate_with_scispacy_bionlp13cg(document, response=response)
@@ -819,17 +903,44 @@ def test_scispacy_bionlp13cg_adapter_maps_complete_requested_labels() -> None:
     ]
 
 
+def test_scispacy_umls_adapter_keeps_top_linker_candidate() -> None:
+    document = sample_document()
+    response = [
+        FakeScispacyEntity(
+            "glioblastoma",
+            "ENTITY",
+            36,
+            48,
+            [("C0017636", 0.91), ("C0278878", 0.42)],
+        )
+    ]
+
+    annotations = annotate_with_scispacy_umls(
+        document,
+        response=response,
+        nlp=type(
+            "FakeNlp",
+            (),
+            {"get_pipe": lambda self, name: FakeScispacyLinker()},
+        )(),
+    )
+
+    assert len(annotations) == 1
+    assert annotations[0].source == "scispacy_umls"
+    assert annotations[0].entity_type == "biomedical_entity"
+    assert annotations[0].canonical_id == "C0017636"
+    assert annotations[0].canonical_name == "Glioblastoma"
+    assert annotations[0].confidence == 0.91
+
+
 def test_scispacy_adapter_loads_configured_model() -> None:
     document = sample_document()
     loaded_models: list[str] = []
 
-    class FakeDoc:
-        ents = [FakeSpacyEntity("PTEN", "PROTEIN", 0, 4)]
-
     class FakeNlp:
-        def __call__(self, text: str) -> FakeDoc:
+        def __call__(self, text: str) -> FakeScispacyDoc:
             assert text == document.text
-            return FakeDoc()
+            return FakeScispacyDoc([FakeScispacyEntity("PTEN", "PROTEIN", 0, 4)])
 
     def fake_loader(model: str) -> FakeNlp:
         loaded_models.append(model)
@@ -843,9 +954,150 @@ def test_scispacy_adapter_loads_configured_model() -> None:
     )
 
     assert loaded_models == [SCISPACY_MODEL_BY_ANNOTATOR["scispacy_jnlpba"]]
-    assert len(annotations) == 1
     assert annotations[0].source == "scispacy_jnlpba"
     assert annotations[0].entity_type == "gene"
+
+
+@dataclass
+class FakeStanzaEntity:
+    text: str
+    type: str
+    start_char: int
+    end_char: int
+
+
+class FakeStanzaDoc:
+    def __init__(self, ents: list[FakeStanzaEntity]) -> None:
+        self.ents = ents
+
+
+class FakeScispacyExtension:
+    def __init__(self, kb_ents: list[tuple[str, float]] | None = None) -> None:
+        self.kb_ents = kb_ents or []
+
+
+@dataclass
+class FakeScispacyEntity:
+    text: str
+    label_: str
+    start_char: int
+    end_char: int
+    kb_ents: list[tuple[str, float]] | None = None
+
+    def __post_init__(self) -> None:
+        self._ = FakeScispacyExtension(self.kb_ents)
+
+
+class FakeScispacyDoc:
+    def __init__(self, ents: list[FakeScispacyEntity]) -> None:
+        self.ents = ents
+
+
+class FakeScispacyLinkedEntity:
+    def __init__(self, canonical_name: str) -> None:
+        self.canonical_name = canonical_name
+
+
+class FakeScispacyLinker:
+    def __init__(self) -> None:
+        self.kb = type(
+            "FakeKb",
+            (),
+            {"cui_to_entity": {"C0017636": FakeScispacyLinkedEntity("Glioblastoma")}},
+        )()
+
+
+def test_stanza_bc5cdr_normalizes_and_stamps_source() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("glioblastoma", "DISEASE", 15, 27),
+        FakeStanzaEntity("cisplatin", "CHEMICAL", 40, 49),
+    ]
+
+    annotations = annotate_with_stanza(document, "bc5cdr", entities=entities)
+
+    assert [a.entity_type for a in annotations] == ["disease", "drug"]
+    assert all(a.source == "stanza_bc5cdr" for a in annotations)
+
+
+def test_stanza_bionlp13cg_runs_pipeline() -> None:
+    document = sample_document()
+    captured: dict[str, str] = {}
+
+    def fake_pipeline(text: str) -> FakeStanzaDoc:
+        captured["text"] = text
+        return FakeStanzaDoc([FakeStanzaEntity("PTEN", "GENE_OR_GENE_PRODUCT", 0, 4)])
+
+    annotations = annotate_with_stanza(document, "bionlp13cg", pipeline=fake_pipeline)
+
+    assert captured["text"] == document.text
+    assert annotations[0].source == "stanza_bionlp13cg"
+    assert annotations[0].entity_type == "gene"
+
+
+def test_stanza_bionlp13cg_maps_documented_entity_types() -> None:
+    document = sample_document()
+    labels = [
+        ("AMINO_ACID", "amino_acid"),
+        ("ANATOMICAL_SYSTEM", "anatomical_system"),
+        ("CANCER", "cancer"),
+        ("CELL", "cell"),
+        ("CELLULAR_COMPONENT", "cellular_component"),
+        ("DEVELOPING_ANATOMICAL_STRUCTURE", "developing_anatomical_structure"),
+        ("GENE_OR_GENE_PRODUCT", "gene"),
+        ("IMMATERIAL_ANATOMICAL_ENTITY", "immaterial_anatomical_entity"),
+        ("MULTI-TISSUE_STRUCTURE", "multi_tissue_structure"),
+        ("ORGAN", "organ"),
+        ("ORGANISM", "species"),
+        ("ORGANISM_SUBDIVISION", "organism_subdivision"),
+        ("ORGANISM_SUBSTANCE", "organism_substance"),
+        ("PATHOLOGICAL_FORMATION", "pathological_formation"),
+        ("SIMPLE_CHEMICAL", "drug"),
+        ("TISSUE", "tissue"),
+    ]
+    entities = [
+        FakeStanzaEntity("PTEN", label, 0, 4)
+        for label, _ in labels
+    ]
+
+    annotations = annotate_with_stanza(document, "bionlp13cg", entities=entities)
+
+    assert all(annotation.source == "stanza_bionlp13cg" for annotation in annotations)
+    assert [annotation.entity_type for annotation in annotations] == [
+        expected for _, expected in labels
+    ]
+
+
+def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
+    document = sample_document()
+    loaded: list[tuple[str, str]] = []
+
+    def fake_loader(package: str, model: str):
+        loaded.append((package, model))
+        return lambda text: FakeStanzaDoc(
+            [
+                FakeStanzaEntity("PTEN", "PROTEIN", 0, 4),
+                FakeStanzaEntity("DNA", "DNA", 5, 8),
+                FakeStanzaEntity("RNA", "RNA", 9, 12),
+                FakeStanzaEntity("T cells", "CELL_TYPE", 15, 22),
+                FakeStanzaEntity("HeLa", "CELL_LINE", 23, 27),
+            ]
+        )
+
+    annotations = annotate_with_stanza(
+        document, "jnlpba", package="genia", pipeline_loader=fake_loader
+    )
+
+    assert loaded == [("genia", "jnlpba")]
+    assert all(a.source == "stanza_jnlpba" for a in annotations)
+    # CELL_TYPE must stay cell_type, not be mislabeled as cell_line.
+    assert [a.entity_type for a in annotations] == [
+        "gene",
+        "dna",
+        "rna",
+        "cell_type",
+        "cell_line",
+    ]
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:

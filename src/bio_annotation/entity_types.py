@@ -79,40 +79,79 @@ MACCROBAT_LABELS: tuple[str, ...] = (
     "WEIGHT",
 )
 
-SCISPACY_SPECS: tuple[tuple[str, str, str, str], ...] = (
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "DNA", "dna"),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_TYPE", "cell_type"),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_LINE", "cell_line"),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "RNA", "rna"),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "PROTEIN", "gene"),
-    ("scispacy_bc5cdr", "scispaCy BC5CDR", "DISEASE", "disease"),
-    ("scispacy_bc5cdr", "scispaCy BC5CDR", "CHEMICAL", "drug"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "AMINO_ACID", "amino_acid"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ANATOMICAL_SYSTEM", "anatomical_system"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CANCER", "disease"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELL", "cell_type"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELLULAR_COMPONENT", "cellular_component"),
+STANZA_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str], ...] = (
+    ("stanza_bc5cdr", "Stanza BC5CDR", "Chemical", "drug"),
+    ("stanza_bc5cdr", "Stanza BC5CDR", "Disease", "disease"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Amino acid", "amino_acid"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Anatomical system", "anatomical_system"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Cancer", "cancer"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Cell", "cell"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Cellular component", "cellular_component"),
+    (
+        "stanza_bionlp13cg",
+        "Stanza BioNLP13CG",
+        "Developing anatomical structure",
+        "developing_anatomical_structure",
+    ),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Gene or gene product", "gene"),
+    (
+        "stanza_bionlp13cg",
+        "Stanza BioNLP13CG",
+        "Immaterial anatomical entity",
+        "immaterial_anatomical_entity",
+    ),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Multi-tissue structure", "multi_tissue_structure"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Organ", "organ"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Organism", "species"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Organism subdivision", "organism_subdivision"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Organism substance", "organism_substance"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Pathological formation", "pathological_formation"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Simple chemical", "drug"),
+    ("stanza_bionlp13cg", "Stanza BioNLP13CG", "Tissue", "tissue"),
+    ("stanza_jnlpba", "Stanza JNLPBA", "Protein", "gene"),
+    ("stanza_jnlpba", "Stanza JNLPBA", "DNA", "dna"),
+    ("stanza_jnlpba", "Stanza JNLPBA", "RNA", "rna"),
+    ("stanza_jnlpba", "Stanza JNLPBA", "Cell line", "cell_line"),
+    ("stanza_jnlpba", "Stanza JNLPBA", "Cell type", "cell_type"),
+)
+
+SCISPACY_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "DNA", "dna", ()),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_TYPE", "cell_type", ()),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_LINE", "cell_line", ()),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "RNA", "rna", ()),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "PROTEIN", "gene", ()),
+    ("scispacy_bc5cdr", "scispaCy BC5CDR", "DISEASE", "disease", ()),
+    ("scispacy_bc5cdr", "scispaCy BC5CDR", "CHEMICAL", "drug", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "AMINO_ACID", "amino_acid", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ANATOMICAL_SYSTEM", "anatomical_system", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CANCER", "cancer", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELL", "cell", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELLULAR_COMPONENT", "cellular_component", ()),
     (
         "scispacy_bionlp13cg",
         "scispaCy BioNLP13CG",
         "DEVELOPING_ANATOMICAL_STRUCTURE",
         "developing_anatomical_structure",
+        (),
     ),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "GENE_OR_GENE_PRODUCT", "gene"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "GENE_OR_GENE_PRODUCT", "gene", ()),
     (
         "scispacy_bionlp13cg",
         "scispaCy BioNLP13CG",
         "IMMATERIAL_ANATOMICAL_ENTITY",
         "immaterial_anatomical_entity",
+        (),
     ),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "MULTI-TISSUE_STRUCTURE", "multi_tissue_structure"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGAN", "organ"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM", "species"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBDIVISION", "organism_subdivision"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBSTANCE", "organism_substance"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "PATHOLOGICAL_FORMATION", "pathological_formation"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "SIMPLE_CHEMICAL", "drug"),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "TISSUE", "tissue"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "MULTI-TISSUE_STRUCTURE", "multi_tissue_structure", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGAN", "organ", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM", "species", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBDIVISION", "organism_subdivision", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBSTANCE", "organism_substance", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "PATHOLOGICAL_FORMATION", "pathological_formation", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "SIMPLE_CHEMICAL", "drug", ()),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "TISSUE", "tissue", ()),
+    ("scispacy_umls", "scispaCy UMLS", "ENTITY", "biomedical_entity", ("UMLS",)),
 )
 
 
@@ -149,6 +188,13 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # ClinicalBERT (i2b2) emits problem / test / treatment. These are clinical
+    # categories with no exact match in the canonical biomedical set (problem is
+    # broader than disease, treatment broader than drug), so they are kept as their
+    # own types rather than forced into disease/drug.
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "problem", "problem", ()),
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "test", "test", ()),
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "treatment", "treatment", ()),
     # Clinical-AI-Apollo/Medical-NER entity types are generated from the shared
     # MACCROBAT_LABELS: DISEASE_DISORDER/MEDICATION map to canonical disease/drug,
     # every other clinical label becomes its own first-class type.
@@ -175,7 +221,11 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     ),
     *(
         AnnotatorEntityTypeSpec(annotator, annotator_label, source_type, canonical_type, ())
-        for annotator, annotator_label, source_type, canonical_type in SCISPACY_SPECS
+        for annotator, annotator_label, source_type, canonical_type in STANZA_ENTITY_TYPE_SPECS
+    ),
+    *(
+        AnnotatorEntityTypeSpec(annotator, annotator_label, source_type, canonical_type, database_ids)
+        for annotator, annotator_label, source_type, canonical_type, database_ids in SCISPACY_ENTITY_TYPE_SPECS
     ),
 )
 
@@ -190,6 +240,9 @@ ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "cell_type": "Cell type",
     "dna": "DNA",
     "rna": "RNA",
+    "biomedical_entity": "Biomedical entity",
+    "cell": "Cell",
+    "cancer": "Cancer",
     "amino_acid": "Amino acid",
     "anatomical_system": "Anatomical system",
     "cellular_component": "Cellular component",
@@ -214,6 +267,7 @@ ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
         "cell_type",
         "dna",
         "rna",
+        "biomedical_entity",
     )
 )
 ENTITY_TYPE_ALIASES: dict[str, str] = {
@@ -310,6 +364,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         },
         normalization_fields=(),
     ),
+    "clinicalbert": AnnotatorCapability(
+        label="ClinicalBERT",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
+        },
+        normalization_fields=(),
+    ),
     "apollo": AnnotatorCapability(
         label="Clinical-AI-Apollo Medical-NER",
         tasks=("NER",),
@@ -364,9 +434,11 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         label="scispaCy JNLPBA",
         tasks=("NER",),
         entity_types=tuple(
-            spec.canonical_entity_type
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "scispacy_jnlpba"
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_jnlpba"
+            )
         ),
         normalization_status="not_returned",
         normalization_databases={
@@ -380,9 +452,11 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         label="scispaCy BC5CDR",
         tasks=("NER",),
         entity_types=tuple(
-            spec.canonical_entity_type
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "scispacy_bc5cdr"
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_bc5cdr"
+            )
         ),
         normalization_status="not_returned",
         normalization_databases={
@@ -396,15 +470,89 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         label="scispaCy BioNLP13CG",
         tasks=("NER",),
         entity_types=tuple(
-            spec.canonical_entity_type
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "scispacy_bionlp13cg"
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_bionlp13cg"
+            )
         ),
         normalization_status="not_returned",
         normalization_databases={
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "scispacy_bionlp13cg"
+        },
+        normalization_fields=(),
+    ),
+    "scispacy_umls": AnnotatorCapability(
+        label="scispaCy UMLS",
+        tasks=("NER", "NEN"),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_umls"
+            )
+        ),
+        normalization_status="normalized",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_umls"
+        },
+        normalization_fields=("EntityLinker kb_ents", "UMLS CUI"),
+    ),
+    "stanza_bc5cdr": AnnotatorCapability(
+        label="Stanza BC5CDR",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_bc5cdr"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_bc5cdr"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_bionlp13cg": AnnotatorCapability(
+        label="Stanza BioNLP13CG",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_bionlp13cg"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_bionlp13cg"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_jnlpba": AnnotatorCapability(
+        label="Stanza JNLPBA",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_jnlpba"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_jnlpba"
         },
         normalization_fields=(),
     ),

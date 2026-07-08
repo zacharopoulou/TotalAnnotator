@@ -195,8 +195,9 @@ TotalAnnotator exposes the requested scispaCy models as separate annotators:
 - `scispacy_jnlpba` -> `en_ner_jnlpba_md`
 - `scispacy_bc5cdr` -> `en_ner_bc5cdr_md`
 - `scispacy_bionlp13cg` -> `en_ner_bionlp13cg_md`
+- `scispacy_umls` -> `en_core_sci_lg` with the UMLS `EntityLinker`
 
-`CHEMICAL` and `SIMPLE_CHEMICAL` normalize to the existing `drug` canonical type.
+`CHEMICAL` and `SIMPLE_CHEMICAL` normalize to the existing `drug` canonical type. `scispacy_umls` stores the top UMLS candidate in `canonical_id` and its canonical name when the linker returns one.
 
 ## Entity Types
 

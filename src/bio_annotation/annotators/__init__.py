@@ -7,6 +7,7 @@ from typing import Any
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import annotate_with_apollo
 from bio_annotation.annotators.bern2 import annotate_with_bern2
+from bio_annotation.annotators.clinicalbert import annotate_with_clinicalbert
 from bio_annotation.annotators.d4data import annotate_with_d4data
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.medcat import annotate_with_medcat
@@ -15,6 +16,12 @@ from bio_annotation.annotators.scispacy import (
     annotate_with_scispacy_bc5cdr,
     annotate_with_scispacy_bionlp13cg,
     annotate_with_scispacy_jnlpba,
+    annotate_with_scispacy_umls,
+)
+from bio_annotation.annotators.stanza import (
+    STANZA_ANNOTATORS,
+    annotate_with_stanza,
+    stanza_source,
 )
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
@@ -34,6 +41,9 @@ def run_all_annotators(
     pubtator3_endpoint: str | None = None,
     aioner_response: Any = None,
     aioner_request_fn: Any = None,
+    clinicalbert_response: Any = None,
+    clinicalbert_request_fn: Any = None,
+    clinicalbert_pipeline: Any = None,
     apollo_response: Any = None,
     apollo_request_fn: Any = None,
     apollo_pipeline: Any = None,
@@ -52,6 +62,10 @@ def run_all_annotators(
     scispacy_bionlp13cg_response: Any = None,
     scispacy_bionlp13cg_request_fn: Any = None,
     scispacy_bionlp13cg_nlp: Any = None,
+    scispacy_umls_response: Any = None,
+    scispacy_umls_request_fn: Any = None,
+    scispacy_umls_nlp: Any = None,
+    stanza_entities: dict[str, Any] | None = None,  # model name -> entities
 ) -> dict[str, list[Annotation]]:
     results = {
         "bern2": annotate_with_bern2(
@@ -81,6 +95,19 @@ def run_all_annotators(
             document,
             response=aioner_response,
             request_fn=aioner_request_fn,
+        )
+    # ClinicalBERT loads a local HuggingFace model, so only invoke it when an
+    # explicit response, request function, or loaded pipeline is supplied.
+    if (
+        clinicalbert_response is not None
+        or clinicalbert_request_fn is not None
+        or clinicalbert_pipeline is not None
+    ):
+        results["clinicalbert"] = annotate_with_clinicalbert(
+            document,
+            response=clinicalbert_response,
+            request_fn=clinicalbert_request_fn,
+            pipeline=clinicalbert_pipeline,
         )
     # apollo loads a local HuggingFace model, so only invoke it when an explicit
     # response, request function, or loaded pipeline is supplied (avoids loading
@@ -156,6 +183,23 @@ def run_all_annotators(
             request_fn=scispacy_bionlp13cg_request_fn,
             nlp=scispacy_bionlp13cg_nlp,
         )
+    if (
+        scispacy_umls_response is not None
+        or scispacy_umls_request_fn is not None
+        or scispacy_umls_nlp is not None
+    ):
+        results["scispacy_umls"] = annotate_with_scispacy_umls(
+            document,
+            response=scispacy_umls_response,
+            request_fn=scispacy_umls_request_fn,
+            nlp=scispacy_umls_nlp,
+        )
+    # Stanza is split into model-specific annotators; inject per model. Loading
+    # local models is expensive, so only run the ones with supplied entities.
+    for model, ents in (stanza_entities or {}).items():
+        results[stanza_source(model)] = annotate_with_stanza(
+            document, model, entities=ents
+        )
     return results
 
 
@@ -166,12 +210,15 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "flair",
         "pubtator3",
         "aioner",
+        "clinicalbert",
         "apollo",
         "d4data",
         "medcat",
         "scispacy_jnlpba",
         "scispacy_bc5cdr",
         "scispacy_bionlp13cg",
+        "scispacy_umls",
+        *STANZA_ANNOTATORS,
     ):
         annotations.extend(results.get(source, []))
     return annotations
@@ -180,6 +227,7 @@ __all__ = [
     "annotate_with_aioner",
     "annotate_with_apollo",
     "annotate_with_bern2",
+    "annotate_with_clinicalbert",
     "annotate_with_d4data",
     "annotate_with_flair",
     "annotate_with_medcat",
@@ -187,6 +235,8 @@ __all__ = [
     "annotate_with_scispacy_bc5cdr",
     "annotate_with_scispacy_bionlp13cg",
     "annotate_with_scispacy_jnlpba",
+    "annotate_with_scispacy_umls",
+    "annotate_with_stanza",
     "flatten_annotations",
     "run_all_annotators",
 ]

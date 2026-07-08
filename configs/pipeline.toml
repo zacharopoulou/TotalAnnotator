@@ -53,6 +53,10 @@ model = "en_ner_bc5cdr_md"
 [annotators.scispacy_bionlp13cg]
 model = "en_ner_bionlp13cg_md"
 
+[annotators.scispacy_umls]
+model = "en_core_sci_lg"
+linker_name = "umls"
+
 [filters]
 entity_types = []
 

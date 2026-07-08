@@ -132,10 +132,15 @@ def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
     paths = create_run_paths(tmp_path / "out")
     answers = TerminalUIAnswers(
         input_mode="pmids",
-        pmids=["123"],
+        pmids=["12345678"],
         pmid_file=None,
-        annotators=["scispacy_jnlpba", "scispacy_bc5cdr", "scispacy_bionlp13cg"],
-        entity_types=["gene", "drug", "disease"],
+        annotators=[
+            "scispacy_jnlpba",
+            "scispacy_bc5cdr",
+            "scispacy_bionlp13cg",
+            "scispacy_umls",
+        ],
+        entity_types=[],
     )
 
     config_text = build_terminal_ui_config_text(answers, paths)
@@ -146,6 +151,9 @@ def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
     assert 'model = "en_ner_bc5cdr_md"' in config_text
     assert "[annotators.scispacy_bionlp13cg]" in config_text
     assert 'model = "en_ner_bionlp13cg_md"' in config_text
+    assert "[annotators.scispacy_umls]" in config_text
+    assert 'model = "en_core_sci_lg"' in config_text
+    assert 'linker_name = "umls"' in config_text
 
 
 def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path) -> None:
@@ -227,6 +235,9 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     assert manifest["annotation_count"] == 2
     assert payload["document_count"] == 2
     assert any("Run complete" in message for message in messages)
+    assert any("Keywords TSV" in message for message in messages)
+    assert any("Keyword evidence TSV" in message for message in messages)
+    assert any("Annotations TSV" in message for message in messages)
 
 
 def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path) -> None:

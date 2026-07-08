@@ -494,28 +494,30 @@ def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
         abstract="PTEN is important.",
         source="corpus",
     )
-    calls: list[tuple[str, str]] = []
+    calls: list[tuple[str, str, object]] = []
 
     def fake_scispacy(document: Document, **kwargs: object) -> list[Annotation]:
-        calls.append((str(kwargs.get("source")), str(kwargs.get("model"))))
+        calls.append((str(kwargs.get("source")), str(kwargs.get("model")), kwargs.get("linker_name")))
         return []
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_scispacy", fake_scispacy)
 
     run_selected_annotators(
         document,
-        ["scispacy_jnlpba", "scispacy_bc5cdr", "scispacy_bionlp13cg"],
+        ["scispacy_jnlpba", "scispacy_bc5cdr", "scispacy_bionlp13cg", "scispacy_umls"],
         scispacy_options={
             "scispacy_jnlpba": {"model": "en_ner_jnlpba_md"},
             "scispacy_bc5cdr": {"model": "en_ner_bc5cdr_md"},
             "scispacy_bionlp13cg": {"model": "en_ner_bionlp13cg_md"},
+            "scispacy_umls": {"model": "en_core_sci_lg", "linker_name": "umls"},
         },
     )
 
     assert calls == [
-        ("scispacy_jnlpba", "en_ner_jnlpba_md"),
-        ("scispacy_bc5cdr", "en_ner_bc5cdr_md"),
-        ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md"),
+        ("scispacy_jnlpba", "en_ner_jnlpba_md", None),
+        ("scispacy_bc5cdr", "en_ner_bc5cdr_md", None),
+        ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", None),
+        ("scispacy_umls", "en_core_sci_lg", "umls"),
     ]
 
 
