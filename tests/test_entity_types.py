@@ -47,6 +47,10 @@ def test_normalize_entity_type_uses_explicit_table_rows() -> None:
     assert normalize_entity_type("RNA") == "rna"
     assert normalize_entity_type("micro_rna") == "micro_rna"
     assert normalize_entity_type("chemical_entity") == "chemical_entity"
+    assert normalize_entity_type("PROTEIN") == "gene"
+    assert normalize_entity_type("CHEMICAL") == "drug"
+    assert normalize_entity_type("SIMPLE_CHEMICAL") == "drug"
+    assert normalize_entity_type("GENE_OR_GENE_PRODUCT") == "gene"
 
 
 def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> None:
@@ -61,6 +65,32 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
     assert "cell_type" not in ANNOTATOR_ENTITY_TYPES["pubtator3"]
     assert "dna" not in ANNOTATOR_ENTITY_TYPES["flair"]
     assert "mirna" not in ANNOTATOR_ENTITY_TYPES["flair"]
+    assert ANNOTATOR_ENTITY_TYPES["scispacy_jnlpba"] == {
+        "dna",
+        "cell_type",
+        "cell_line",
+        "rna",
+        "gene",
+    }
+    assert ANNOTATOR_ENTITY_TYPES["scispacy_bc5cdr"] == {"disease", "drug"}
+    assert {
+        "amino_acid",
+        "anatomical_system",
+        "disease",
+        "cell_type",
+        "cellular_component",
+        "developing_anatomical_structure",
+        "gene",
+        "immaterial_anatomical_entity",
+        "multi_tissue_structure",
+        "organ",
+        "species",
+        "organism_subdivision",
+        "organism_substance",
+        "pathological_formation",
+        "drug",
+        "tissue",
+    } <= ANNOTATOR_ENTITY_TYPES["scispacy_bionlp13cg"]
 
 
 def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior() -> None:

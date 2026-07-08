@@ -41,6 +41,18 @@ model = "Clinical-AI-Apollo/Medical-NER"
 [annotators.d4data]
 model = "d4data/biomedical-ner-all"
 
+# scispaCy NER models are installed separately from scispacy itself; add any of
+# these annotators to enabled above after uv sync --extra scispacy and installing
+# the corresponding model package from https://allenai.github.io/scispacy/
+[annotators.scispacy_jnlpba]
+model = "en_ner_jnlpba_md"
+
+[annotators.scispacy_bc5cdr]
+model = "en_ner_bc5cdr_md"
+
+[annotators.scispacy_bionlp13cg]
+model = "en_ner_bionlp13cg_md"
+
 [filters]
 entity_types = []
 

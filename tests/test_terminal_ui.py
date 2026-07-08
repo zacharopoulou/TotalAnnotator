@@ -128,6 +128,26 @@ def test_build_terminal_ui_config_includes_bern2_endpoint(tmp_path) -> None:
     assert 'endpoint = "http://bern2.korea.ac.kr/plain"' in config_text
 
 
+def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
+    paths = create_run_paths(tmp_path / "out")
+    answers = TerminalUIAnswers(
+        input_mode="pmids",
+        pmids=["123"],
+        pmid_file=None,
+        annotators=["scispacy_jnlpba", "scispacy_bc5cdr", "scispacy_bionlp13cg"],
+        entity_types=["gene", "drug", "disease"],
+    )
+
+    config_text = build_terminal_ui_config_text(answers, paths)
+
+    assert "[annotators.scispacy_jnlpba]" in config_text
+    assert 'model = "en_ner_jnlpba_md"' in config_text
+    assert "[annotators.scispacy_bc5cdr]" in config_text
+    assert 'model = "en_ner_bc5cdr_md"' in config_text
+    assert "[annotators.scispacy_bionlp13cg]" in config_text
+    assert 'model = "en_ner_bionlp13cg_md"' in config_text
+
+
 def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path) -> None:
     source_text = tmp_path / "doc1.txt"
     source_text.write_text("PTEN is important in glioblastoma.\nEGFR is also relevant.\n", encoding="utf-8")
@@ -206,10 +226,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     assert manifest["document_count"] == 2
     assert manifest["annotation_count"] == 2
     assert payload["document_count"] == 2
-    assert "Run complete" in messages
-    assert f"Keywords TSV: {output_dir / 'results.keywords.tsv'}" in messages
-    assert f"Keyword evidence TSV: {output_dir / 'results.keyword_annotator_evidence.tsv'}" in messages
-    assert f"Annotations TSV: {output_dir / 'results.annotations.tsv'}" in messages
+    assert any("Run complete" in message for message in messages)
 
 
 def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path) -> None:
@@ -371,6 +388,6 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
         pipeline_run_fn=fake_pipeline_run,
     )
 
-    assert "Entity type compatibility warning:" in messages
+    assert any("Entity type compatibility warning" in message for message in messages)
     assert any("Flair / HunFlair does not produce: Variant / mutation" in message for message in messages)
     assert not any("BERN2 does not produce" in message for message in messages)

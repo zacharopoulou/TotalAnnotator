@@ -487,6 +487,70 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
     assert calls == ["hunflair2"]
 
 
+def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
+    document = Document(
+        document_id="doc1",
+        title="PTEN regulates glioblastoma",
+        abstract="PTEN is important.",
+        source="corpus",
+    )
+    calls: list[tuple[str, str]] = []
+
+    def fake_scispacy(document: Document, **kwargs: object) -> list[Annotation]:
+        calls.append((str(kwargs.get("source")), str(kwargs.get("model"))))
+        return []
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_scispacy", fake_scispacy)
+
+    run_selected_annotators(
+        document,
+        ["scispacy_jnlpba", "scispacy_bc5cdr", "scispacy_bionlp13cg"],
+        scispacy_options={
+            "scispacy_jnlpba": {"model": "en_ner_jnlpba_md"},
+            "scispacy_bc5cdr": {"model": "en_ner_bc5cdr_md"},
+            "scispacy_bionlp13cg": {"model": "en_ner_bionlp13cg_md"},
+        },
+    )
+
+    assert calls == [
+        ("scispacy_jnlpba", "en_ner_jnlpba_md"),
+        ("scispacy_bc5cdr", "en_ner_bc5cdr_md"),
+        ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md"),
+    ]
+
+
+def test_run_pipeline_preflights_missing_scispacy_dependency(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[annotators]",
+                'enabled = ["scispacy_bc5cdr"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    checked_modules: list[str] = []
+
+    def fake_find_spec(name: str) -> object | None:
+        checked_modules.append(name)
+        return None
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+
+    with pytest.raises(ValueError, match="uv sync --extra scispacy"):
+        run_pipeline_from_config(config_path)
+
+    assert checked_modules == ["scispacy"]
+
+
 def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
     document = Document(
         document_id="doc1",

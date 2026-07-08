@@ -17,6 +17,7 @@ from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
+from bio_annotation.entity_proposal.scispacy_proposer import SCISPACY_MODEL_BY_ANNOTATOR
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
     ANNOTATOR_DISPLAY_NAMES,
@@ -199,7 +200,16 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         default_values=[
             value
             for value, _ in ANNOTATOR_CHOICES
-            if value not in {"aioner", "apollo", "d4data", "medcat"}
+            if value
+            not in {
+                "aioner",
+                "apollo",
+                "d4data",
+                "medcat",
+                "scispacy_jnlpba",
+                "scispacy_bc5cdr",
+                "scispacy_bionlp13cg",
+            }
         ],
         validate_values=_validate_selected_annotators,
     )
@@ -331,6 +341,14 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         lines += ["", "[annotators.d4data]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_D4DATA_MODEL)}"]
     if "medcat" in answers.annotators:
         lines += ["", "[annotators.medcat]", 'runtime = "remote_api"', f"endpoint = {_toml_string(medcat_config_endpoint())}", "min_acc = 0.3"]
+    for annotator in ("scispacy_jnlpba", "scispacy_bc5cdr", "scispacy_bionlp13cg"):
+        if annotator in answers.annotators:
+            lines += [
+                "",
+                f"[annotators.{annotator}]",
+                'runtime = "local_model"',
+                f"model = {_toml_string(SCISPACY_MODEL_BY_ANNOTATOR[annotator])}",
+            ]
     lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
     return "\n".join(lines)
 

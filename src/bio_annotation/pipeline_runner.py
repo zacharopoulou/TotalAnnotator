@@ -26,6 +26,12 @@ from bio_annotation.annotators.d4data import (
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
+from bio_annotation.annotators.scispacy import (
+    SCISPACY_INSTALL_HINT,
+    SCISPACY_MODEL_BY_ANNOTATOR,
+    _load_scispacy_model,
+    annotate_with_scispacy,
+)
 from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
 from bio_annotation.report import write_html_report
@@ -39,7 +45,17 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "apollo", "d4data", "medcat"}
+SCISPACY_ANNOTATORS = frozenset(SCISPACY_MODEL_BY_ANNOTATOR)
+SUPPORTED_ANNOTATORS = {
+    "bern2",
+    "flair",
+    "pubtator3",
+    "aioner",
+    "apollo",
+    "d4data",
+    "medcat",
+    *SCISPACY_ANNOTATORS,
+}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
@@ -59,6 +75,7 @@ def run_pipeline_from_config(
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
+    scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
@@ -66,6 +83,7 @@ def run_pipeline_from_config(
         flair_spans_by_document=flair_spans_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
+        scispacy_responses_by_document=scispacy_responses_by_document,
     )
     if pmid_fetcher is not None and config.input_mode == "pmids":
         documents = load_documents_from_pmids(
@@ -96,6 +114,7 @@ def run_pipeline_from_config(
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
         medcat_request_fn=medcat_request_fn,
+        scispacy_responses_by_document=scispacy_responses_by_document,
     )
     if config.output_path is not None:
         actual_output_path = timestamped_output_path(config.output_path)
@@ -119,6 +138,7 @@ def build_pipeline_output(
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
+    scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> dict[str, Any]:
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
@@ -132,6 +152,13 @@ def build_pipeline_output(
     apollo_options = _read_apollo_options(annotator_settings.get("apollo", {}))
     d4data_options = _read_d4data_options(annotator_settings.get("d4data", {}))
     medcat_options = _read_medcat_options(annotator_settings.get("medcat", {}))
+    scispacy_options = {
+        annotator: _read_scispacy_options(
+            annotator,
+            annotator_settings.get(annotator, {}),
+        )
+        for annotator in SCISPACY_ANNOTATORS
+    }
 
     flair_tagger = None
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -151,6 +178,17 @@ def build_pipeline_output(
             d4data_pipeline = _load_d4data_pipeline(d4data_options["model"])
         except Exception as exc:
             logger.warning("d4data unavailable: %s", exc)
+    scispacy_nlps: dict[str, Any] = {}
+    if scispacy_responses_by_document is None:
+        for annotator in enabled_annotators:
+            if annotator not in SCISPACY_ANNOTATORS:
+                continue
+            try:
+                scispacy_nlps[annotator] = _load_scispacy_model(
+                    scispacy_options[annotator]["model"]
+                )
+            except Exception as exc:
+                logger.warning("%s unavailable: %s", annotator, exc)
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
     keyword_output: list[dict[str, Any]] = []
@@ -195,6 +233,13 @@ def build_pipeline_output(
             ),
             d4data_pipeline=d4data_pipeline,
             d4data_options=d4data_options,
+            scispacy_response_by_annotator=(
+                scispacy_responses_by_document.get(document.document_id)
+                if scispacy_responses_by_document is not None
+                else None
+            ),
+            scispacy_nlps=scispacy_nlps,
+            scispacy_options=scispacy_options,
         )
         all_statuses.extend(statuses)
 
@@ -465,6 +510,9 @@ def run_selected_annotators(
     d4data_response: Any = None,
     d4data_pipeline: Any = None,
     d4data_options: dict[str, Any] | None = None,
+    scispacy_response_by_annotator: dict[str, list[Any]] | None = None,
+    scispacy_nlps: dict[str, Any] | None = None,
+    scispacy_options: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, list[Annotation]]:
     results, _ = run_selected_annotators_with_status(
         document,
@@ -486,6 +534,9 @@ def run_selected_annotators(
         d4data_response=d4data_response,
         d4data_pipeline=d4data_pipeline,
         d4data_options=d4data_options,
+        scispacy_response_by_annotator=scispacy_response_by_annotator,
+        scispacy_nlps=scispacy_nlps,
+        scispacy_options=scispacy_options,
     )
     return results
 
@@ -511,6 +562,9 @@ def run_selected_annotators_with_status(
     d4data_response: Any = None,
     d4data_pipeline: Any = None,
     d4data_options: dict[str, Any] | None = None,
+    scispacy_response_by_annotator: dict[str, list[Any]] | None = None,
+    scispacy_nlps: dict[str, Any] | None = None,
+    scispacy_options: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
     statuses: list[dict[str, Any]] = []
@@ -617,6 +671,19 @@ def run_selected_annotators_with_status(
                     endpoint=medcat_options.get("endpoint") if medcat_options else None,
                     min_acc=medcat_options.get("min_acc") if medcat_options else None,
                 )
+            elif annotator in SCISPACY_ANNOTATORS:
+                options = scispacy_options.get(annotator, {}) if scispacy_options else {}
+                results[annotator] = annotate_with_scispacy(
+                    document,
+                    source=annotator,
+                    response=(
+                        scispacy_response_by_annotator.get(annotator)
+                        if scispacy_response_by_annotator is not None
+                        else None
+                    ),
+                    nlp=scispacy_nlps.get(annotator) if scispacy_nlps else None,
+                    model=options.get("model") or SCISPACY_MODEL_BY_ANNOTATOR[annotator],
+                )
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
         except Exception as exc:
@@ -653,7 +720,18 @@ def run_selected_annotators_with_status(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "apollo", "d4data", "medcat"):
+    for source in (
+        "bern2",
+        "flair",
+        "pubtator3",
+        "aioner",
+        "apollo",
+        "d4data",
+        "medcat",
+        "scispacy_jnlpba",
+        "scispacy_bc5cdr",
+        "scispacy_bionlp13cg",
+    ):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -871,6 +949,12 @@ def _no_annotations_reason(annotator: str) -> str:
             "(set annotators.medcat.endpoint or MEDCAT_API_URL) and returned "
             "entities for this document."
         )
+    if annotator in SCISPACY_ANNOTATORS:
+        return (
+            "No annotations returned. The scispaCy model may be unavailable/not "
+            "installed (uv sync --extra scispacy, then install the model package), "
+            "or it found no entities."
+        )
     return "No annotations returned."
 
 
@@ -1030,6 +1114,7 @@ def validate_optional_annotator_dependencies(
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
+    scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> None:
     if (
         "d4data" in config.annotators
@@ -1049,6 +1134,12 @@ def validate_optional_annotator_dependencies(
         and (find_spec("transformers") is None or find_spec("torch") is None)
     ):
         raise ValueError(APOLLO_INSTALL_HINT)
+    if (
+        any(annotator in SCISPACY_ANNOTATORS for annotator in config.annotators)
+        and scispacy_responses_by_document is None
+        and (find_spec("scispacy") is None or find_spec("spacy") is None)
+    ):
+        raise ValueError(SCISPACY_INSTALL_HINT)
 
 
 def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
@@ -1141,6 +1232,15 @@ def _read_d4data_options(settings: dict[str, object]) -> dict[str, Any]:
         "model": model.strip()
         if isinstance(model, str) and model.strip()
         else DEFAULT_D4DATA_MODEL,
+    }
+
+
+def _read_scispacy_options(annotator: str, settings: dict[str, object]) -> dict[str, Any]:
+    model = settings.get("model")
+    return {
+        "model": model.strip()
+        if isinstance(model, str) and model.strip()
+        else SCISPACY_MODEL_BY_ANNOTATOR[annotator],
     }
 
 

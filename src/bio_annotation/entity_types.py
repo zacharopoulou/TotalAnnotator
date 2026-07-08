@@ -79,6 +79,42 @@ MACCROBAT_LABELS: tuple[str, ...] = (
     "WEIGHT",
 )
 
+SCISPACY_SPECS: tuple[tuple[str, str, str, str], ...] = (
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "DNA", "dna"),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_TYPE", "cell_type"),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_LINE", "cell_line"),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "RNA", "rna"),
+    ("scispacy_jnlpba", "scispaCy JNLPBA", "PROTEIN", "gene"),
+    ("scispacy_bc5cdr", "scispaCy BC5CDR", "DISEASE", "disease"),
+    ("scispacy_bc5cdr", "scispaCy BC5CDR", "CHEMICAL", "drug"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "AMINO_ACID", "amino_acid"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ANATOMICAL_SYSTEM", "anatomical_system"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CANCER", "disease"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELL", "cell_type"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELLULAR_COMPONENT", "cellular_component"),
+    (
+        "scispacy_bionlp13cg",
+        "scispaCy BioNLP13CG",
+        "DEVELOPING_ANATOMICAL_STRUCTURE",
+        "developing_anatomical_structure",
+    ),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "GENE_OR_GENE_PRODUCT", "gene"),
+    (
+        "scispacy_bionlp13cg",
+        "scispaCy BioNLP13CG",
+        "IMMATERIAL_ANATOMICAL_ENTITY",
+        "immaterial_anatomical_entity",
+    ),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "MULTI-TISSUE_STRUCTURE", "multi_tissue_structure"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGAN", "organ"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM", "species"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBDIVISION", "organism_subdivision"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBSTANCE", "organism_substance"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "PATHOLOGICAL_FORMATION", "pathological_formation"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "SIMPLE_CHEMICAL", "drug"),
+    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "TISSUE", "tissue"),
+)
+
 
 ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("pubtator3", "PubTator3", "Gene / protein", "gene", ("NCBI Gene",)),
@@ -137,6 +173,10 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
         )
         for label in MACCROBAT_LABELS
     ),
+    *(
+        AnnotatorEntityTypeSpec(annotator, annotator_label, source_type, canonical_type, ())
+        for annotator, annotator_label, source_type, canonical_type in SCISPACY_SPECS
+    ),
 )
 
 
@@ -150,6 +190,17 @@ ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "cell_type": "Cell type",
     "dna": "DNA",
     "rna": "RNA",
+    "amino_acid": "Amino acid",
+    "anatomical_system": "Anatomical system",
+    "cellular_component": "Cellular component",
+    "developing_anatomical_structure": "Developing anatomical structure",
+    "immaterial_anatomical_entity": "Immaterial anatomical entity",
+    "multi_tissue_structure": "Multi-tissue structure",
+    "organ": "Organ",
+    "organism_subdivision": "Organism subdivision",
+    "organism_substance": "Organism substance",
+    "pathological_formation": "Pathological formation",
+    "tissue": "Tissue",
 }
 ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
     (entity_type, ENTITY_TYPE_DISPLAY_NAMES[entity_type])
@@ -308,6 +359,54 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "medcat"
         },
         normalization_fields=("cui",),
+    ),
+    "scispacy_jnlpba": AnnotatorCapability(
+        label="scispaCy JNLPBA",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_jnlpba"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_jnlpba"
+        },
+        normalization_fields=(),
+    ),
+    "scispacy_bc5cdr": AnnotatorCapability(
+        label="scispaCy BC5CDR",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_bc5cdr"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_bc5cdr"
+        },
+        normalization_fields=(),
+    ),
+    "scispacy_bionlp13cg": AnnotatorCapability(
+        label="scispaCy BioNLP13CG",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_bionlp13cg"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_bionlp13cg"
+        },
+        normalization_fields=(),
     ),
 }
 
