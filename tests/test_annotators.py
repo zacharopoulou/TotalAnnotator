@@ -840,86 +840,55 @@ class FakeStanzaDoc:
         self.ents = ents
 
 
-def test_stanza_adapter_normalizes_biomedical_labels() -> None:
+def test_stanza_bc5cdr_normalizes_and_stamps_source() -> None:
     document = sample_document()
-    # Raw labels from BC5CDR / BioNLP13CG / JNLPBA must collapse to canonical types.
     entities = [
-        FakeStanzaEntity("PTEN", "GENE_OR_GENE_PRODUCT", 0, 4),
         FakeStanzaEntity("glioblastoma", "DISEASE", 15, 27),
-        FakeStanzaEntity("cisplatin", "SIMPLE_CHEMICAL", 40, 49),
-        FakeStanzaEntity("HeLa", "CELL_LINE", 60, 64),
+        FakeStanzaEntity("cisplatin", "CHEMICAL", 40, 49),
     ]
 
-    annotations = annotate_with_stanza(document, entities=entities)
+    annotations = annotate_with_stanza(document, "bc5cdr", entities=entities)
 
-    assert len(annotations) == 4
-    assert all(annotation.source == "stanza" for annotation in annotations)
-    assert [annotation.entity_type for annotation in annotations] == [
-        "gene",
-        "disease",
-        "drug",
-        "cell_line",
-    ]
-    assert annotations[0].start == 0
-    assert annotations[0].end == 4
+    assert [a.entity_type for a in annotations] == ["disease", "drug"]
+    assert all(a.source == "stanza_bc5cdr" for a in annotations)
 
 
-def test_stanza_adapter_runs_pipeline() -> None:
+def test_stanza_bionlp13cg_runs_pipeline() -> None:
     document = sample_document()
     captured: dict[str, str] = {}
 
     def fake_pipeline(text: str) -> FakeStanzaDoc:
         captured["text"] = text
-        return FakeStanzaDoc([FakeStanzaEntity("PTEN", "PROTEIN", 0, 4)])
+        return FakeStanzaDoc([FakeStanzaEntity("PTEN", "GENE_OR_GENE_PRODUCT", 0, 4)])
 
-    annotations = annotate_with_stanza(document, pipeline=fake_pipeline)
+    annotations = annotate_with_stanza(document, "bionlp13cg", pipeline=fake_pipeline)
 
     assert captured["text"] == document.text
-    assert len(annotations) == 1
-    assert annotations[0].source == "stanza"
+    assert annotations[0].source == "stanza_bionlp13cg"
     assert annotations[0].entity_type == "gene"
 
 
-def test_stanza_adapter_loads_each_model_and_merges() -> None:
+def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
     document = sample_document()
     loaded: list[tuple[str, str]] = []
 
-    ents_by_model = {
-        "bc5cdr": [FakeStanzaEntity("glioblastoma", "DISEASE", 15, 27)],
-        "jnlpba": [FakeStanzaEntity("PTEN", "PROTEIN", 0, 4)],
-    }
-
     def fake_loader(package: str, model: str):
         loaded.append((package, model))
-        return lambda text: FakeStanzaDoc(ents_by_model[model])
-
-    annotations = annotate_with_stanza(
-        document,
-        package="genia",
-        models=["bc5cdr", "jnlpba"],
-        pipeline_loader=fake_loader,
-    )
-
-    assert loaded == [("genia", "bc5cdr"), ("genia", "jnlpba")]
-    assert {annotation.entity_type for annotation in annotations} == {"disease", "gene"}
-
-
-def test_stanza_adapter_dedupes_overlapping_models() -> None:
-    document = sample_document()
-
-    def fake_loader(package: str, model: str):
-        # Both models tag the same span -> same canonical type/offsets -> one id.
         return lambda text: FakeStanzaDoc(
-            [FakeStanzaEntity("PTEN", "PROTEIN", 0, 4)]
+            [
+                FakeStanzaEntity("PTEN", "PROTEIN", 0, 4),
+                FakeStanzaEntity("T cells", "CELL_TYPE", 15, 22),
+            ]
         )
 
     annotations = annotate_with_stanza(
-        document,
-        models=["bionlp13cg", "jnlpba"],
-        pipeline_loader=fake_loader,
+        document, "jnlpba", package="genia", pipeline_loader=fake_loader
     )
 
-    assert len(annotations) == 1
+    assert loaded == [("genia", "jnlpba")]
+    assert all(a.source == "stanza_jnlpba" for a in annotations)
+    # CELL_TYPE must stay cell_type, not be mislabeled as cell_line.
+    assert [a.entity_type for a in annotations] == ["gene", "cell_type"]
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:

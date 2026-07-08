@@ -7,17 +7,32 @@ from bio_annotation.entity_proposal._shared import make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-# Each runs in its own single-model pipeline and their entities are merged under a single `source="stanza"`
-DEFAULT_STANZA_MODELS: tuple[str, ...] = ("bc5cdr", "bionlp13cg", "jnlpba")
+STANZA_MODELS: tuple[str, ...] = ("bc5cdr", "bionlp13cg", "jnlpba")
 DEFAULT_STANZA_PACKAGE = "craft"
 
 STANZA_INSTALL_HINT = (
-    "The Stanza annotator requires the optional Stanza dependency. "
+    "The Stanza annotators require the optional Stanza dependency. "
     "Install it with: uv sync --extra stanza"
 )
 
 
-def parse_stanza_entities(document: Document, entities: Iterable[Any]) -> list[Annotation]:
+def stanza_source(model: str) -> str:
+    return f"stanza_{model}"
+
+
+def stanza_model_for_annotator(annotator: str) -> str:
+    return annotator[len("stanza_"):]
+
+
+STANZA_ANNOTATORS: tuple[str, ...] = tuple(stanza_source(model) for model in STANZA_MODELS)
+
+
+def parse_stanza_entities(
+    document: Document,
+    entities: Iterable[Any],
+    *,
+    source: str,
+) -> list[Annotation]:
     annotations: list[Annotation] = []
     for entity in entities:
         text = getattr(entity, "text", None)
@@ -26,7 +41,7 @@ def parse_stanza_entities(document: Document, entities: Iterable[Any]) -> list[A
         annotations.append(
             make_annotation(
                 document=document,
-                source="stanza",
+                source=source,
                 span_text=text,
                 entity_type=getattr(entity, "type", None),
                 start=getattr(entity, "start_char", None),
@@ -54,33 +69,20 @@ def _load_stanza_pipeline(package: str, model: str) -> Any:
 
 def annotate_with_stanza(
     document: Document,
+    model: str,
     *,
     entities: Iterable[Any] | None = None,
     pipeline: Any = None,
     package: str | None = None,
-    models: Iterable[str] | None = None,
     pipeline_loader: Callable[[str, str], Any] | None = None,
 ) -> list[Annotation]:
+    source = stanza_source(model)
     if entities is not None:
-        return parse_stanza_entities(document, entities)
+        return parse_stanza_entities(document, entities, source=source)
 
-    if pipeline is not None:
-        parsed = pipeline(document.text)
-        return parse_stanza_entities(document, getattr(parsed, "ents", []) or [])
+    if pipeline is None:
+        loader = pipeline_loader or _load_stanza_pipeline
+        pipeline = loader(package or DEFAULT_STANZA_PACKAGE, model)
 
-    loader = pipeline_loader or _load_stanza_pipeline
-    selected = tuple(models) if models else DEFAULT_STANZA_MODELS
-    resolved_package = package or DEFAULT_STANZA_PACKAGE
-
-    annotations: list[Annotation] = []
-    seen: set[str] = set()
-    for model in selected:
-        parsed = loader(resolved_package, model)(document.text)
-        for annotation in parse_stanza_entities(document, getattr(parsed, "ents", []) or []):
-            # Models overlap (e.g. PTEN as gene from both bionlp13cg and jnlpba),
-            # which collapse to the same annotation_id; keep one.
-            if annotation.annotation_id in seen:
-                continue
-            seen.add(annotation.annotation_id)
-            annotations.append(annotation)
-    return annotations
+    parsed = pipeline(document.text)
+    return parse_stanza_entities(document, getattr(parsed, "ents", []) or [], source=source)

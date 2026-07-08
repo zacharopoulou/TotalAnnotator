@@ -144,16 +144,16 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
         )
         for label in MACCROBAT_LABELS
     ),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Chemical", "drug", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Simple chemical", "drug", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Disease", "disease", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cancer", "disease", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Gene or gene product", "gene", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Protein", "gene", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Organism", "species", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cell", "cell_line", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cell line", "cell_line", ()),
-    AnnotatorEntityTypeSpec("stanza", "Stanza", "Cell type", "cell_line", ()),
+    AnnotatorEntityTypeSpec("stanza_bc5cdr", "Stanza BC5CDR", "Chemical", "drug", ()),
+    AnnotatorEntityTypeSpec("stanza_bc5cdr", "Stanza BC5CDR", "Disease", "disease", ()),
+    AnnotatorEntityTypeSpec("stanza_bionlp13cg", "Stanza BioNLP13CG", "Gene or gene product", "gene", ()),
+    AnnotatorEntityTypeSpec("stanza_bionlp13cg", "Stanza BioNLP13CG", "Simple chemical", "drug", ()),
+    AnnotatorEntityTypeSpec("stanza_bionlp13cg", "Stanza BioNLP13CG", "Cancer", "disease", ()),
+    AnnotatorEntityTypeSpec("stanza_bionlp13cg", "Stanza BioNLP13CG", "Organism", "species", ()),
+    AnnotatorEntityTypeSpec("stanza_bionlp13cg", "Stanza BioNLP13CG", "Cell", "cell", ()),
+    AnnotatorEntityTypeSpec("stanza_jnlpba", "Stanza JNLPBA", "Protein", "gene", ()),
+    AnnotatorEntityTypeSpec("stanza_jnlpba", "Stanza JNLPBA", "Cell line", "cell_line", ()),
+    AnnotatorEntityTypeSpec("stanza_jnlpba", "Stanza JNLPBA", "Cell type", "cell_type", ()),
 )
 
 
@@ -342,21 +342,57 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         },
         normalization_fields=("cui",),
     ),
-    "stanza": AnnotatorCapability(
-        label="Stanza",
+    "stanza_bc5cdr": AnnotatorCapability(
+        label="Stanza BC5CDR",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
                 spec.canonical_entity_type
                 for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "stanza"
+                if spec.annotator == "stanza_bc5cdr"
             )
         ),
         normalization_status="not_returned",
         normalization_databases={
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "stanza"
+            if spec.annotator == "stanza_bc5cdr"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_bionlp13cg": AnnotatorCapability(
+        label="Stanza BioNLP13CG",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_bionlp13cg"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_bionlp13cg"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_jnlpba": AnnotatorCapability(
+        label="Stanza JNLPBA",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_jnlpba"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_jnlpba"
         },
         normalization_fields=(),
     ),

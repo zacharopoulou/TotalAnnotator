@@ -12,7 +12,11 @@ from bio_annotation.annotators.d4data import annotate_with_d4data
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
-from bio_annotation.annotators.stanza import annotate_with_stanza
+from bio_annotation.annotators.stanza import (
+    STANZA_ANNOTATORS,
+    annotate_with_stanza,
+    stanza_source,
+)
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -43,7 +47,7 @@ def run_all_annotators(
     medcat_response: Any = None,
     medcat_request_fn: Any = None,
     medcat_endpoint: str | None = None,
-    stanza_entities: Any = None,
+    stanza_entities: dict[str, Any] | None = None,  # model name -> entities
 ) -> dict[str, list[Annotation]]:
     results = {
         "bern2": annotate_with_bern2(
@@ -128,19 +132,18 @@ def run_all_annotators(
             request_fn=medcat_request_fn,
             endpoint=medcat_endpoint,
         )
-    # Stanza loads/downloads local models, so only invoke it when entities are
-    # supplied directly (keeps callers that don't use it offline-friendly).
-    if stanza_entities is not None:
-        results["stanza"] = annotate_with_stanza(
-            document,
-            entities=stanza_entities,
+    # Stanza is split into model-specific annotators; inject per model. Loading
+    # local models is expensive, so only run the ones with supplied entities.
+    for model, ents in (stanza_entities or {}).items():
+        results[stanza_source(model)] = annotate_with_stanza(
+            document, model, entities=ents
         )
     return results
 
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat", "stanza"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS):
         annotations.extend(results.get(source, []))
     return annotations
 

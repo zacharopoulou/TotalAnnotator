@@ -34,9 +34,10 @@ from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.annotators.stanza import annotate_with_stanza
 from bio_annotation.entity_proposal.stanza_proposer import (
-    DEFAULT_STANZA_MODELS,
     DEFAULT_STANZA_PACKAGE,
+    STANZA_ANNOTATORS,
     STANZA_INSTALL_HINT,
+    stanza_model_for_annotator,
 )
 from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
@@ -51,7 +52,7 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "clinicalbert", "stanza", "apollo", "d4data", "medcat"}
+SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
@@ -72,7 +73,7 @@ def run_pipeline_from_config(
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
-    stanza_entities_by_document: dict[str, list[Any]] | None = None,
+    stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
@@ -138,7 +139,7 @@ def build_pipeline_output(
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
-    stanza_entities_by_document: dict[str, list[Any]] | None = None,
+    stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> dict[str, Any]:
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
@@ -153,7 +154,11 @@ def build_pipeline_output(
     apollo_options = _read_apollo_options(annotator_settings.get("apollo", {}))
     d4data_options = _read_d4data_options(annotator_settings.get("d4data", {}))
     medcat_options = _read_medcat_options(annotator_settings.get("medcat", {}))
-    stanza_options = _read_stanza_options(annotator_settings.get("stanza", {}))
+    stanza_options = {
+        annotator: _read_stanza_options(annotator_settings.get(annotator, {}))
+        for annotator in enabled_annotators
+        if annotator in STANZA_ANNOTATORS
+    }
 
     flair_tagger = None
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -497,7 +502,7 @@ def run_selected_annotators(
     pubtator3_options: dict[str, Any] | None = None,
     aioner_options: dict[str, Any] | None = None,
     medcat_options: dict[str, Any] | None = None,
-    stanza_options: dict[str, Any] | None = None,
+    stanza_options: dict[str, dict[str, Any]] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
@@ -510,7 +515,7 @@ def run_selected_annotators(
     d4data_response: Any = None,
     d4data_pipeline: Any = None,
     d4data_options: dict[str, Any] | None = None,
-    stanza_entities: list[Any] | None = None,
+    stanza_entities: dict[str, list[Any]] | None = None,
 ) -> dict[str, list[Annotation]]:
     results, _ = run_selected_annotators_with_status(
         document,
@@ -553,7 +558,7 @@ def run_selected_annotators_with_status(
     pubtator3_options: dict[str, Any] | None = None,
     aioner_options: dict[str, Any] | None = None,
     medcat_options: dict[str, Any] | None = None,
-    stanza_options: dict[str, Any] | None = None,
+    stanza_options: dict[str, dict[str, Any]] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
@@ -566,7 +571,7 @@ def run_selected_annotators_with_status(
     d4data_response: Any = None,
     d4data_pipeline: Any = None,
     d4data_options: dict[str, Any] | None = None,
-    stanza_entities: list[Any] | None = None,
+    stanza_entities: dict[str, list[Any]] | None = None,
 ) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
     statuses: list[dict[str, Any]] = []
@@ -680,12 +685,13 @@ def run_selected_annotators_with_status(
                     endpoint=medcat_options.get("endpoint") if medcat_options else None,
                     min_acc=medcat_options.get("min_acc") if medcat_options else None,
                 )
-            elif annotator == "stanza":
+            elif annotator in STANZA_ANNOTATORS:
+                options = stanza_options.get(annotator, {}) if stanza_options else {}
                 results[annotator] = annotate_with_stanza(
                     document,
-                    entities=stanza_entities,
-                    package=stanza_options.get("package") if stanza_options else None,
-                    models=stanza_options.get("models") if stanza_options else None,
+                    stanza_model_for_annotator(annotator),
+                    entities=stanza_entities.get(annotator) if stanza_entities else None,
+                    package=options.get("package"),
                 )
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
@@ -723,7 +729,7 @@ def run_selected_annotators_with_status(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "apollo", "clinicalbert", "d4data", "medcat", "stanza"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "apollo", "clinicalbert", "d4data", "medcat", *STANZA_ANNOTATORS):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -946,10 +952,10 @@ def _no_annotations_reason(annotator: str) -> str:
             "(set annotators.medcat.endpoint or MEDCAT_API_URL) and returned "
             "entities for this document."
         )
-    if annotator == "stanza":
+    if annotator in STANZA_ANNOTATORS:
         return (
-            "No annotations returned. The Stanza models may be unavailable/not "
-            "downloaded, or they found no entities."
+            "No annotations returned. The Stanza model may be unavailable/not "
+            "downloaded, or it found no entities."
         )
     return "No annotations returned."
 
@@ -1111,7 +1117,7 @@ def validate_optional_annotator_dependencies(
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
-    stanza_entities_by_document: dict[str, list[Any]] | None = None,
+    stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> None:
     if (
         "d4data" in config.annotators
@@ -1138,7 +1144,7 @@ def validate_optional_annotator_dependencies(
     ):
         raise ValueError(APOLLO_INSTALL_HINT)
     if (
-        "stanza" in config.annotators
+        any(annotator in STANZA_ANNOTATORS for annotator in config.annotators)
         and stanza_entities_by_document is None
         and find_spec("stanza") is None
     ):
@@ -1211,19 +1217,10 @@ def _read_aioner_options(settings: dict[str, object]) -> dict[str, Any]:
 
 def _read_stanza_options(settings: dict[str, object]) -> dict[str, Any]:
     package = settings.get("package")
-    models = settings.get("models")
-
-    cleaned_models = (
-        [model.strip() for model in models if isinstance(model, str) and model.strip()]
-        if isinstance(models, list)
-        else []
-    )
-
     return {
         "package": package.strip()
         if isinstance(package, str) and package.strip()
         else DEFAULT_STANZA_PACKAGE,
-        "models": cleaned_models or list(DEFAULT_STANZA_MODELS),
     }
 
 
