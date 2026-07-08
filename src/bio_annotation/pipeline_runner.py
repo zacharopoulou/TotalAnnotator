@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
+from bio_annotation.annotators.apollo import (
+    APOLLO_INSTALL_HINT,
+    DEFAULT_APOLLO_MODEL,
+    _load_apollo_pipeline,
+    annotate_with_apollo,
+)
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.clinicalbert import (
     CLINICALBERT_INSTALL_HINT,
@@ -17,10 +23,18 @@ from bio_annotation.annotators.clinicalbert import (
     _load_clinicalbert_pipeline,
     annotate_with_clinicalbert,
 )
+from bio_annotation.annotators.d4data import (
+    D4DATA_INSTALL_HINT,
+    DEFAULT_D4DATA_MODEL,
+    _load_d4data_pipeline,
+    annotate_with_d4data,
+)
 from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
+from bio_annotation.report import write_html_report
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
     load_documents_from_pmid_file,
@@ -31,7 +45,7 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "clinicalbert"}
+SUPPORTED_ANNOTATORS = {"bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat"}
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
     "Install it with: uv sync --extra flair"
@@ -49,12 +63,17 @@ def run_pipeline_from_config(
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
+    apollo_responses_by_document: dict[str, list[Any]] | None = None,
+    d4data_responses_by_document: dict[str, list[Any]] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
         config,
         flair_spans_by_document=flair_spans_by_document,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
+        apollo_responses_by_document=apollo_responses_by_document,
+        d4data_responses_by_document=d4data_responses_by_document,
     )
     if pmid_fetcher is not None and config.input_mode == "pmids":
         documents = load_documents_from_pmids(
@@ -83,6 +102,9 @@ def run_pipeline_from_config(
         flair_spans_by_document=flair_spans_by_document,
         aioner_request_fn=aioner_request_fn,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
+        apollo_responses_by_document=apollo_responses_by_document,
+        d4data_responses_by_document=d4data_responses_by_document,
+        medcat_request_fn=medcat_request_fn,
     )
     if config.output_path is not None:
         actual_output_path = timestamped_output_path(config.output_path)
@@ -104,6 +126,9 @@ def build_pipeline_output(
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
+    apollo_responses_by_document: dict[str, list[Any]] | None = None,
+    d4data_responses_by_document: dict[str, list[Any]] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
 ) -> dict[str, Any]:
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
@@ -115,6 +140,9 @@ def build_pipeline_output(
     flair_options = _read_flair_options(annotator_settings.get("flair", {}))
     aioner_options = _read_aioner_options(annotator_settings.get("aioner", {}))
     clinicalbert_options = _read_clinicalbert_options(annotator_settings.get("clinicalbert", {}))
+    apollo_options = _read_apollo_options(annotator_settings.get("apollo", {}))
+    d4data_options = _read_d4data_options(annotator_settings.get("d4data", {}))
+    medcat_options = _read_medcat_options(annotator_settings.get("medcat", {}))
 
     flair_tagger = None
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -128,6 +156,18 @@ def build_pipeline_output(
             clinicalbert_pipeline = _load_clinicalbert_pipeline(clinicalbert_options["model"])
         except Exception as exc:
             logger.warning("clinicalbert unavailable: %s", exc)
+    apollo_pipeline = None
+    if "apollo" in enabled_annotators and apollo_responses_by_document is None:
+        try:
+            apollo_pipeline = _load_apollo_pipeline(apollo_options["model"])
+        except Exception as exc:
+            logger.warning("apollo unavailable: %s", exc)
+    d4data_pipeline = None
+    if "d4data" in enabled_annotators and d4data_responses_by_document is None:
+        try:
+            d4data_pipeline = _load_d4data_pipeline(d4data_options["model"])
+        except Exception as exc:
+            logger.warning("d4data unavailable: %s", exc)
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
     keyword_output: list[dict[str, Any]] = []
@@ -147,9 +187,11 @@ def build_pipeline_output(
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
             aioner_request_fn=aioner_request_fn,
+            medcat_request_fn=medcat_request_fn,
             bern2_options=bern2_options,
             pubtator3_options=pubtator3_options,
             aioner_options=aioner_options,
+            medcat_options=medcat_options,
             flair_spans=(
                 flair_spans_by_document.get(document.document_id)
                 if flair_spans_by_document is not None
@@ -163,6 +205,20 @@ def build_pipeline_output(
             ),
             clinicalbert_pipeline=clinicalbert_pipeline,
             clinicalbert_options=clinicalbert_options,
+            apollo_response=(
+                apollo_responses_by_document.get(document.document_id)
+                if apollo_responses_by_document is not None
+                else None
+            ),
+            apollo_pipeline=apollo_pipeline,
+            apollo_options=apollo_options,
+            d4data_response=(
+                d4data_responses_by_document.get(document.document_id)
+                if d4data_responses_by_document is not None
+                else None
+            ),
+            d4data_pipeline=d4data_pipeline,
+            d4data_options=d4data_options,
         )
         all_statuses.extend(statuses)
 
@@ -219,6 +275,7 @@ def write_pipeline_output(payload: dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     write_pipeline_tsv_outputs(payload, output_path)
+    write_html_report(payload, output_path.with_suffix(".html"))
 
 
 def timestamped_output_path(output_path: Path, *, now: datetime | None = None) -> Path:
@@ -418,15 +475,23 @@ def run_selected_annotators(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
     aioner_options: dict[str, Any] | None = None,
+    medcat_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
     clinicalbert_options: dict[str, Any] | None = None,
+    apollo_response: Any = None,
+    apollo_pipeline: Any = None,
+    apollo_options: dict[str, Any] | None = None,
+    d4data_response: Any = None,
+    d4data_pipeline: Any = None,
+    d4data_options: dict[str, Any] | None = None,
 ) -> dict[str, list[Annotation]]:
     results, _ = run_selected_annotators_with_status(
         document,
@@ -434,15 +499,23 @@ def run_selected_annotators(
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
         aioner_request_fn=aioner_request_fn,
+        medcat_request_fn=medcat_request_fn,
         bern2_options=bern2_options,
         pubtator3_options=pubtator3_options,
         aioner_options=aioner_options,
+        medcat_options=medcat_options,
         flair_spans=flair_spans,
         flair_tagger=flair_tagger,
         flair_options=flair_options,
         clinicalbert_response=clinicalbert_response,
         clinicalbert_pipeline=clinicalbert_pipeline,
         clinicalbert_options=clinicalbert_options,
+        apollo_response=apollo_response,
+        apollo_pipeline=apollo_pipeline,
+        apollo_options=apollo_options,
+        d4data_response=d4data_response,
+        d4data_pipeline=d4data_pipeline,
+        d4data_options=d4data_options,
     )
     return results
 
@@ -454,15 +527,23 @@ def run_selected_annotators_with_status(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
+    medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
     aioner_options: dict[str, Any] | None = None,
+    medcat_options: dict[str, Any] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
     flair_options: dict[str, Any] | None = None,
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
     clinicalbert_options: dict[str, Any] | None = None,
+    apollo_response: Any = None,
+    apollo_pipeline: Any = None,
+    apollo_options: dict[str, Any] | None = None,
+    d4data_response: Any = None,
+    d4data_pipeline: Any = None,
+    d4data_options: dict[str, Any] | None = None,
 ) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
     statuses: list[dict[str, Any]] = []
@@ -555,6 +636,27 @@ def run_selected_annotators_with_status(
                     pipeline=clinicalbert_pipeline,
                     model=clinicalbert_options.get("model") if clinicalbert_options else None,
                 )
+            elif annotator == "apollo":
+                results[annotator] = annotate_with_apollo(
+                    document,
+                    response=apollo_response,
+                    pipeline=apollo_pipeline,
+                    model=apollo_options.get("model") if apollo_options else None,
+                )
+            elif annotator == "d4data":
+                results[annotator] = annotate_with_d4data(
+                    document,
+                    response=d4data_response,
+                    pipeline=d4data_pipeline,
+                    model=d4data_options.get("model") if d4data_options else None,
+                )
+            elif annotator == "medcat":
+                results[annotator] = annotate_with_medcat(
+                    document,
+                    request_fn=medcat_request_fn,
+                    endpoint=medcat_options.get("endpoint") if medcat_options else None,
+                    min_acc=medcat_options.get("min_acc") if medcat_options else None,
+                )
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
         except Exception as exc:
@@ -591,7 +693,7 @@ def run_selected_annotators_with_status(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert"):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat"):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -798,6 +900,22 @@ def _no_annotations_reason(annotator: str) -> str:
             "No annotations returned. The ClinicalBERT model may be unavailable/not "
             "downloaded (uv sync --extra clinicalbert), or it found no entities."
         )
+    if annotator == "apollo":
+        return (
+            "No annotations returned. The apollo model may be unavailable/not "
+            "downloaded (uv sync --extra apollo), or it found no entities."
+        )
+    if annotator == "d4data":
+        return (
+            "No annotations returned. The d4data model may be unavailable/not "
+            "downloaded (uv sync --extra d4data), or it found no entities."
+        )
+    if annotator == "medcat":
+        return (
+            "No annotations returned. Verify the MedCAT service is reachable "
+            "(set annotators.medcat.endpoint or MEDCAT_API_URL) and returned "
+            "entities for this document."
+        )
     return "No annotations returned."
 
 
@@ -956,7 +1074,15 @@ def validate_optional_annotator_dependencies(
     *,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
+    apollo_responses_by_document: dict[str, list[Any]] | None = None,
+    d4data_responses_by_document: dict[str, list[Any]] | None = None,
 ) -> None:
+    if (
+        "d4data" in config.annotators
+        and d4data_responses_by_document is None
+        and (find_spec("transformers") is None or find_spec("torch") is None)
+    ):
+        raise ValueError(D4DATA_INSTALL_HINT)
     if (
         "flair" in config.annotators
         and flair_spans_by_document is None
@@ -969,6 +1095,12 @@ def validate_optional_annotator_dependencies(
         and (find_spec("transformers") is None or find_spec("torch") is None)
     ):
         raise ValueError(CLINICALBERT_INSTALL_HINT)
+    if (
+        "apollo" in config.annotators
+        and apollo_responses_by_document is None
+        and (find_spec("transformers") is None or find_spec("torch") is None)
+    ):
+        raise ValueError(APOLLO_INSTALL_HINT)
 
 
 def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
@@ -983,6 +1115,27 @@ def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
 
     return {
         "endpoint": cleaned_endpoint,
+    }
+
+
+def _read_medcat_options(settings: dict[str, object]) -> dict[str, Any]:
+    endpoint = settings.get("endpoint")
+    base_url = settings.get("base_url")
+
+    cleaned_endpoint = None
+    if isinstance(endpoint, str) and endpoint.strip():
+        cleaned_endpoint = endpoint.strip()
+    elif isinstance(base_url, str) and base_url.strip():
+        cleaned_endpoint = base_url.strip()
+
+    min_acc_raw = settings.get("min_acc")
+    min_acc = None
+    if isinstance(min_acc_raw, (int, float)) and float(min_acc_raw) > 0.0:
+        min_acc = float(min_acc_raw)
+
+    return {
+        "endpoint": cleaned_endpoint,
+        "min_acc": min_acc,
     }
 
 
@@ -1031,6 +1184,24 @@ def _read_clinicalbert_options(settings: dict[str, object]) -> dict[str, Any]:
         "model": model.strip()
         if isinstance(model, str) and model.strip()
         else DEFAULT_CLINICALBERT_MODEL,
+    }
+
+
+def _read_apollo_options(settings: dict[str, object]) -> dict[str, Any]:
+    model = settings.get("model")
+    return {
+        "model": model.strip()
+        if isinstance(model, str) and model.strip()
+        else DEFAULT_APOLLO_MODEL,
+    }
+
+
+def _read_d4data_options(settings: dict[str, object]) -> dict[str, Any]:
+    model = settings.get("model")
+    return {
+        "model": model.strip()
+        if isinstance(model, str) and model.strip()
+        else DEFAULT_D4DATA_MODEL,
     }
 
 

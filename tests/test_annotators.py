@@ -19,7 +19,15 @@ from bio_annotation.annotators.clinicalbert import (
     DEFAULT_CLINICALBERT_MODEL,
     annotate_with_clinicalbert,
 )
+from bio_annotation.annotators.apollo import (
+    DEFAULT_APOLLO_MODEL,
+    annotate_with_apollo,
+)
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
+from bio_annotation.annotators.d4data import (
+    DEFAULT_D4DATA_MODEL,
+    annotate_with_d4data,
+)
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
 from bio_annotation.schemas.document import Document
@@ -612,6 +620,210 @@ def test_clinicalbert_adapter_loads_configured_model() -> None:
     assert len(annotations) == 1
     assert annotations[0].source == "clinicalbert"
     assert annotations[0].entity_type == "treatment"
+
+
+def test_clinicalbert_adapter_trims_leading_articles_and_drops_noise() -> None:
+    document = sample_document()
+    # On out-of-domain text the i2b2 model tags articles and stray punctuation.
+    # Leading "a"/"an"/"the" are stripped; bare articles and lone "-" are dropped.
+    response = [
+        {"entity_group": "problem", "score": 0.9, "word": "a stop codon"},
+        {"entity_group": "problem", "score": 0.9, "word": "an 11-base pair insertion"},
+        {"entity_group": "problem", "score": 0.9, "word": "a"},
+        {"entity_group": "problem", "score": 0.9, "word": "-"},
+        {"entity_group": "problem", "score": 0.9, "word": "the"},
+        {"entity_group": "problem", "score": 0.9, "word": "breast cancer"},
+    ]
+
+    annotations = annotate_with_clinicalbert(document, response=response)
+
+    spans = [annotation.span_text for annotation in annotations]
+    assert spans == ["stop codon", "11-base pair insertion", "breast cancer"]
+    assert all(annotation.entity_type == "problem" for annotation in annotations)
+
+
+def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:
+    # The Windows runner must hand AIONER forward-slash paths (it splits the model
+    # path on "/") and decode the subprocess as UTF-8. Imported directly so the
+    # test runs on any OS.
+    from pathlib import Path
+
+    from bio_annotation.entity_proposal import aioner_windows
+
+    repo = tmp_path / "aioner"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "AIONER_Run.py").write_text("", encoding="utf-8")
+    (repo / "vocab").mkdir()
+    (repo / "vocab" / "AIO_label.vocab").write_text("", encoding="utf-8")
+    model = tmp_path / "models" / "AIONER.h5"
+    model.parent.mkdir()
+    model.write_text("", encoding="utf-8")
+
+    captured: dict = {}
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        out_dir = Path(command[command.index("-o") + 1])
+        (out_dir / "document.txt").write_text("doc\t0\t4\tPTEN\tGene\n", encoding="utf-8")
+        return FakeCompleted()
+
+    monkeypatch.setattr(aioner_windows.subprocess, "run", fake_run)
+
+    document = sample_document()
+    out = aioner_windows.call_aioner(
+        document, repo=str(repo), model=str(model), python="python"
+    )
+
+    cmd = captured["command"]
+    model_arg = cmd[cmd.index("-m") + 1]
+    assert "\\" not in model_arg
+    assert model_arg.endswith("/models/AIONER.h5")
+    assert "\\" not in cmd[cmd.index("-i") + 1]
+    assert "\\" not in cmd[cmd.index("-o") + 1]
+    assert captured["kwargs"].get("encoding") == "utf-8"
+    assert "PTEN" in out
+
+
+def test_apollo_adapter_parses_pipeline_output_and_normalizes_types() -> None:
+    document = sample_document()
+    # HuggingFace token-classification output (aggregation_strategy="first").
+    # "DISEASE_DISORDER"/"MEDICATION" must normalize to canonical "disease"/"drug";
+    # unmapped clinical labels like "SIGN_SYMPTOM" pass through. The span text is
+    # sliced from document.text, so a subword "word" artifact is ignored.
+    response = [
+        {"entity_group": "DISEASE_DISORDER", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
+        {"entity_group": "MEDICATION", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
+        {"entity_group": "SIGN_SYMPTOM", "score": 0.80, "word": "biomarkers", "start": 49, "end": 59},
+    ]
+
+    annotations = annotate_with_apollo(document, response=response)
+
+    assert len(annotations) == 3
+    assert all(annotation.source == "apollo" for annotation in annotations)
+    assert annotations[0].entity_type == "disease"
+    assert annotations[0].span_text == "glioblastoma"
+    assert annotations[0].start == 15
+    assert annotations[0].end == 27
+    assert annotations[1].entity_type == "drug"
+    assert annotations[2].entity_type == "sign_symptom"
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
+def test_apollo_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> list[dict[str, object]]:
+        calls.append(doc)
+        return [
+            {"entity_group": "DISEASE_DISORDER", "score": 0.9, "word": "glioblastoma", "start": 15, "end": 27}
+        ]
+
+    annotations = annotate_with_apollo(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "disease"
+
+
+def test_apollo_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakePipeline:
+        def __call__(self, text: str) -> list[dict[str, object]]:
+            assert text == document.text
+            return [
+                {"entity_group": "MEDICATION", "score": 0.88, "word": "PTEN", "start": 0, "end": 4}
+            ]
+
+    def fake_loader(model: str) -> FakePipeline:
+        loaded_models.append(model)
+        return FakePipeline()
+
+    annotations = annotate_with_apollo(
+        document,
+        model=DEFAULT_APOLLO_MODEL,
+        pipeline_loader=fake_loader,
+    )
+
+    assert loaded_models == [DEFAULT_APOLLO_MODEL]
+    assert len(annotations) == 1
+    assert annotations[0].source == "apollo"
+    assert annotations[0].entity_type == "drug"
+
+
+def test_d4data_adapter_parses_pipeline_output_and_normalizes_types() -> None:
+    document = sample_document()
+    # d4data emits mixed-case MACCROBAT labels; they should normalize through the
+    # shared MACCROBAT alias table used by Apollo too.
+    response = [
+        {"entity_group": "Disease_disorder", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
+        {"entity_group": "Medication", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
+        {"entity_group": "Sign_symptom", "score": 0.80, "word": "biomarkers", "start": 49, "end": 59},
+    ]
+
+    annotations = annotate_with_d4data(document, response=response)
+
+    assert len(annotations) == 3
+    assert all(annotation.source == "d4data" for annotation in annotations)
+    assert annotations[0].entity_type == "disease"
+    assert annotations[0].span_text == "glioblastoma"
+    assert annotations[0].start == 15
+    assert annotations[0].end == 27
+    assert annotations[1].entity_type == "drug"
+    assert annotations[2].entity_type == "sign_symptom"
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
+def test_d4data_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> list[dict[str, object]]:
+        calls.append(doc)
+        return [
+            {"entity_group": "Disease_disorder", "score": 0.9, "word": "glioblastoma", "start": 15, "end": 27}
+        ]
+
+    annotations = annotate_with_d4data(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "disease"
+
+
+def test_d4data_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakePipeline:
+        def __call__(self, text: str) -> list[dict[str, object]]:
+            assert text == document.text
+            return [
+                {"entity_group": "Medication", "score": 0.88, "word": "PTEN", "start": 0, "end": 4}
+            ]
+
+    def fake_loader(model: str) -> FakePipeline:
+        loaded_models.append(model)
+        return FakePipeline()
+
+    annotations = annotate_with_d4data(
+        document,
+        model=DEFAULT_D4DATA_MODEL,
+        pipeline_loader=fake_loader,
+    )
+
+    assert loaded_models == [DEFAULT_D4DATA_MODEL]
+    assert len(annotations) == 1
+    assert annotations[0].source == "d4data"
+    assert annotations[0].entity_type == "drug"
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:

@@ -7,17 +7,17 @@ from bio_annotation.entity_proposal._shared import make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-# i2b2-2010 clinical NER (problem / test / treatment), fine-tuned from BERT.
-DEFAULT_CLINICALBERT_MODEL = "samrawal/bert-base-uncased_clinical-ner"
+DEFAULT_APOLLO_MODEL = "Clinical-AI-Apollo/Medical-NER"
 
-CLINICALBERT_INSTALL_HINT = (
-    "The ClinicalBERT annotator requires the optional Hugging Face dependencies. "
-    "Install them with: uv sync --extra clinicalbert"
+APOLLO_INSTALL_HINT = (
+    "The apollo annotator requires the optional Hugging Face dependencies. "
+    "Install them with: uv sync --extra apollo"
 )
 
-# The model can emit spans with leading/trailing punctuation; trim those boundary
-# characters off the edges while keeping offsets correct. Hyphen and slash are
-# excluded since they occur inside clinical terms (e.g. "mg/dL", "5-HT").
+# Apollo can emit spans with leading/trailing punctuation (e.g. "glioblastoma:",
+# "clinical behavior."); trim those boundary characters off the edges while
+# keeping offsets correct. Hyphen and slash are excluded since they occur inside
+# clinical terms (e.g. "mg/dL", "5-HT").
 _BOUNDARY_CHARS = " \t\n\r\f\v.,;:!?()[]{}\"'"
 
 
@@ -32,43 +32,14 @@ def _trim_boundary(
     return inner, new_start, new_start + len(inner)
 
 
-# The i2b2 model often tags a noun phrase together with its leading article on
-# out-of-domain text (e.g. "a stop codon"). Drop the article and keep offsets
-# aligned with document.text. Ordered so "the"/"an" match before "a".
-_LEADING_ARTICLES = ("the", "an", "a")
-
-
-def _strip_leading_article(
-    text: str, start: int | None, end: int | None
-) -> tuple[str, int | None, int | None]:
-    lowered = text.lower()
-    for article in _LEADING_ARTICLES:
-        if lowered.startswith(article + " "):
-            removed = len(text) - len(text[len(article):].lstrip())
-            trimmed = text[removed:]
-            if isinstance(start, int):
-                return trimmed, start + removed, end
-            return trimmed, start, end
-    return text, start, end
-
-
-def _is_noise_span(text: str) -> bool:
-    """True for out-of-domain junk: a bare article or lone punctuation like "-"."""
-    core = text.strip("-/ \t")
-    if len(core) < 2 or not any(ch.isalnum() for ch in core):
-        return True
-    return text.strip().lower() in {"a", "an", "the"}
-
-
-def parse_clinicalbert_response(
+def parse_apollo_response(
     document: Document,
     payload: Iterable[Any] | None,
 ) -> list[Annotation]:
     """Parse HuggingFace token-classification output into Annotations.
 
-    The transformers NER pipeline uses ``aggregation_strategy="first"``. The
-    clinical labels (problem / test / treatment) are kept as their own types
-    rather than mapped onto the canonical biomedical set.
+    The transformers NER pipeline uses ``aggregation_strategy="first"``; clinical
+    labels without a canonical mapping pass through as their normalized form.
     """
 
     if not payload:
@@ -91,14 +62,11 @@ def parse_clinicalbert_response(
         span_text, start, end = _trim_boundary(span_text, start, end)
         if not span_text:
             continue
-        span_text, start, end = _strip_leading_article(span_text, start, end)
-        if not span_text or _is_noise_span(span_text):
-            continue
 
         annotations.append(
             make_annotation(
                 document=document,
-                source="clinicalbert",
+                source="apollo",
                 span_text=span_text,
                 entity_type=label,
                 start=start,
@@ -111,14 +79,12 @@ def parse_clinicalbert_response(
 
 
 @lru_cache(maxsize=2)
-def _load_clinicalbert_pipeline(model: str) -> Any:
+def _load_apollo_pipeline(model: str) -> Any:
     try:
         from transformers import pipeline
     except ImportError as exc:
-        raise RuntimeError(CLINICALBERT_INSTALL_HINT) from exc
+        raise RuntimeError(APOLLO_INSTALL_HINT) from exc
 
-    # "first" groups sub-word tokens into whole words and keeps the first
-    # sub-word's label, which is what this B-/I- tagging model needs.
     return pipeline(
         "ner",
         model=model,
@@ -127,7 +93,7 @@ def _load_clinicalbert_pipeline(model: str) -> Any:
     )
 
 
-def annotate_with_clinicalbert(
+def annotate_with_apollo(
     document: Document,
     *,
     response: Any = None,
@@ -141,8 +107,8 @@ def annotate_with_clinicalbert(
         payload = request_fn(document)
     if payload is None:
         if pipeline is None and model:
-            loader = pipeline_loader or _load_clinicalbert_pipeline
+            loader = pipeline_loader or _load_apollo_pipeline
             pipeline = loader(model)
         if pipeline is not None:
             payload = pipeline(document.text)
-    return parse_clinicalbert_response(document, payload)
+    return parse_apollo_response(document, payload)

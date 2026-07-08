@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = "==3.8.*"
+resolution-markers = [
+    "sys_platform == 'win32'",
+    "sys_platform != 'win32'",
+]
 
 [[package]]
 name = "absl-py"
@@ -17,11 +21,21 @@ version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "bioc" },
+    { name = "blis", version = "0.7.5", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "blis", version = "0.7.11", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "cymem", version = "2.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "cymem", version = "2.0.11", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "murmurhash", version = "1.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "murmurhash", version = "1.0.15", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "preshed", version = "3.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "preshed", version = "3.0.12", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "protobuf" },
     { name = "spacy" },
     { name = "stanza" },
     { name = "tensorflow" },
     { name = "tensorflow-addons" },
+    { name = "thinc", version = "8.0.15", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "thinc", version = "8.0.17", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "transformers" },
     { name = "typing-extensions" },
 ]
@@ -29,11 +43,21 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "bioc", specifier = "==2.0.post4" },
+    { name = "blis", marker = "sys_platform != 'win32'", specifier = "==0.7.11" },
+    { name = "blis", marker = "sys_platform == 'win32'", specifier = "==0.7.5" },
+    { name = "cymem", marker = "sys_platform != 'win32'", specifier = "==2.0.11" },
+    { name = "cymem", marker = "sys_platform == 'win32'", specifier = "==2.0.6" },
+    { name = "murmurhash", marker = "sys_platform != 'win32'", specifier = "==1.0.15" },
+    { name = "murmurhash", marker = "sys_platform == 'win32'", specifier = "==1.0.6" },
+    { name = "preshed", marker = "sys_platform != 'win32'", specifier = "==3.0.12" },
+    { name = "preshed", marker = "sys_platform == 'win32'", specifier = "==3.0.6" },
     { name = "protobuf", specifier = "<3.21" },
     { name = "spacy", specifier = "==3.2.4" },
     { name = "stanza", specifier = "==1.4.0" },
     { name = "tensorflow", specifier = "==2.3.0" },
     { name = "tensorflow-addons", specifier = "==0.12.1" },
+    { name = "thinc", marker = "sys_platform != 'win32'", specifier = "==8.0.17" },
+    { name = "thinc", marker = "sys_platform == 'win32'", specifier = "==8.0.15" },
     { name = "transformers", specifier = "==4.18.0" },
     { name = "typing-extensions", specifier = "<4.6" },
 ]
@@ -77,10 +101,28 @@ wheels = [
 
 [[package]]
 name = "blis"
+version = "0.7.5"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "numpy", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/32/b29de050557c8ba7f6694d1c8c3b6dabe53af72e12c6dc39e2547d89232d/blis-0.7.5.tar.gz", hash = "sha256:833e01e9eaff4c01aa6e049bbc1e6acb9eca6ee513d7b35b5bf135d49705ad33", size = 2764886, upload-time = "2021-10-22T08:51:24.347Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2d/d3/b1e56c013113883d81af00c1c916e1be6695fadb6c867314ba0b449e9eba/blis-0.7.5-cp38-cp38-win_amd64.whl", hash = "sha256:31401da283ed42905f0fbf2f8b88ea424c6a911482426f84b5b88c54d382e4d1", size = 6555671, upload-time = "2021-10-22T08:51:14.825Z" },
+]
+
+[[package]]
+name = "blis"
 version = "0.7.11"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform != 'win32'",
+]
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/51/8c/60c85350f2e1c9647df580083a0f6acc686ef32d1a91f4ab0c624b3ff867/blis-0.7.11.tar.gz", hash = "sha256:cec6d48f75f7ac328ae1b6fbb372dde8c8a57c89559172277f66e01ff08d4d42", size = 2897107, upload-time = "2023-09-22T06:28:25.103Z" }
 wheels = [
@@ -88,7 +130,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/71/b8/e90fd4c2c4e14335da99b33d3e022527e2b67e15194c2c678d04ad091b2d/blis-0.7.11-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:809d1da1331108935bf06e22f3cf07ef73a41a572ecd81575bdedb67defe3465", size = 1104565, upload-time = "2023-09-22T06:28:07.433Z" },
     { url = "https://files.pythonhosted.org/packages/f6/d5/3b494bbdfcb5c361938b897225a3af24d03ba0ab11f1a45c18087b0cc3b2/blis-0.7.11-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bfabd5272bbbe504702b8dfe30093653d278057656126716ff500d9c184b35a6", size = 1712658, upload-time = "2023-09-22T06:28:09.394Z" },
     { url = "https://files.pythonhosted.org/packages/9d/42/d233ec75bc8682e368e96073703f01dc095792019fcb541e741b28ce4074/blis-0.7.11-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ca684f5c2f05269f17aefe7812360286e9a1cee3afb96d416485efd825dbcf19", size = 10172191, upload-time = "2023-09-22T06:28:11.562Z" },
-    { url = "https://files.pythonhosted.org/packages/68/fe/a6e76b918206fb103c7ea511db1556b824d6c9bbbbd147b91ee8540253b1/blis-0.7.11-cp38-cp38-win_amd64.whl", hash = "sha256:688a8b21d2521c2124ee8dfcbaf2c385981ccc27e313e052113d5db113e27d3b", size = 6625814, upload-time = "2023-09-22T06:28:13.772Z" },
 ]
 
 [[package]]
@@ -210,8 +251,23 @@ wheels = [
 
 [[package]]
 name = "cymem"
+version = "2.0.6"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5c/f8/16dccb3f9ac72bbaee8049b1d78df6e0623a1699c402687f2acdf15026af/cymem-2.0.6.tar.gz", hash = "sha256:169725b5816959d34de2545b33fee6a8021a6e08818794a426c5a4f981f17e5e", size = 8241, upload-time = "2021-10-22T07:30:59.068Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/40/0d2f208c4a79f06aa530cb6becc67740bb30b0a72d41055a0fa491f3e50f/cymem-2.0.6-cp38-cp38-win_amd64.whl", hash = "sha256:4f87fe087f2ae36c3e20e2b1a29d7f76a28c035372d0a97655f26223d975235a", size = 36354, upload-time = "2021-10-22T07:30:53.245Z" },
+]
+
+[[package]]
+name = "cymem"
 version = "2.0.11"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform != 'win32'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/f2/4a/1acd761fb6ac4c560e823ce40536a62f886f2d59b2763b5c3fc7e9d92101/cymem-2.0.11.tar.gz", hash = "sha256:efe49a349d4a518be6b6c6b255d4a80f740a341544bde1a807707c058b88d0bd", size = 10346, upload-time = "2025-01-16T21:50:41.045Z" }
 
 [[package]]
@@ -537,8 +593,23 @@ wheels = [
 
 [[package]]
 name = "murmurhash"
+version = "1.0.6"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/d8/ef0ebb509ed1fabbd186e3b781fc6432b8fbddd42d20932ab6654c98a409/murmurhash-1.0.6.tar.gz", hash = "sha256:00a5252b569d3f914b5bd0bce72d2efe9c0fb91a9703556ea1b608b141c68f2d", size = 12688, upload-time = "2021-10-22T07:29:30.395Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/0f/512c25680bdc80a9a2f53da65f4ade2e9f676489df79589275d37e268909/murmurhash-1.0.6-cp38-cp38-win_amd64.whl", hash = "sha256:773411eba268bf524c012e781f4405aacb9ef4edc063d1f6b38bbf06358b988e", size = 21174, upload-time = "2021-10-22T07:29:25.604Z" },
+]
+
+[[package]]
+name = "murmurhash"
 version = "1.0.15"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform != 'win32'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/23/2e/88c147931ea9725d634840d538622e94122bceaf346233349b7b5c62964b/murmurhash-1.0.15.tar.gz", hash = "sha256:58e2b27b7847f9e2a6edf10b47a8c8dd70a4705f45dccb7bf76aeadacf56ba01", size = 13291, upload-time = "2025-11-14T09:51:15.272Z" }
 
 [[package]]
@@ -600,7 +671,7 @@ name = "nvidia-cudnn-cu12"
 version = "8.9.2.26"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ff/74/a2e2be7fb83aaedec84f391f082cf765dfb635e7caa9b49065f73e4835d8/nvidia_cudnn_cu12-8.9.2.26-py3-none-manylinux1_x86_64.whl", hash = "sha256:5ccb288774fdfb07a7e7025ffec286971c06d8d7b4fb162525334616d7629ff9", size = 731725872, upload-time = "2023-06-01T19:24:57.328Z" },
@@ -627,9 +698,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.4.5.107"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
-    { name = "nvidia-cusparse-cu12" },
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'win32'" },
+    { name = "nvidia-cusparse-cu12", marker = "sys_platform != 'win32'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/1d/8de1e5c67099015c834315e333911273a8c6aaba78923dd1d1e25fc5f217/nvidia_cusolver_cu12-11.4.5.107-py3-none-manylinux1_x86_64.whl", hash = "sha256:8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd", size = 124161928, upload-time = "2023-04-19T15:51:25.781Z" },
@@ -640,7 +711,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.1.0.106"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/65/5b/cfaeebf25cd9fdec14338ccb16f6b2c4c7fa9163aefcf057d86b9cc248bb/nvidia_cusparse_cu12-12.1.0.106-py3-none-manylinux1_x86_64.whl", hash = "sha256:f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c", size = 195958278, upload-time = "2023-04-19T15:51:49.939Z" },
@@ -722,11 +793,30 @@ wheels = [
 
 [[package]]
 name = "preshed"
+version = "3.0.6"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "cymem", version = "2.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "murmurhash", version = "1.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c7/2e/f8ad19fa853727dfeee1114ee4ff45f10f259cbddf5cd23289992c06ccf4/preshed-3.0.6.tar.gz", hash = "sha256:fb3b7588a3a0f2f2f1bf3fe403361b2b031212b73a37025aea1df7215af3772a", size = 14635, upload-time = "2021-10-22T08:24:25.064Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/7c/041bbbb9d13ce6f45d55ffc49b43572c7c2fbbe2a1405c61251cfcc26210/preshed-3.0.6-cp38-cp38-win_amd64.whl", hash = "sha256:f92e752a868ea2690e1b38c4b775251a145e0fce36b9bdd972539e8271b7a23a", size = 113000, upload-time = "2021-10-22T08:24:20.196Z" },
+]
+
+[[package]]
+name = "preshed"
 version = "3.0.12"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform != 'win32'",
+]
 dependencies = [
-    { name = "cymem" },
-    { name = "murmurhash" },
+    { name = "cymem", version = "2.0.11", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "murmurhash", version = "1.0.15", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bf/34/eb4f5f0f678e152a96e826da867d2f41c4b18a2d589e40e1dd3347219e91/preshed-3.0.12.tar.gz", hash = "sha256:b73f9a8b54ee1d44529cc6018356896cff93d48f755f29c134734d9371c0d685", size = 15027, upload-time = "2025-11-17T13:00:33.621Z" }
 
@@ -930,24 +1020,29 @@ name = "spacy"
 version = "3.2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "blis" },
+    { name = "blis", version = "0.7.5", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "blis", version = "0.7.11", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "catalogue" },
     { name = "click" },
-    { name = "cymem" },
+    { name = "cymem", version = "2.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "cymem", version = "2.0.11", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "jinja2" },
     { name = "langcodes" },
-    { name = "murmurhash" },
+    { name = "murmurhash", version = "1.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "murmurhash", version = "1.0.15", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "numpy" },
     { name = "packaging" },
     { name = "pathy" },
-    { name = "preshed" },
+    { name = "preshed", version = "3.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "preshed", version = "3.0.12", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "pydantic" },
     { name = "requests" },
     { name = "setuptools" },
     { name = "spacy-legacy" },
     { name = "spacy-loggers" },
     { name = "srsly" },
-    { name = "thinc" },
+    { name = "thinc", version = "8.0.15", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "thinc", version = "8.0.17", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "tqdm" },
     { name = "typer" },
     { name = "wasabi" },
@@ -1118,19 +1213,46 @@ wheels = [
 
 [[package]]
 name = "thinc"
+version = "8.0.15"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "blis", version = "0.7.5", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "catalogue", marker = "sys_platform == 'win32'" },
+    { name = "cymem", version = "2.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "murmurhash", version = "1.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "numpy", marker = "sys_platform == 'win32'" },
+    { name = "preshed", version = "3.0.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "pydantic", marker = "sys_platform == 'win32'" },
+    { name = "setuptools", marker = "sys_platform == 'win32'" },
+    { name = "srsly", marker = "sys_platform == 'win32'" },
+    { name = "wasabi", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bd/57/a637089b8681f7c9055333c7b7637b1072f53a600632414605486623b4de/thinc-8.0.15.tar.gz", hash = "sha256:2e315020da85c3791e191fbf37c4a2433f57cf322e27380da0cd4de99d96053b", size = 188727, upload-time = "2022-03-15T13:37:33.355Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/47/550f6af71c5bb1a4400a2d1f762ace2518851f45e5c2c0473b808cc3c853/thinc-8.0.15-cp38-cp38-win_amd64.whl", hash = "sha256:70781a0802fbb62a27217ccb80e744e80a5b43f9107ac596c5cd2dc9878ae258", size = 1041551, upload-time = "2022-03-15T13:37:27.386Z" },
+]
+
+[[package]]
+name = "thinc"
 version = "8.0.17"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform != 'win32'",
+]
 dependencies = [
-    { name = "blis" },
-    { name = "catalogue" },
-    { name = "cymem" },
-    { name = "murmurhash" },
-    { name = "numpy" },
-    { name = "preshed" },
-    { name = "pydantic" },
-    { name = "setuptools" },
-    { name = "srsly" },
-    { name = "wasabi" },
+    { name = "blis", version = "0.7.11", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "catalogue", marker = "sys_platform != 'win32'" },
+    { name = "cymem", version = "2.0.11", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "murmurhash", version = "1.0.15", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "numpy", marker = "sys_platform != 'win32'" },
+    { name = "preshed", version = "3.0.12", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "pydantic", marker = "sys_platform != 'win32'" },
+    { name = "setuptools", marker = "sys_platform != 'win32'" },
+    { name = "srsly", marker = "sys_platform != 'win32'" },
+    { name = "wasabi", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c5/c2/c7a33b488a7643bcd663a9e109e0ba30a2fb057a5c2f5d2e8b546ba9669c/thinc-8.0.17.tar.gz", hash = "sha256:042c518aa799a38bec22a7a0bf28df80ce617eb7de32bc049798707c0a36167f", size = 189738, upload-time = "2022-06-02T14:04:14.974Z" }
 wheels = [
@@ -1138,7 +1260,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/31/9c/a4a94187a66ae159c32623d2a3faab7f025b1907a5cfff5ff972c1ac0369/thinc-8.0.17-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:55780308cae6119c75a7b6cfee154fded0a03692858c308032151151b37d1571", size = 581887, upload-time = "2022-06-02T14:04:01.17Z" },
     { url = "https://files.pythonhosted.org/packages/31/84/ea2b41f745105ed8e78305462ad64b29fd3af245e6065009791dd5c438e4/thinc-8.0.17-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:980004dc14923e762df69be26a6c094bc4a79d1e5b8d681cfd06ffbd2c23ec56", size = 2342591, upload-time = "2022-07-04T11:29:47.282Z" },
     { url = "https://files.pythonhosted.org/packages/e1/22/838a5945da7dbb707fe71636e2d7ec51b8cc92fbb27419cc1e843926b4a5/thinc-8.0.17-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d2bcf5db534e237b23513965f3d542a6f261370a1946e1c7252bc8134086085f", size = 671131, upload-time = "2022-06-02T14:04:02.901Z" },
-    { url = "https://files.pythonhosted.org/packages/1a/5a/e0e25ebf4cb331e2627bf2b63ee9dc9c950bd2075afbfbd727cadd99e3cd/thinc-8.0.17-cp38-cp38-win_amd64.whl", hash = "sha256:d4275d9cd382707dd1a340cb4e8fba550a3fbff0b000abc1c413825837f55a60", size = 1052365, upload-time = "2022-06-02T14:04:05.175Z" },
 ]
 
 [[package]]
@@ -1226,7 +1347,7 @@ name = "triton"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock" },
+    { name = "filelock", marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/72/98/34f43ed68ee6455ea874f749a5515c0600243186301ecd83819d942ce08a/triton-2.1.0-0-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:39f6fb6bdccb3e98f3152e3fbea724f1aeae7d749412bbb1fa9c441d474eba26", size = 89160672, upload-time = "2023-09-01T07:26:30.379Z" },

@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "matplotlib>=3.8",
+    "rich>=13.7",
 ]
 
 [project.optional-dependencies]
@@ -17,9 +18,21 @@ flair = [
     "flair==0.15.1",
 ]
 clinicalbert = [
-    # ClinicalBERT (samrawal/bert-base-uncased_clinical-ner) is a HuggingFace
+    # ClinicalBERT (samrawal/bert-base-uncased_clinical-ner) --> HuggingFace
     # transformers token-classification model; it needs transformers + a torch
     # backend to run locally.
+    "transformers>=4.30,<5",
+    "torch>=2.0",
+]
+apollo = [
+    # Clinical-AI-Apollo/Medical-NER is a HuggingFace transformers token-
+    # classification model; it needs transformers + a torch backend to run locally.
+    "transformers>=4.30,<5",
+    "torch>=2.0",
+]
+d4data = [
+    # d4data/biomedical-ner-all is a HuggingFace transformers token-classification
+    # model; it needs transformers + a torch backend to run locally.
     "transformers>=4.30,<5",
     "torch>=2.0",
 ]
@@ -31,7 +44,7 @@ benchmarks = [
     "tabulate>=0.9",
 ]
 all = [
-    "totalannotator[flair,clinicalbert,benchmarks]",
+    "totalannotator[flair,clinicalbert,apollo,d4data,benchmarks]",
 ]
 
 [project.scripts]
@@ -44,6 +57,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"bio_annotation.report" = ["template.html"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

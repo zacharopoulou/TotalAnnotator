@@ -27,6 +27,59 @@ class AnnotatorCapability:
     normalization_fields: tuple[str, ...]
 
 
+# MACCROBAT clinical label set (41 labels), shared so any clinical NER annotator
+# trained on MACCROBAT (Clinical-AI-Apollo/Medical-NER, d4data/biomedical-ner-all,
+# ...) can reuse it without duplicating. DISEASE_DISORDER and MEDICATION map to
+# this pipeline's canonical types; the rest are declared as their own clinical types.
+MACCROBAT_CANONICAL_OVERRIDES: dict[str, str] = {
+    "DISEASE_DISORDER": "disease",
+    "MEDICATION": "drug",
+}
+MACCROBAT_LABELS: tuple[str, ...] = (
+    "DISEASE_DISORDER",
+    "MEDICATION",
+    "ACTIVITY",
+    "ADMINISTRATION",
+    "AGE",
+    "AREA",
+    "BIOLOGICAL_ATTRIBUTE",
+    "BIOLOGICAL_STRUCTURE",
+    "CLINICAL_EVENT",
+    "COLOR",
+    "COREFERENCE",
+    "DATE",
+    "DETAILED_DESCRIPTION",
+    "DIAGNOSTIC_PROCEDURE",
+    "DISTANCE",
+    "DOSAGE",
+    "DURATION",
+    "FAMILY_HISTORY",
+    "FREQUENCY",
+    "HEIGHT",
+    "HISTORY",
+    "LAB_VALUE",
+    "MASS",
+    "NONBIOLOGICAL_LOCATION",
+    "OCCUPATION",
+    "OTHER_ENTITY",
+    "OTHER_EVENT",
+    "OUTCOME",
+    "PERSONAL_BACKGROUND",
+    "QUALITATIVE_CONCEPT",
+    "QUANTITATIVE_CONCEPT",
+    "SEVERITY",
+    "SEX",
+    "SHAPE",
+    "SIGN_SYMPTOM",
+    "SUBJECT",
+    "TEXTURE",
+    "THERAPEUTIC_PROCEDURE",
+    "TIME",
+    "VOLUME",
+    "WEIGHT",
+)
+
+
 ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("pubtator3", "PubTator3", "Gene / protein", "gene", ("NCBI Gene",)),
     AnnotatorEntityTypeSpec("pubtator3", "PubTator3", "Disease", "disease", ("MeSH",)),
@@ -45,6 +98,10 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("bern2", "BERN2", "Drug", "drug", ("DrugBank",)),
     AnnotatorEntityTypeSpec("bern2", "BERN2", "Species", "species", ("NCBI Taxonomy",)),
     AnnotatorEntityTypeSpec("bern2", "BERN2", "Mutation / variant", "variant", ("dbSNP",)),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "Cell line", "cell_line", ("Cellosaurus",)),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "Cell type", "cell_type", ("Cell Ontology",)),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "DNA", "dna", ()),
+    AnnotatorEntityTypeSpec("bern2", "BERN2", "RNA", "rna", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Gene / protein", "gene", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Disease", "disease", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Chemical / drug", "drug", ()),
@@ -63,6 +120,30 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "problem", "problem", ()),
     AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "test", "test", ()),
     AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "treatment", "treatment", ()),
+    # Clinical-AI-Apollo/Medical-NER entity types are generated from the shared
+    # MACCROBAT_LABELS: DISEASE_DISORDER/MEDICATION map to canonical disease/drug,
+    # every other clinical label becomes its own first-class type.
+    *(
+        AnnotatorEntityTypeSpec(
+            "apollo",
+            "Clinical-AI-Apollo Medical-NER",
+            label.replace("_", " "),
+            MACCROBAT_CANONICAL_OVERRIDES.get(label, label.lower()),
+            (),
+        )
+        for label in MACCROBAT_LABELS
+    ),
+    # d4data/biomedical-ner-all uses the same MACCROBAT clinical label family.
+    *(
+        AnnotatorEntityTypeSpec(
+            "d4data",
+            "d4data biomedical-ner-all",
+            label.replace("_", " "),
+            MACCROBAT_CANONICAL_OVERRIDES.get(label, label.lower()),
+            (),
+        )
+        for label in MACCROBAT_LABELS
+    ),
 )
 
 
@@ -73,16 +154,45 @@ ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "species": "Species",
     "variant": "Variant / mutation",
     "cell_line": "Cell line",
+    "cell_type": "Cell type",
+    "dna": "DNA",
+    "rna": "RNA",
 }
 ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
     (entity_type, ENTITY_TYPE_DISPLAY_NAMES[entity_type])
-    for entity_type in ("gene", "disease", "drug", "species", "variant", "cell_line")
+    for entity_type in (
+        "gene",
+        "disease",
+        "drug",
+        "species",
+        "variant",
+        "cell_line",
+        "cell_type",
+        "dna",
+        "rna",
+    )
 )
 ENTITY_TYPE_ALIASES: dict[str, str] = {
     re.sub(r"[^a-z0-9]+", "_", spec.source_entity_type.strip().lower()).strip("_"): spec.canonical_entity_type
     for spec in ANNOTATOR_ENTITY_TYPE_SPECS
 }
 ENTITY_TYPE_ALIASES.update({canonical: canonical for canonical in ENTITY_TYPE_DISPLAY_NAMES})
+ENTITY_TYPE_ALIASES.update(
+    {
+        "cellline": "cell_line",
+        "cell_line": "cell_line",
+        "celltype": "cell_type",
+        "cell_type": "cell_type",
+        "chemical": "drug",
+        "drug": "drug",
+        "gene": "gene",
+        "protein": "gene",
+        "mutation": "variant",
+        "variant": "variant",
+        "dna": "dna",
+        "rna": "rna",
+    }
+)
 
 
 ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
@@ -171,6 +281,56 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "clinicalbert"
         },
         normalization_fields=(),
+    ),
+    "apollo": AnnotatorCapability(
+        label="Clinical-AI-Apollo Medical-NER",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "apollo"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "apollo"
+        },
+        normalization_fields=(),
+    ),
+    "d4data": AnnotatorCapability(
+        label="d4data biomedical-ner-all",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
+        },
+        normalization_fields=(),
+    ),
+    "medcat": AnnotatorCapability(
+        label="MedCAT",
+        tasks=("NER", "NEN"),
+        # MedCAT's entity types depend on the loaded model pack (UMLS/SNOMED), so
+        # they pass through as returned rather than mapping to the canonical set.
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "medcat"
+        ),
+        normalization_status="normalized",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "medcat"
+        },
+        normalization_fields=("cui",),
     ),
 }
 

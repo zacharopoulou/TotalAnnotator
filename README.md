@@ -1,6 +1,6 @@
 # TotalAnnotator
 
-TotalAnnotator is a terminal-first biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
+TotalAnnotator is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
 
 The main workflow is:
 
@@ -17,7 +17,7 @@ TotalAnnotator supports:
 - PubMed articles from inline PMIDs or a PMID file
 - local plain text from a CSV/TSV table, raw text file, or manual terminal input
 - live annotation with PubTator3, BERN2, and Flair/HunFlair
-- entity-type filtering for genes/proteins, diseases, chemicals/drugs, species, variants, and cell lines
+- entity-type filtering for genes/proteins, diseases, chemicals/drugs, species, variants, cell lines, cell types, DNA, and RNA
 - canonical JSON output plus TSV files for spreadsheet-friendly review
 - reproducible TOML configs for every terminal UI run
 - direct config-based pipeline runs for scripted workflows
@@ -143,6 +143,18 @@ timeout = 30
 
 Local BERN2 endpoints such as `localhost` or `127.0.0.1` are also supported.
 
+BERN2 supports:
+
+- gene/protein
+- disease
+- chemical/drug
+- species
+- variant/mutation
+- cell line
+- cell type
+- DNA
+- RNA
+
 ### Flair / HunFlair
 
 Flair/HunFlair runs through the configured local Flair model.
@@ -157,6 +169,23 @@ HunFlair supports:
 
 HunFlair does not produce variants/mutations. If the terminal UI selection includes unsupported entity types for a selected annotator, it shows a compatibility warning before continuing.
 
+### MedCAT
+
+MedCAT runs as a separate service, CogStack MedCATservice, that TotalAnnotator calls over HTTP, like BERN2. Unlike BERN2 there is no public endpoint, so you run the service yourself and point TotalAnnotator at it. The generated terminal UI config uses:
+
+```toml
+[annotators.medcat]
+runtime = "remote_api"
+endpoint = "http://localhost:5555"
+min_acc = 0.3
+```
+
+The endpoint defaults to `http://localhost:5555` (the CogStack docker-compose default) and can be overridden with the `MEDCAT_API_URL` environment variable or the `endpoint` setting. `min_acc` (0..1) drops low-confidence concepts.
+
+To start the service: clone [CogStack/MedCATservice](https://github.com/CogStack/MedCATservice), download a model pack (the MedMen demo, or a clinical UMLS/SNOMED pack for real use), then run `docker compose up -d` from its `docker/` folder and check `http://localhost:5555/api/info`. If MedCAT is selected in the terminal UI and no service is reachable, TotalAnnotator warns before the run; if none is reachable at run time, the MedCAT step simply returns no annotations and the rest of the run continues.
+
+MedCAT entity types are the model pack's semantic types (UMLS TUIs), so they pass through as returned rather than mapping to the canonical types below.
+
 ## Entity Types
 
 TotalAnnotator normalizes annotator labels into canonical entity types:
@@ -169,6 +198,9 @@ TotalAnnotator normalizes annotator labels into canonical entity types:
 | `species` | Species |
 | `variant` | Variant / mutation |
 | `cell_line` | Cell line |
+| `cell_type` | Cell type |
+| `dna` | DNA |
+| `rna` | RNA |
 
 If no entity types are selected, the pipeline keeps all returned entity types.
 

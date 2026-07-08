@@ -13,8 +13,11 @@ from bio_annotation.entity_proposal.aioner_proposer import (
     DEFAULT_AIONER_ENTITY,
     DEFAULT_AIONER_PROJECT,
 )
+from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
+from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
+from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
     ANNOTATOR_DISPLAY_NAMES,
@@ -36,6 +39,15 @@ from bio_annotation.terminal_text_input import (
     text_table_format,
     write_generated_text_table,
     write_generated_text_table_from_raw_text_file,
+)
+from bio_annotation.terminal_theme import (
+    banner_lines,
+    choice_lines,
+    emit,
+    help_lines,
+    run_plan_lines,
+    run_summary_lines,
+    warning_lines,
 )
 
 InputFn = Callable[[str], str]
@@ -76,35 +88,68 @@ def run_terminal_annotation_ui(
     output_fn: OutputFn = print,
     pipeline_run_fn: PipelineRunFn = run_pipeline_from_config,
 ) -> dict[str, Any]:
-    output_fn("TotalAnnotator interactive annotation")
-    output_fn("Choose an input source, annotators, and entity types. Output files will be saved in a stable directory.")
+    emit(output_fn, banner_lines())
+    emit(output_fn, help_lines())
     paths = create_run_paths(runs_dir)
     answers = collect_terminal_ui_answers(input_fn=input_fn, output_fn=output_fn)
+    emit(
+        output_fn,
+        run_plan_lines(
+            input_mode=_input_mode_label(answers.input_mode),
+            annotators=[_annotator_label(a) for a in answers.annotators],
+            entity_types=[_entity_type_label(e) for e in answers.entity_types],
+        ),
+    )
     prepare_input_files(answers, paths)
     write_terminal_ui_config(answers, paths.config_path, paths)
     load_pipeline_config(paths.config_path)
     if "aioner" in answers.annotators:
         _, aioner_model = aioner_config_paths()
         if not Path(aioner_model).exists():
+            emit(
+                output_fn,
+                warning_lines(
+                    "AIONER model not found",
+                    [
+                        f"Expected model path: {aioner_model}",
+                        "Run tools/aioner/setup.sh first, or set AIONER_REPO / AIONER_MODEL.",
+                        "Otherwise the AIONER step will be skipped this run.",
+                    ],
+                ),
+            )
+    if "medcat" in answers.annotators:
+        medcat_endpoint = medcat_config_endpoint()
+        if not _medcat_service_reachable(medcat_endpoint):
             output_fn(
-                f"Warning: AIONER model not found at {aioner_model}. "
-                "Run tools/aioner/setup.sh first, or set AIONER_REPO / AIONER_MODEL; "
-                "otherwise the AIONER step will be skipped this run."
+                f"Warning: no MedCAT service reachable at {medcat_endpoint}. "
+                "Start CogStack MedCATservice (see the MedCAT section in README) "
+                "or set MEDCAT_API_URL; otherwise the MedCAT step will return no "
+                "annotations this run."
             )
     output_fn("")
     output_fn("Running annotation...")
     payload = pipeline_run_fn(paths.config_path)
     write_pipeline_tsv_outputs(payload, paths.results_path)
     write_json(paths.manifest_path, build_run_manifest(answers, paths, payload))
+    output_info = payload.get("output") if isinstance(payload.get("output"), dict) else None
+    pipeline_results_path = (
+        Path(output_info["path"]) if output_info and output_info.get("path") else paths.results_path
+    )
+    # The report is written by the shared writer (write_pipeline_output); here we
+    # only resolve its path to display it.
+    report_path = pipeline_results_path.with_suffix(".html")
     output_fn("")
-    output_fn("Run complete")
-    output_fn(f"Documents: {payload.get('document_count', 0)}")
-    output_fn(f"Annotations: {payload.get('annotation_summary', {}).get('annotation_count', 0)}")
-    output_fn(f"Results: {paths.results_path}")
-    for label, path in terminal_ui_tsv_paths(paths).items():
-        output_fn(f"{label}: {path}")
-    output_fn(f"Config: {paths.config_path}")
-    output_fn(f"Manifest: {paths.manifest_path}")
+    emit(
+        output_fn,
+        run_summary_lines(
+            document_count=payload.get("document_count", 0),
+            annotation_count=payload.get("annotation_summary", {}).get("annotation_count", 0),
+            results_path=paths.results_path,
+            tsv_paths=terminal_ui_tsv_paths(paths),
+            config_path=paths.config_path,
+            manifest_path=paths.manifest_path,
+        ),
+    )
     return payload
 
 
@@ -128,7 +173,16 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
     elif mode == "pmid_file":
         pmid_file = _prompt_existing_pmid_file(input_fn=input_fn, output_fn=output_fn)
     else:
-        text_source = _prompt_choice(input_fn=input_fn, output_fn=output_fn, title="How do you want to provide plain text?", choices=(("table_file", "CSV/TSV table file with document_id, title, abstract columns"), ("text_file", "Raw text file with one text per line"), ("manual_text", "Enter text in the terminal")))
+        text_source = _prompt_choice(
+            input_fn=input_fn,
+            output_fn=output_fn,
+            title="How do you want to provide plain text?",
+            choices=(
+                ("table_file", "CSV/TSV table file with document_id, title, abstract columns"),
+                ("text_file", "Raw text file with one text per line"),
+                ("manual_text", "Enter text in the terminal"),
+            ),
+        )
         if text_source in {"table_file", "text_file"}:
             text_file = prompt_existing_file(input_fn=input_fn, output_fn=output_fn)
             if text_source == "table_file" and not is_text_table_file(text_file):
@@ -138,24 +192,44 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
     annotators = _prompt_multi_choice(
         input_fn=input_fn,
         output_fn=output_fn,
-        title="Choose annotators",
+        title="Choose annotators, or press Enter for default annotators",
         choices=ANNOTATOR_CHOICES,
-        # AIONER and ClinicalBERT need extra setup (separate env / model download),
-        # so they are offered as choices but not pre-selected by default.
+        # AIONER needs a separate environment + models, ClinicalBERT/apollo/d4data
+        # download local models, and MedCAT needs a running MedCATservice, so none
+        # are pre-selected.
         default_values=[
-            value for value, _ in ANNOTATOR_CHOICES if value not in {"aioner", "clinicalbert"}
+            value
+            for value, _ in ANNOTATOR_CHOICES
+            if value not in {"aioner", "clinicalbert", "apollo", "d4data", "medcat"}
         ],
         validate_values=_validate_selected_annotators,
     )
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
-    return TerminalUIAnswers(mode, pmids, pmid_file, annotators, entity_types, plain_text_file=text_file, plain_text_source=text_source, plain_text_content=text_content)
+    return TerminalUIAnswers(
+        mode,
+        pmids,
+        pmid_file,
+        annotators,
+        entity_types,
+        plain_text_file=text_file,
+        plain_text_source=text_source,
+        plain_text_content=text_content,
+    )
 
 
 def create_run_paths(runs_dir: Path, *, now: datetime | None = None) -> RunPaths:
     del now
     run_dir = runs_dir.expanduser().resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
-    return RunPaths("annotation", run_dir, run_dir / "config.toml", run_dir / "results.json", run_dir / "run_manifest.json", run_dir / "pmids.txt", run_dir / "plain_text.tsv")
+    return RunPaths(
+        "annotation",
+        run_dir,
+        run_dir / "config.toml",
+        run_dir / "results.json",
+        run_dir / "run_manifest.json",
+        run_dir / "pmids.txt",
+        run_dir / "plain_text.tsv",
+    )
 
 
 def prepare_input_files(answers: TerminalUIAnswers, paths: RunPaths) -> None:
@@ -174,22 +248,34 @@ def write_terminal_ui_config(answers: TerminalUIAnswers, config_path: Path, path
     config_path.write_text(build_terminal_ui_config_text(answers, paths), encoding="utf-8")
 
 
-# AIONER head produced by tools/aioner/setup.sh, relative to the AIONER repo.
 AIONER_DEFAULT_MODEL_RELPATH = "pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
 
 
 def aioner_config_paths() -> tuple[str, str]:
-    """Resolve AIONER repo/model paths for the generated config.
-
-    AIONER has no universal default (unlike the public-API annotators), so the TUI
-    points at the conventional locations created by tools/aioner/setup.sh, with the
-    AIONER_REPO / AIONER_MODEL environment variables taking precedence.
-    """
+    """Resolve AIONER repo/model paths for the generated config."""
 
     repo_root = Path(__file__).resolve().parents[2]
     repo = os.environ.get("AIONER_REPO") or str(repo_root / "AIONER")
     model = os.environ.get("AIONER_MODEL") or str(Path(repo) / AIONER_DEFAULT_MODEL_RELPATH)
     return repo, model
+
+
+def medcat_config_endpoint() -> str:
+    return os.environ.get("MEDCAT_API_URL") or DEFAULT_MEDCAT_API_URL
+
+
+def _medcat_service_reachable(endpoint: str, *, timeout: float = 3.0) -> bool:
+    """Best-effort check that a MedCATservice answers at the endpoint's /api/info."""
+    from urllib import request as urlrequest
+
+    base = endpoint.rstrip("/")
+    if base.endswith("/api/process"):
+        base = base[: -len("/api/process")]
+    try:
+        with urlrequest.urlopen(base + "/api/info", timeout=timeout):
+            return True
+    except Exception:
+        return False
 
 
 def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -> str:
@@ -202,32 +288,84 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         lines += ['mode = "pmid_file"', f"pmid_file = {_toml_string(str(answers.pmid_file))}"]
     elif answers.input_mode == "plain_text":
         text_file = _plain_text_config_file(answers, paths)
-        lines += ['mode = "text_table"', f"text_file = {_toml_string(str(text_file))}", f"format = {_toml_string(text_table_format(text_file))}", 'document_id_column = "document_id"', 'title_column = "title"', 'abstract_column = "abstract"']
+        lines += [
+            'mode = "text_table"',
+            f"text_file = {_toml_string(str(text_file))}",
+            f"format = {_toml_string(text_table_format(text_file))}",
+            'document_id_column = "document_id"',
+            'title_column = "title"',
+            'abstract_column = "abstract"',
+        ]
     else:
         raise ValueError(f"Unsupported terminal UI input mode: {answers.input_mode}")
     lines += ["", "[enrichment]", "sources = []", "", "[annotators]", f"enabled = {_toml_string_list(answers.annotators)}"]
     if "bern2" in answers.annotators:
-        lines += ["", "[annotators.bern2]", 'runtime = "remote_api"', f'endpoint = {_toml_string(DEFAULT_BERN2_API_URL)}', "timeout = 30"]
+        lines += [
+            "",
+            "[annotators.bern2]",
+            'runtime = "remote_api"',
+            f"endpoint = {_toml_string(DEFAULT_BERN2_API_URL)}",
+            "timeout = 30",
+        ]
     if "pubtator3" in answers.annotators:
         pubtator3_mode = "text_only" if answers.input_mode == "plain_text" else "auto"
-        lines += ["", "[annotators.pubtator3]", 'runtime = "remote_api"', 'endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"', 'format = "biocjson"', "timeout = 60", f"mode = {_toml_string(pubtator3_mode)}", 'bioconcept = "All"', "poll_interval_seconds = 2.0", "poll_backoff = 1.5", "max_poll_interval_seconds = 15.0", "max_poll_attempts = 30"]
+        lines += [
+            "",
+            "[annotators.pubtator3]",
+            'runtime = "remote_api"',
+            'endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"',
+            'format = "biocjson"',
+            "timeout = 60",
+            f"mode = {_toml_string(pubtator3_mode)}",
+            'bioconcept = "All"',
+            "poll_interval_seconds = 2.0",
+            "poll_backoff = 1.5",
+            "max_poll_interval_seconds = 15.0",
+            "max_poll_attempts = 30",
+        ]
     if "aioner" in answers.annotators:
         aioner_repo, aioner_model = aioner_config_paths()
         lines += ["", "[annotators.aioner]", 'runtime = "local_subprocess"', f"repo = {_toml_string(aioner_repo)}", f"model = {_toml_string(aioner_model)}", f"entity = {_toml_string(DEFAULT_AIONER_ENTITY)}", f"project = {_toml_string(DEFAULT_AIONER_PROJECT)}"]
     if "clinicalbert" in answers.annotators:
         lines += ["", "[annotators.clinicalbert]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_CLINICALBERT_MODEL)}"]
+    if "apollo" in answers.annotators:
+        lines += ["", "[annotators.apollo]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_APOLLO_MODEL)}"]
+    if "d4data" in answers.annotators:
+        lines += ["", "[annotators.d4data]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_D4DATA_MODEL)}"]
+    if "medcat" in answers.annotators:
+        lines += ["", "[annotators.medcat]", 'runtime = "remote_api"', f"endpoint = {_toml_string(medcat_config_endpoint())}", "min_acc = 0.3"]
     lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
     return "\n".join(lines)
 
 
 def build_run_manifest(answers: TerminalUIAnswers, paths: RunPaths, payload: dict[str, Any]) -> dict[str, Any]:
-    manifest = {"run_id": paths.run_id, "created_at": datetime.now(timezone.utc).isoformat(), "input_mode": answers.input_mode, "annotators": answers.annotators, "annotator_labels": [_annotator_label(a) for a in answers.annotators], "entity_types": answers.entity_types, "entity_type_labels": [_entity_type_label(e) for e in answers.entity_types], "config_path": str(paths.config_path), "results_path": str(paths.results_path), "tsv_paths": {key: str(path) for key, path in terminal_ui_tsv_paths(paths).items()}, "manifest_path": str(paths.manifest_path), "document_count": payload.get("document_count", 0), "annotation_count": payload.get("annotation_summary", {}).get("annotation_count", 0)}
+    manifest = {
+        "run_id": paths.run_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "input_mode": answers.input_mode,
+        "annotators": answers.annotators,
+        "annotator_labels": [_annotator_label(a) for a in answers.annotators],
+        "entity_types": answers.entity_types,
+        "entity_type_labels": [_entity_type_label(e) for e in answers.entity_types],
+        "config_path": str(paths.config_path),
+        "results_path": str(paths.results_path),
+        "tsv_paths": {key: str(path) for key, path in terminal_ui_tsv_paths(paths).items()},
+        "manifest_path": str(paths.manifest_path),
+        "document_count": payload.get("document_count", 0),
+        "annotation_count": payload.get("annotation_summary", {}).get("annotation_count", 0),
+    }
     if answers.input_mode == "pmids":
         manifest.update({"pmids": answers.pmids, "pmids_count": len(answers.pmids)})
     elif answers.input_mode == "pmid_file":
         manifest.update({"pmid_file": str(answers.pmid_file) if answers.pmid_file else None})
     elif answers.input_mode == "plain_text":
-        manifest.update({"plain_text_source": answers.plain_text_source, "plain_text_file": str(answers.plain_text_file) if answers.plain_text_file else None, "plain_text_path": str(_plain_text_config_file(answers, paths))})
+        manifest.update(
+            {
+                "plain_text_source": answers.plain_text_source,
+                "plain_text_file": str(answers.plain_text_file) if answers.plain_text_file else None,
+                "plain_text_path": str(_plain_text_config_file(answers, paths)),
+            }
+        )
         if not _uses_existing_text_table(answers):
             manifest["plain_text_document_id"] = GENERATED_TEXT_DOCUMENT_ID
     return manifest
@@ -259,7 +397,23 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 def find_unsupported_entity_types(annotators: list[str], entity_types: list[str]) -> dict[str, list[str]]:
     if not entity_types:
         return {}
-    return {a: missing for a in annotators if (missing := [e for e in entity_types if e not in ANNOTATOR_ENTITY_TYPES.get(a, set())])}
+    return {
+        a: missing
+        for a in annotators
+        if (missing := [e for e in entity_types if e not in ANNOTATOR_ENTITY_TYPES.get(a, set())])
+    }
+
+
+def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ...]:
+    available: set[str] = set()
+    for annotator in annotators:
+        available |= ANNOTATOR_ENTITY_TYPES.get(annotator, set())
+    if not available:
+        return ENTITY_TYPE_CHOICES
+    canonical_order = [value for value, _ in ENTITY_TYPE_CHOICES]
+    ordered = [value for value in canonical_order if value in available]
+    ordered.extend(sorted(available - set(canonical_order)))
+    return tuple((value, _entity_type_label(value)) for value in ordered)
 
 
 def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ...]:
@@ -285,19 +439,18 @@ def _prompt_entity_types(*, input_fn: InputFn, output_fn: OutputFn, annotators: 
         unsupported = find_unsupported_entity_types(annotators, entity_types)
         if not unsupported:
             return entity_types
-        output_fn("")
-        output_fn("Entity type compatibility warning:")
-        for annotator, missing in unsupported.items():
-            output_fn(f"  {_annotator_label(annotator)} does not produce: {', '.join(_entity_type_label(e) for e in missing)}")
+        messages = [
+            f"{_annotator_label(annotator)} does not produce: {', '.join(_entity_type_label(e) for e in missing)}"
+            for annotator, missing in unsupported.items()
+        ]
+        emit(output_fn, warning_lines("Entity type compatibility warning", messages))
         if _prompt_yes_no(input_fn=input_fn, prompt="Continue with this selection? [y/N]: "):
             return entity_types
 
 
 def _prompt_choice(*, input_fn: InputFn, output_fn: OutputFn, title: str, choices: tuple[tuple[str, str], ...]) -> str:
     output_fn("")
-    output_fn(title)
-    for index, (_, label) in enumerate(choices, start=1):
-        output_fn(f"  {index}. {label}")
+    emit(output_fn, choice_lines(title, choices))
     while True:
         raw = input_fn("Choose one: ").strip()
         if raw.isdigit() and 1 <= int(raw) <= len(choices):
@@ -305,12 +458,20 @@ def _prompt_choice(*, input_fn: InputFn, output_fn: OutputFn, title: str, choice
         output_fn(f"Please choose one of: {', '.join(str(i) for i in range(1, len(choices) + 1))}")
 
 
-def _prompt_multi_choice(*, input_fn: InputFn, output_fn: OutputFn, title: str, choices: tuple[tuple[str, str], ...], default_values: list[str], allow_empty: bool = False, validate_values: Callable[[list[str]], None] | None = None) -> list[str]:
+def _prompt_multi_choice(
+    *,
+    input_fn: InputFn,
+    output_fn: OutputFn,
+    title: str,
+    choices: tuple[tuple[str, str], ...],
+    default_values: list[str],
+    allow_empty: bool = False,
+    validate_values: Callable[[list[str]], None] | None = None,
+) -> list[str]:
     output_fn("")
-    output_fn(title)
-    for index, (_, label) in enumerate(choices, start=1):
-        output_fn(f"  {index}. {label}")
-    default_hint = f" [default: {', '.join(str(i) for i, (v, _) in enumerate(choices, start=1) if v in default_values)}]" if default_values else ""
+    default_indexes = [i for i, (v, _) in enumerate(choices, start=1) if v in default_values]
+    emit(output_fn, choice_lines(title, choices, default_indexes=default_indexes))
+    default_hint = f" [default: {', '.join(str(i) for i in default_indexes)}]" if default_indexes else ""
     while True:
         raw = input_fn(f"Choose comma-separated numbers{default_hint}: ").strip()
         if not raw and default_values:
@@ -400,6 +561,14 @@ def _prompt_required(input_fn: InputFn, prompt: str) -> str:
 
 def _prompt_yes_no(*, input_fn: InputFn, prompt: str) -> bool:
     return input_fn(prompt).strip().lower() in {"y", "yes"}
+
+
+def _input_mode_label(input_mode: str) -> str:
+    return {
+        "pmids": "PubMed articles by PMID",
+        "pmid_file": "PubMed articles from a PMID file",
+        "plain_text": "Plain text",
+    }.get(input_mode, input_mode)
 
 
 def _annotator_label(annotator: str) -> str:
