@@ -8,16 +8,15 @@ from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 SCISPACY_INSTALL_HINT = (
-    "The scispaCy annotators require scispaCy and the selected model package. "
-    "Install dependencies with: uv sync --extra scispacy, then install the model "
-    "package from https://allenai.github.io/scispacy/"
+    "The scispaCy annotators require scispaCy and the supported model packages. "
+    "Install them with: uv sync --extra scispacy"
 )
 
 SCISPACY_MODEL_BY_ANNOTATOR: dict[str, str] = {
     "scispacy_jnlpba": "en_ner_jnlpba_md",
     "scispacy_bc5cdr": "en_ner_bc5cdr_md",
     "scispacy_bionlp13cg": "en_ner_bionlp13cg_md",
-    "scispacy_umls": "en_core_sci_lg",
+    "scispacy_umls": "en_core_sci_scibert",
 }
 SCISPACY_UMLS_ANNOTATOR = "scispacy_umls"
 SCISPACY_UMLS_LINKER = "scispacy_linker"

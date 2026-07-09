@@ -509,7 +509,7 @@ def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
             "scispacy_jnlpba": {"model": "en_ner_jnlpba_md"},
             "scispacy_bc5cdr": {"model": "en_ner_bc5cdr_md"},
             "scispacy_bionlp13cg": {"model": "en_ner_bionlp13cg_md"},
-            "scispacy_umls": {"model": "en_core_sci_lg", "linker_name": "umls"},
+            "scispacy_umls": {"model": "en_core_sci_scibert", "linker_name": "umls"},
         },
     )
 
@@ -517,7 +517,7 @@ def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
         ("scispacy_jnlpba", "en_ner_jnlpba_md", None),
         ("scispacy_bc5cdr", "en_ner_bc5cdr_md", None),
         ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", None),
-        ("scispacy_umls", "en_core_sci_lg", "umls"),
+        ("scispacy_umls", "en_core_sci_scibert", "umls"),
     ]
 
 

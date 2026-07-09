@@ -54,7 +54,7 @@ model = "en_ner_bc5cdr_md"
 model = "en_ner_bionlp13cg_md"
 
 [annotators.scispacy_umls]
-model = "en_core_sci_lg"
+model = "en_core_sci_scibert"
 linker_name = "umls"
 
 [filters]

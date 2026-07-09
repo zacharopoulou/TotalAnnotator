@@ -188,14 +188,14 @@ MedCAT entity types are the model pack's semantic types (UMLS TUIs), so they pas
 
 ### scispaCy
 
-scispaCy runs local spaCy NER model packages. Install the Python dependency with `uv sync --extra scispacy`, then install the selected model package from the scispaCy model URLs.
+scispaCy runs local spaCy NER model packages. Install the Python dependency and TotalAnnotator-supported model packages with `uv sync --extra scispacy`.
 
 TotalAnnotator exposes the requested scispaCy models as separate annotators:
 
 - `scispacy_jnlpba` -> `en_ner_jnlpba_md`
 - `scispacy_bc5cdr` -> `en_ner_bc5cdr_md`
 - `scispacy_bionlp13cg` -> `en_ner_bionlp13cg_md`
-- `scispacy_umls` -> `en_core_sci_lg` with the UMLS `EntityLinker`
+- `scispacy_umls` -> `en_core_sci_scibert` with the UMLS `EntityLinker`
 
 `CHEMICAL` and `SIMPLE_CHEMICAL` normalize to the existing `drug` canonical type. `scispacy_umls` stores the top UMLS candidate in `canonical_id` and its canonical name when the linker returns one.
 

@@ -152,7 +152,7 @@ def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
     assert "[annotators.scispacy_bionlp13cg]" in config_text
     assert 'model = "en_ner_bionlp13cg_md"' in config_text
     assert "[annotators.scispacy_umls]" in config_text
-    assert 'model = "en_core_sci_lg"' in config_text
+    assert 'model = "en_core_sci_scibert"' in config_text
     assert 'linker_name = "umls"' in config_text
 
 
