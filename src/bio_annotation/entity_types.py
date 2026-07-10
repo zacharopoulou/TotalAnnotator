@@ -149,6 +149,11 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # BioBERT NER is run as three fine-tuned checkpoints (gene / disease /
+    # chemical) merged under one source; span only, no normalization.
+    AnnotatorEntityTypeSpec("biobert", "BioBERT", "Gene / protein", "gene", ()),
+    AnnotatorEntityTypeSpec("biobert", "BioBERT", "Disease", "disease", ()),
+    AnnotatorEntityTypeSpec("biobert", "BioBERT", "Chemical / drug", "drug", ()),
     # ClinicalBERT (i2b2) emits problem / test / treatment. These are clinical
     # categories with no exact match in the canonical biomedical set (problem is
     # broader than disease, treatment broader than drug), so they are kept as their
@@ -316,6 +321,24 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "aioner"
+        },
+        normalization_fields=(),
+    ),
+    "biobert": AnnotatorCapability(
+        label="BioBERT",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "biobert"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "biobert"
         },
         normalization_fields=(),
     ),

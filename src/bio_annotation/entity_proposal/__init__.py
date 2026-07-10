@@ -7,6 +7,7 @@ from typing import Any
 
 from bio_annotation.entity_proposal.apollo_proposer import annotate_with_apollo
 from bio_annotation.entity_proposal.bern2_proposer import annotate_with_bern2
+from bio_annotation.entity_proposal.biobert_proposer import annotate_with_biobert
 from bio_annotation.entity_proposal.clinicalbert_proposer import annotate_with_clinicalbert
 from bio_annotation.entity_proposal.d4data_proposer import annotate_with_d4data
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
@@ -46,6 +47,9 @@ def run_all_annotators(
     clinicalbert_response: Any = None,
     clinicalbert_request_fn: Any = None,
     clinicalbert_pipeline: Any = None,
+    biobert_response: Any = None,
+    biobert_request_fn: Any = None,
+    biobert_pipelines: Any = None,
     apollo_response: Any = None,
     apollo_request_fn: Any = None,
     apollo_pipeline: Any = None,
@@ -98,6 +102,18 @@ def run_all_annotators(
             request_fn=clinicalbert_request_fn,
             pipeline=clinicalbert_pipeline,
         )
+    # Only invoke BioBERT when a response, request function, or pipelines are provided.
+    if (
+        biobert_response is not None
+        or biobert_request_fn is not None
+        or biobert_pipelines is not None
+    ):
+        results["biobert"] = annotate_with_biobert(
+            document,
+            response=biobert_response,
+            request_fn=biobert_request_fn,
+            pipelines=biobert_pipelines,
+        )
     # Only invoke apollo when a response, request function, or pipeline is provided.
     if (
         apollo_response is not None
@@ -143,7 +159,7 @@ def run_all_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -152,6 +168,7 @@ __all__ = [
     "annotate_with_aioner",
     "annotate_with_apollo",
     "annotate_with_bern2",
+    "annotate_with_biobert",
     "annotate_with_clinicalbert",
     "annotate_with_d4data",
     "annotate_with_flair",
