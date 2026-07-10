@@ -53,20 +53,14 @@ def parse_bent_response(document: Document, payload: Any) -> list[Annotation]:
     annotations: list[Annotation] = []
     for term_id, term in terms.items():
         link = links.get(term_id, {})
-        start, end = _validated_offsets(
-            document=document,
-            span_text=term["span_text"],
-            start=term["start"],
-            end=term["end"],
-        )
         annotations.append(
             make_annotation(
                 document=document,
                 source="bent",
                 span_text=term["span_text"],
                 entity_type=term["entity_type"],
-                start=start,
-                end=end,
+                start=term["start"],
+                end=term["end"],
                 canonical_id=link.get("canonical_id"),
                 canonical_name=link.get("canonical_name"),
             )
@@ -209,18 +203,6 @@ def _parse_normalization_line(line: str) -> dict[str, str] | None:
         "canonical_id": reference_parts[2],
         "canonical_name": parts[2] if len(parts) > 2 else "",
     }
-
-
-def _validated_offsets(
-    *,
-    document: Document,
-    span_text: str,
-    start: int,
-    end: int,
-) -> tuple[int | None, int | None]:
-    if 0 <= start <= end <= len(document.text) and document.text[start:end] == span_text:
-        return start, end
-    return None, None
 
 
 def _serialize_types(types: dict[str, str]) -> str:

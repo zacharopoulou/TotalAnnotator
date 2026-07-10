@@ -960,6 +960,23 @@ def test_bent_adapter_parses_brat_ner_and_nel_output() -> None:
     assert annotations[2].canonical_id is None
 
 
+def test_bent_adapter_preserves_reported_offsets_without_relocating() -> None:
+    # "glioblastoma" occurs twice (first at offset 15). BENT reports the second
+    # mention with a span that does not byte-match the slice. The adapter must
+    # keep BENT's reported location instead of silently searching span_text and
+    # relocating to the first, unrelated occurrence.
+    document = sample_document()
+    assert document.text.count("glioblastoma") == 2
+    assert document.text[62:75] != "glioblastoma"
+    response = "T1\tdisease 62 75\tglioblastoma\nN1\tReference T1 MESH:D005909\tglioblastoma\n"
+
+    annotations = annotate_with_bent(document, response=response)
+
+    assert len(annotations) == 1
+    assert (annotations[0].start, annotations[0].end) == (62, 75)
+    assert annotations[0].start != 15  # not relocated to the first occurrence
+
+
 def test_bent_adapter_uses_request_fn() -> None:
     document = sample_document()
     calls: list[Document] = []
