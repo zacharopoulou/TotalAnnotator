@@ -113,6 +113,11 @@ STANZA_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str], ...] = (
     ("stanza_jnlpba", "Stanza JNLPBA", "RNA", "rna"),
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell line", "cell_line"),
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell type", "cell_type"),
+    # Stanza i2b2 is a clinical model (2010 i2b2/VA) emitting problem / test /
+    # treatment, the same clinical categories ClinicalBERT uses.
+    ("stanza_i2b2", "Stanza i2b2", "Problem", "problem"),
+    ("stanza_i2b2", "Stanza i2b2", "Test", "test"),
+    ("stanza_i2b2", "Stanza i2b2", "Treatment", "treatment"),
 )
 
 
@@ -436,6 +441,24 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "stanza_jnlpba"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_i2b2": AnnotatorCapability(
+        label="Stanza i2b2",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_i2b2"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_i2b2"
         },
         normalization_fields=(),
     ),
