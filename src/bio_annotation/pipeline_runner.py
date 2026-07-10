@@ -679,6 +679,7 @@ def run_selected_annotators_with_status(
                     project=bent_options.get("project", "tools/bent")
                     if bent_options
                     else "tools/bent",
+                    script=bent_options.get("script") if bent_options else None,
                     python=bent_options.get("python") if bent_options else None,
                     timeout=bent_options.get("timeout", 900)
                     if bent_options
@@ -1273,6 +1274,7 @@ def _read_bent_options(settings: dict[str, object]) -> dict[str, Any]:
     return {
         "mode": mode,
         "project": _clean_str("project", "tools/bent"),
+        "script": _clean_str("script"),
         "python": _clean_str("python"),
         "timeout": int(timeout) if isinstance(timeout, int) and timeout > 0 else 900,
         "types": types or None,

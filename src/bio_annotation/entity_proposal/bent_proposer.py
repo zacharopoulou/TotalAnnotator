@@ -74,10 +74,16 @@ def call_bent(
     types: dict[str, str] | None = None,
     mode: str = DEFAULT_BENT_MODE,
     project: str = DEFAULT_BENT_PROJECT,
+    script: str | None = None,
     python: str | None = None,
     timeout: int = DEFAULT_BENT_TIMEOUT,
 ) -> str:
     """Run BENT as an isolated subprocess and return raw BRAT standoff output."""
+
+    project_path = Path(project).resolve()
+    script_path = Path(script).resolve() if script else project_path / "run_bent.py"
+    if not script_path.exists():
+        raise RuntimeError(f"BENT wrapper script not found at {script_path}. {SETUP_HINT}")
 
     with tempfile.TemporaryDirectory() as tmp:
         in_dir = Path(tmp) / "input"
@@ -87,11 +93,10 @@ def call_bent(
         in_file = in_dir / "document.txt"
         in_file.write_text(document.text, encoding="utf-8")
 
-        script = Path(__file__).resolve().parents[3] / "tools" / "bent" / "run_bent.py"
         if python:
-            command = [python, str(script)]
+            command = [python, str(script_path)]
         else:
-            command = ["uv", "run", "--project", str(Path(project).resolve()), "python", str(script)]
+            command = ["uv", "run", "--project", str(project_path), "python", str(script_path)]
 
         command += [
             "--input-dir",
@@ -140,6 +145,7 @@ def annotate_with_bent(
     types: dict[str, str] | None = None,
     mode: str = DEFAULT_BENT_MODE,
     project: str = DEFAULT_BENT_PROJECT,
+    script: str | None = None,
     python: str | None = None,
     timeout: int = DEFAULT_BENT_TIMEOUT,
 ) -> list[Annotation]:
@@ -152,6 +158,7 @@ def annotate_with_bent(
             types=types,
             mode=mode,
             project=project,
+            script=script,
             python=python,
             timeout=timeout,
         )

@@ -45,6 +45,7 @@ model = "d4data/biomedical-ner-all"
 [annotators.bent]
 runtime = "local_subprocess"
 mode = "ner_nel"
+# project = BENT tool dir (uv env + run_bent.py). Set `script` to override the wrapper.
 project = "tools/bent"
 timeout = 900
 

@@ -1024,8 +1024,47 @@ def test_bent_call_runs_isolated_subprocess_and_reads_ann(monkeypatch) -> None:
     assert commands
     command = commands[0]
     assert command[:3] == ["uv", "run", "--project"]
+    # The wrapper script must live inside the resolved project dir, not be hard-coded.
+    assert command[3] == str(Path("tools/bent").resolve())
+    assert command[command.index("python") + 1] == str(Path("tools/bent").resolve() / "run_bent.py")
     assert command[command.index("--mode") + 1] == "ner_nel"
     assert command[command.index("--types") + 1] == "chemical:chebi,gene:ncbi_gene"
+
+
+def test_bent_call_derives_script_from_project(tmp_path, monkeypatch) -> None:
+    document = sample_document()
+    project = tmp_path / "custom_bent"
+    project.mkdir()
+    (project / "run_bent.py").write_text("# stub wrapper\n", encoding="utf-8")
+
+    commands: list[list[str]] = []
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        commands.append(command)
+        out_dir = command[command.index("--output-dir") + 1]
+        Path(out_dir, "document.ann").write_text("T1\tgene 0 4\tPTEN\n", encoding="utf-8")
+        return Completed()
+
+    monkeypatch.setattr("bio_annotation.entity_proposal.bent_proposer.subprocess.run", fake_run)
+
+    call_bent(document, project=str(project), timeout=12)
+
+    command = commands[0]
+    assert command[3] == str(project)
+    assert command[command.index("python") + 1] == str(project / "run_bent.py")
+
+
+def test_bent_call_raises_when_wrapper_script_missing(tmp_path) -> None:
+    project = tmp_path / "empty_project"
+    project.mkdir()
+
+    with pytest.raises(RuntimeError, match="wrapper script not found"):
+        call_bent(sample_document(), project=str(project))
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:
