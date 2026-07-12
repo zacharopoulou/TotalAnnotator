@@ -933,6 +933,32 @@ def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
     ]
 
 
+def test_stanza_anatem_maps_anatomy_and_stamps_source() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("liver", "ANATOMY", 0, 5),
+        FakeStanzaEntity("lymph nodes", "ANATOMY", 6, 17),
+    ]
+
+    annotations = annotate_with_stanza(document, "anatem", entities=entities)
+
+    assert [a.entity_type for a in annotations] == ["anatomy", "anatomy"]
+    assert all(a.source == "stanza_anatem" for a in annotations)
+
+
+def test_stanza_anatem_uses_craft_biomedical_tokenizer_package() -> None:
+    loaded: list[tuple[str, str]] = []
+
+    def fake_loader(package: str, model: str):
+        loaded.append((package, model))
+        return lambda text: FakeStanzaDoc([])
+
+    annotate_with_stanza(sample_document(), "anatem", pipeline_loader=fake_loader)
+
+    # AnatEM is biomedical, so it uses the default CRAFT tokenizer (not MIMIC).
+    assert loaded == [("craft", "anatem")]
+
+
 def test_run_all_annotators_returns_consistent_result_map() -> None:
     document = sample_document()
     results = run_all_annotators(

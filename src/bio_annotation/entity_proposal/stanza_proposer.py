@@ -7,7 +7,7 @@ from bio_annotation.entity_proposal._shared import make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-STANZA_MODELS: tuple[str, ...] = ("bc5cdr", "bionlp13cg", "jnlpba")
+STANZA_MODELS: tuple[str, ...] = ("bc5cdr", "bionlp13cg", "jnlpba", "anatem")
 DEFAULT_STANZA_PACKAGE = "craft"
 
 STANZA_INSTALL_HINT = (
