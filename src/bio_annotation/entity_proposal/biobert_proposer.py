@@ -11,12 +11,18 @@ from bio_annotation.schemas.entity import Annotation
 # single multi-type model. The biobert annotator runs one HuggingFace token-
 # classification model per canonical type and merges them, so a single "biobert"
 # source covers gene / disease / chemical. Each checkpoint recognises one family,
-# so the producing model decides the entity type (the raw span label is ignored).
+# so the producing model decides the entity type; the raw label is read only to
+# drop the model's non-entity ("outside") tokens.
 DEFAULT_BIOBERT_MODELS: dict[str, str] = {
     "gene": "alvaroalon2/biobert_genetic_ner",
     "disease": "alvaroalon2/biobert_diseases_ner",
     "drug": "alvaroalon2/biobert_chemical_ner",
 }
+
+# The "outside" (non-entity) tag varies across checkpoints. The diseases model
+# mislabels it as "0" instead of the standard "O", so the transformers pipeline
+# surfaces bogus "0" spans covering plain text. Treat both as outside and drop.
+_OUTSIDE_LABELS = {"O", "0", ""}
 
 BIOBERT_INSTALL_HINT = (
     "The BioBERT annotator requires the optional Hugging Face dependencies. "
@@ -59,6 +65,11 @@ def parse_biobert_response(
     annotations: list[Annotation] = []
     for item in payload:
         if not isinstance(item, dict):
+            continue
+        # The producing model sets the type; the label is only used to skip the
+        # model's "outside" tokens (some checkpoints emit "0" instead of "O").
+        label = item.get("entity_group") or item.get("entity")
+        if label is not None and str(label).strip().upper() in _OUTSIDE_LABELS:
             continue
         start = item.get("start")
         end = item.get("end")

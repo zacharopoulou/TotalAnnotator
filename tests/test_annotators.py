@@ -706,6 +706,24 @@ def test_biobert_adapter_uses_request_fn_and_drops_punctuation() -> None:
     assert annotations[0].source == "biobert"
 
 
+def test_biobert_adapter_drops_outside_zero_labels() -> None:
+    document = sample_document()
+    # The diseases checkpoint mislabels its "outside" tag as "0" (not "O"), so the
+    # pipeline emits bogus "0" spans over plain text; those must be dropped.
+    response = {
+        "disease": [
+            {"entity_group": "0", "score": 1.0, "word": "PTEN and"},
+            {"entity_group": "DISEASE", "score": 0.99, "word": "glioblastoma"},
+            {"entity_group": "0", "score": 1.0, "word": "are biomarkers in"},
+        ],
+    }
+
+    annotations = annotate_with_biobert(document, response=response)
+
+    assert [a.span_text for a in annotations] == ["glioblastoma"]
+    assert annotations[0].entity_type == "disease"
+
+
 def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:
     # The Windows runner must hand AIONER forward-slash paths (it splits the model
     # path on "/") and decode the subprocess as UTF-8. Imported directly so the
