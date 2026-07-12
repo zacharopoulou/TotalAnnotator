@@ -933,6 +933,59 @@ def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
     ]
 
 
+def test_stanza_radiology_maps_clinical_types_and_stamps_source() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("liver", "ANATOMY", 0, 5),
+        FakeStanzaEntity("right", "ANATOMY_MODIFIER", 6, 11),
+        FakeStanzaEntity("mass", "OBSERVATION", 12, 16),
+        FakeStanzaEntity("large", "OBSERVATION_MODIFIER", 17, 22),
+        FakeStanzaEntity("possible", "UNCERTAINTY", 23, 31),
+    ]
+
+    annotations = annotate_with_stanza(document, "radiology", entities=entities)
+
+    assert [a.entity_type for a in annotations] == [
+        "anatomy",
+        "anatomy_modifier",
+        "observation",
+        "observation_modifier",
+        "uncertainty",
+    ]
+    assert all(a.source == "stanza_radiology" for a in annotations)
+
+
+def test_stanza_radiology_defaults_to_mimic_tokenizer_package() -> None:
+    from bio_annotation.entity_proposal.stanza_proposer import default_package_for_model
+
+    loaded: list[tuple[str, str]] = []
+
+    def fake_loader(package: str, model: str):
+        loaded.append((package, model))
+        return lambda text: FakeStanzaDoc([])
+
+    annotate_with_stanza(sample_document(), "radiology", pipeline_loader=fake_loader)
+
+    # radiology is clinical, so it must default to the MIMIC tokenizer, not CRAFT.
+    assert loaded == [("mimic", "radiology")]
+    assert default_package_for_model("radiology") == "mimic"
+    assert default_package_for_model("bc5cdr") == "craft"
+
+
+def test_stanza_radiology_trims_leading_determiners_and_drops_noise() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("the large mass", "OBSERVATION", 0, 14),
+        FakeStanzaEntity("a", "OBSERVATION", 15, 16),
+        FakeStanzaEntity("-", "ANATOMY", 17, 18),
+        FakeStanzaEntity("liver", "ANATOMY", 19, 24),
+    ]
+
+    annotations = annotate_with_stanza(document, "radiology", entities=entities)
+
+    assert [a.span_text for a in annotations] == ["large mass", "liver"]
+
+
 def test_run_all_annotators_returns_consistent_result_map() -> None:
     document = sample_document()
     results = run_all_annotators(
