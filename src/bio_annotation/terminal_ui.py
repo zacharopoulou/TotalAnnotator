@@ -18,7 +18,10 @@ from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
-from bio_annotation.entity_proposal.scispacy_proposer import SCISPACY_MODEL_BY_ANNOTATOR
+from bio_annotation.entity_proposal.scispacy_proposer import (
+    SCISPACY_LINKER_NAME_BY_ANNOTATOR,
+    SCISPACY_MODEL_BY_ANNOTATOR,
+)
 from bio_annotation.entity_proposal.stanza_proposer import (
     DEFAULT_STANZA_PACKAGE,
     STANZA_ANNOTATORS,
@@ -356,8 +359,10 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
                 'runtime = "local_model"',
                 f"model = {_toml_string(SCISPACY_MODEL_BY_ANNOTATOR[annotator])}",
             ]
-            if annotator == "scispacy_umls":
-                lines += ['linker_name = "umls"']
+            if annotator in SCISPACY_LINKER_NAME_BY_ANNOTATOR:
+                lines += [
+                    f"linker_name = {_toml_string(SCISPACY_LINKER_NAME_BY_ANNOTATOR[annotator])}"
+                ]
     for stanza_annotator in STANZA_ANNOTATORS:
         if stanza_annotator in answers.annotators:
             lines += ["", f"[annotators.{stanza_annotator}]", 'runtime = "local"', f"package = {_toml_string(DEFAULT_STANZA_PACKAGE)}"]

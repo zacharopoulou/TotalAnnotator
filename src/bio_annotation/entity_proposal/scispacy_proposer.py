@@ -16,13 +16,25 @@ SCISPACY_MODEL_BY_ANNOTATOR: dict[str, str] = {
     "scispacy_jnlpba": "en_ner_jnlpba_md",
     "scispacy_bc5cdr": "en_ner_bc5cdr_md",
     "scispacy_bionlp13cg": "en_ner_bionlp13cg_md",
-    "scispacy_umls": "en_core_sci_scibert",
+    "scispacy_craft": "en_ner_craft_md",
+    "scispacy_scibert": "en_core_sci_scibert",
+    "scispacy_md": "en_core_sci_md",
 }
-SCISPACY_UMLS_ANNOTATOR = "scispacy_umls"
+SCISPACY_SCIBERT_ANNOTATOR = "scispacy_scibert"
 SCISPACY_UMLS_LINKER = "scispacy_linker"
 
+# The general scispaCy models (en_core_sci_scibert, en_core_sci_md) detect
+# entities and link them to a knowledge base (UMLS by default). One linker per
+# general model; the corpus NER models above do not link. linker_name is a config
+# option and defaults to umls for these.
+SCISPACY_LINKER_NAME_BY_ANNOTATOR: dict[str, str] = {
+    "scispacy_scibert": "umls",
+    "scispacy_md": "umls",
+}
+SCISPACY_LINKER_ANNOTATORS = frozenset(SCISPACY_LINKER_NAME_BY_ANNOTATOR)
 
-@lru_cache(maxsize=4)
+
+@lru_cache(maxsize=8)
 def _load_scispacy_model(model: str, *, linker_name: str | None = None) -> Any:
     try:
         import scispacy  # noqa: F401
@@ -78,7 +90,7 @@ def parse_scispacy_response(
         canonical_id = None
         canonical_name = None
         confidence = None
-        if source == SCISPACY_UMLS_ANNOTATOR:
+        if source in SCISPACY_LINKER_ANNOTATORS:
             candidates = _entity_kb_ents(entity)
             if candidates:
                 canonical_id, confidence = candidates[0]
@@ -118,14 +130,18 @@ def annotate_with_scispacy(
     if payload is None:
         if nlp is None:
             loader = model_loader or _load_scispacy_model
-            if source == SCISPACY_UMLS_ANNOTATOR:
-                nlp = loader(model, linker_name=linker_name or "umls")
+            if source in SCISPACY_LINKER_ANNOTATORS:
+                nlp = loader(
+                    model,
+                    linker_name=linker_name
+                    or SCISPACY_LINKER_NAME_BY_ANNOTATOR.get(source, "umls"),
+                )
             else:
                 nlp = loader(model)
         parsed = nlp(document.text)
         payload = getattr(parsed, "ents", None)
     linker = None
-    if source == SCISPACY_UMLS_ANNOTATOR and nlp is not None:
+    if source in SCISPACY_LINKER_ANNOTATORS and nlp is not None:
         try:
             linker = nlp.get_pipe(SCISPACY_UMLS_LINKER)
         except (KeyError, AttributeError):
@@ -172,14 +188,41 @@ def annotate_with_scispacy_bionlp13cg(
     )
 
 
-def annotate_with_scispacy_umls(
+def annotate_with_scispacy_craft(
     document: Document,
     **kwargs: Any,
 ) -> list[Annotation]:
-    model = kwargs.pop("model", SCISPACY_MODEL_BY_ANNOTATOR[SCISPACY_UMLS_ANNOTATOR])
+    model = kwargs.pop("model", SCISPACY_MODEL_BY_ANNOTATOR["scispacy_craft"])
     return annotate_with_scispacy(
         document,
-        source=SCISPACY_UMLS_ANNOTATOR,
+        source="scispacy_craft",
+        model=model,
+        **kwargs,
+    )
+
+
+def annotate_with_scispacy_scibert(
+    document: Document,
+    **kwargs: Any,
+) -> list[Annotation]:
+    model = kwargs.pop("model", SCISPACY_MODEL_BY_ANNOTATOR[SCISPACY_SCIBERT_ANNOTATOR])
+    return annotate_with_scispacy(
+        document,
+        source=SCISPACY_SCIBERT_ANNOTATOR,
+        model=model,
+        linker_name=kwargs.pop("linker_name", "umls"),
+        **kwargs,
+    )
+
+
+def annotate_with_scispacy_md(
+    document: Document,
+    **kwargs: Any,
+) -> list[Annotation]:
+    model = kwargs.pop("model", SCISPACY_MODEL_BY_ANNOTATOR["scispacy_md"])
+    return annotate_with_scispacy(
+        document,
+        source="scispacy_md",
         model=model,
         linker_name=kwargs.pop("linker_name", "umls"),
         **kwargs,

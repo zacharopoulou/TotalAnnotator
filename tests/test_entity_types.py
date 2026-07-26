@@ -119,8 +119,8 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
         "drug",
         "tissue",
     } <= ANNOTATOR_ENTITY_TYPES["scispacy_bionlp13cg"]
-    assert ANNOTATOR_ENTITY_TYPES["scispacy_umls"] == {"biomedical_entity"}
-    assert ANNOTATOR_CAPABILITIES["scispacy_umls"].tasks == ("NER", "NEN")
+    assert ANNOTATOR_ENTITY_TYPES["scispacy_scibert"] == {"biomedical_entity"}
+    assert ANNOTATOR_CAPABILITIES["scispacy_scibert"].tasks == ("NER", "NEN")
 
 
 def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior() -> None:

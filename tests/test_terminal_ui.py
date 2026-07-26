@@ -138,7 +138,7 @@ def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
             "scispacy_jnlpba",
             "scispacy_bc5cdr",
             "scispacy_bionlp13cg",
-            "scispacy_umls",
+            "scispacy_scibert",
         ],
         entity_types=[],
     )
@@ -151,7 +151,7 @@ def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
     assert 'model = "en_ner_bc5cdr_md"' in config_text
     assert "[annotators.scispacy_bionlp13cg]" in config_text
     assert 'model = "en_ner_bionlp13cg_md"' in config_text
-    assert "[annotators.scispacy_umls]" in config_text
+    assert "[annotators.scispacy_scibert]" in config_text
     assert 'model = "en_core_sci_scibert"' in config_text
     assert 'linker_name = "umls"' in config_text
 

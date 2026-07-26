@@ -34,6 +34,7 @@ from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.annotators.scispacy import (
     SCISPACY_INSTALL_HINT,
+    SCISPACY_LINKER_NAME_BY_ANNOTATOR,
     SCISPACY_MODEL_BY_ANNOTATOR,
     _load_scispacy_model,
     annotate_with_scispacy,
@@ -1330,7 +1331,7 @@ def _read_scispacy_options(annotator: str, settings: dict[str, object]) -> dict[
         else SCISPACY_MODEL_BY_ANNOTATOR[annotator],
         "linker_name": linker_name.strip()
         if isinstance(linker_name, str) and linker_name.strip()
-        else ("umls" if annotator == "scispacy_umls" else None),
+        else SCISPACY_LINKER_NAME_BY_ANNOTATOR.get(annotator),
     }
 
 

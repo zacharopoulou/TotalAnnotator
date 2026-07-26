@@ -151,7 +151,19 @@ SCISPACY_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ..
     ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "PATHOLOGICAL_FORMATION", "pathological_formation", ()),
     ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "SIMPLE_CHEMICAL", "drug", ()),
     ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "TISSUE", "tissue", ()),
-    ("scispacy_umls", "scispaCy UMLS", "ENTITY", "biomedical_entity", ("UMLS",)),
+    # scispaCy CRAFT (en_ner_craft_md) tags the six CRAFT ontology types. GGP /
+    # CHEBI / CL / TAXON map onto the canonical set; GO (Gene Ontology) and SO
+    # (Sequence Ontology) have no canonical equivalent, so they keep their own type.
+    ("scispacy_craft", "scispaCy CRAFT", "GGP", "gene", ()),
+    ("scispacy_craft", "scispaCy CRAFT", "CHEBI", "drug", ()),
+    ("scispacy_craft", "scispaCy CRAFT", "CL", "cell_type", ()),
+    ("scispacy_craft", "scispaCy CRAFT", "TAXON", "species", ()),
+    ("scispacy_craft", "scispaCy CRAFT", "GO", "gene_ontology", ()),
+    ("scispacy_craft", "scispaCy CRAFT", "SO", "sequence_ontology", ()),
+    # General scispaCy models: same generic ENTITY detection, linked to UMLS.
+    # Labeled by exact model id; scibert is the accurate one, md the lighter one.
+    ("scispacy_scibert", "en_core_sci_scibert", "ENTITY", "biomedical_entity", ("UMLS",)),
+    ("scispacy_md", "en_core_sci_md", "ENTITY", "biomedical_entity", ("UMLS",)),
 )
 
 
@@ -484,21 +496,57 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         },
         normalization_fields=(),
     ),
-    "scispacy_umls": AnnotatorCapability(
-        label="scispaCy UMLS",
+    "scispacy_craft": AnnotatorCapability(
+        label="scispaCy CRAFT",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_craft"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_craft"
+        },
+        normalization_fields=(),
+    ),
+    "scispacy_scibert": AnnotatorCapability(
+        label="en_core_sci_scibert",
         tasks=("NER", "NEN"),
         entity_types=tuple(
             dict.fromkeys(
                 spec.canonical_entity_type
                 for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "scispacy_umls"
+                if spec.annotator == "scispacy_scibert"
             )
         ),
         normalization_status="normalized",
         normalization_databases={
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "scispacy_umls"
+            if spec.annotator == "scispacy_scibert"
+        },
+        normalization_fields=("EntityLinker kb_ents", "UMLS CUI"),
+    ),
+    "scispacy_md": AnnotatorCapability(
+        label="en_core_sci_md",
+        tasks=("NER", "NEN"),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_md"
+            )
+        ),
+        normalization_status="normalized",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_md"
         },
         normalization_fields=("EntityLinker kb_ents", "UMLS CUI"),
     ),
