@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from io import StringIO
+from pathlib import Path
 from contextlib import redirect_stdout
 from urllib import error
 from urllib import request
@@ -23,6 +24,7 @@ from bio_annotation.annotators.apollo import (
     DEFAULT_APOLLO_MODEL,
     annotate_with_apollo,
 )
+from bio_annotation.annotators.bent import annotate_with_bent, call_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
 from bio_annotation.annotators.d4data import (
     DEFAULT_D4DATA_MODEL,
@@ -931,6 +933,138 @@ def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
         "cell_type",
         "cell_line",
     ]
+
+
+def test_bent_adapter_parses_brat_ner_and_nel_output() -> None:
+    document = sample_document()
+    response = (
+        "T1\tgene 0 4\tPTEN\n"
+        "N1\tReference T1 NCBIGene:5728\tPTEN\n"
+        "T2\tdisease 15 27\tglioblastoma\n"
+        "N2\tReference T2 MESH:D005909\tglioblastoma\n"
+        "T3\tchemical 34 40\tmiR-21\n"
+    )
+
+    annotations = annotate_with_bent(document, response=response)
+
+    assert len(annotations) == 3
+    assert all(annotation.source == "bent" for annotation in annotations)
+    assert annotations[0].entity_type == "gene"
+    assert annotations[0].start == 0
+    assert annotations[0].end == 4
+    assert annotations[0].canonical_id == "NCBIGene:5728"
+    assert annotations[0].canonical_name == "PTEN"
+    assert annotations[1].entity_type == "disease"
+    assert annotations[1].canonical_id == "MESH:D005909"
+    assert annotations[2].entity_type == "drug"
+    assert annotations[2].canonical_id is None
+
+
+def test_bent_adapter_preserves_reported_offsets_without_relocating() -> None:
+    # "glioblastoma" occurs twice (first at offset 15). BENT reports the second
+    # mention with a span that does not byte-match the slice. The adapter must
+    # keep BENT's reported location instead of silently searching span_text and
+    # relocating to the first, unrelated occurrence.
+    document = sample_document()
+    assert document.text.count("glioblastoma") == 2
+    assert document.text[62:75] != "glioblastoma"
+    response = "T1\tdisease 62 75\tglioblastoma\nN1\tReference T1 MESH:D005909\tglioblastoma\n"
+
+    annotations = annotate_with_bent(document, response=response)
+
+    assert len(annotations) == 1
+    assert (annotations[0].start, annotations[0].end) == (62, 75)
+    assert annotations[0].start != 15  # not relocated to the first occurrence
+
+
+def test_bent_adapter_uses_request_fn() -> None:
+    document = sample_document()
+    calls: list[Document] = []
+
+    def fake_request(doc: Document) -> str:
+        calls.append(doc)
+        return "T1\tgene 0 4\tPTEN\nN1\tReference T1 NCBIGene:5728\tPTEN\n"
+
+    annotations = annotate_with_bent(document, request_fn=fake_request)
+
+    assert calls == [document]
+    assert len(annotations) == 1
+    assert annotations[0].canonical_id == "NCBIGene:5728"
+
+
+def test_bent_call_runs_isolated_subprocess_and_reads_ann(monkeypatch) -> None:
+    document = sample_document()
+    commands: list[list[str]] = []
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        commands.append(command)
+        out_dir = command[command.index("--output-dir") + 1]
+        Path(out_dir, "document.ann").write_text(
+            "T1\tgene 0 4\tPTEN\nN1\tReference T1 NCBIGene:5728\tPTEN\n",
+            encoding="utf-8",
+        )
+        return Completed()
+
+    monkeypatch.setattr("bio_annotation.entity_proposal.bent_proposer.subprocess.run", fake_run)
+
+    payload = call_bent(
+        document,
+        types={"gene": "ncbi_gene", "chemical": "chebi"},
+        mode="ner_nel",
+        project="tools/bent",
+        timeout=12,
+    )
+
+    assert "NCBIGene:5728" in payload
+    assert commands
+    command = commands[0]
+    assert command[:3] == ["uv", "run", "--project"]
+    # The wrapper script must live inside the resolved project dir, not be hard-coded.
+    assert command[3] == str(Path("tools/bent").resolve())
+    assert command[command.index("python") + 1] == str(Path("tools/bent").resolve() / "run_bent.py")
+    assert command[command.index("--mode") + 1] == "ner_nel"
+    assert command[command.index("--types") + 1] == "chemical:chebi,gene:ncbi_gene"
+
+
+def test_bent_call_derives_script_from_project(tmp_path, monkeypatch) -> None:
+    document = sample_document()
+    project = tmp_path / "custom_bent"
+    project.mkdir()
+    (project / "run_bent.py").write_text("# stub wrapper\n", encoding="utf-8")
+
+    commands: list[list[str]] = []
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        commands.append(command)
+        out_dir = command[command.index("--output-dir") + 1]
+        Path(out_dir, "document.ann").write_text("T1\tgene 0 4\tPTEN\n", encoding="utf-8")
+        return Completed()
+
+    monkeypatch.setattr("bio_annotation.entity_proposal.bent_proposer.subprocess.run", fake_run)
+
+    call_bent(document, project=str(project), timeout=12)
+
+    command = commands[0]
+    assert command[3] == str(project)
+    assert command[command.index("python") + 1] == str(project / "run_bent.py")
+
+
+def test_bent_call_raises_when_wrapper_script_missing(tmp_path) -> None:
+    project = tmp_path / "empty_project"
+    project.mkdir()
+
+    with pytest.raises(RuntimeError, match="wrapper script not found"):
+        call_bent(sample_document(), project=str(project))
 
 
 def test_run_all_annotators_returns_consistent_result_map() -> None:

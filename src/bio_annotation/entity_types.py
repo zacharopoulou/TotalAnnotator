@@ -184,6 +184,17 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
         AnnotatorEntityTypeSpec(annotator, annotator_label, source_type, canonical_type, ())
         for annotator, annotator_label, source_type, canonical_type in STANZA_ENTITY_TYPE_SPECS
     ),
+    AnnotatorEntityTypeSpec("bent", "BENT", "disease", "disease", ("MEDIC", "Disease Ontology")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "chemical", "drug", ("ChEBI", "CTD Chemicals")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "gene", "gene", ("NCBI Gene", "CTD Gene")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "organism", "species", ("NCBI Taxonomy",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "bioprocess", "bioprocess", ("Gene Ontology Biological Process",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "anatomical", "anatomical", ("CTD Anatomy", "UBERON", "FMA")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "anatomy", "anatomical", ("CTD Anatomy", "UBERON", "FMA")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "cell_component", "cell_component", ("Gene Ontology Cellular Component",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "cell_type", "cell_type", ("Cell Ontology",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "cell_line", "cell_line", ("Cellosaurus",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "variant", "variant", ()),
 )
 
 
@@ -210,6 +221,9 @@ ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "organism_substance": "Organism substance",
     "pathological_formation": "Pathological formation",
     "tissue": "Tissue",
+    "bioprocess": "Biological process",
+    "anatomical": "Anatomical entity",
+    "cell_component": "Cellular component",
 }
 ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
     (entity_type, ENTITY_TYPE_DISPLAY_NAMES[entity_type])
@@ -223,6 +237,9 @@ ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
         "cell_type",
         "dna",
         "rna",
+        "bioprocess",
+        "anatomical",
+        "cell_component",
     )
 )
 ENTITY_TYPE_ALIASES: dict[str, str] = {
@@ -384,6 +401,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "medcat"
         },
         normalization_fields=("cui",),
+    ),
+    "bent": AnnotatorCapability(
+        label="BENT",
+        tasks=("NER", "NEN"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bent"
+        ),
+        normalization_status="normalized",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bent"
+        },
+        normalization_fields=("BRAT N Reference lines",),
     ),
     "stanza_bc5cdr": AnnotatorCapability(
         label="Stanza BC5CDR",

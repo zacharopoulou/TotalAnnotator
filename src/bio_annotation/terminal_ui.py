@@ -14,6 +14,7 @@ from bio_annotation.entity_proposal.aioner_proposer import (
     DEFAULT_AIONER_PROJECT,
 )
 from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
+from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, DEFAULT_BENT_TYPES
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
@@ -198,13 +199,13 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators, or press Enter for default annotators",
         choices=ANNOTATOR_CHOICES,
-        # AIONER needs a separate environment + models, apollo/d4data download
-        # local models, MedCAT needs a running MedCATservice, and Stanza fetches
-        # models on first use, so none are pre-selected.
+        # AIONER and BENT need separate environments + models, apollo/d4data
+        # download local models, MedCAT needs a running MedCATservice, and Stanza
+        # fetches models on first use, so none are pre-selected.
         default_values=[
             value
             for value, _ in ANNOTATOR_CHOICES
-            if value not in {"aioner", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS}
+            if value not in {"aioner", "bent", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS}
         ],
         validate_values=_validate_selected_annotators,
     )
@@ -330,6 +331,9 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
     if "aioner" in answers.annotators:
         aioner_repo, aioner_model = aioner_config_paths()
         lines += ["", "[annotators.aioner]", 'runtime = "local_subprocess"', f"repo = {_toml_string(aioner_repo)}", f"model = {_toml_string(aioner_model)}", f"entity = {_toml_string(DEFAULT_AIONER_ENTITY)}", f"project = {_toml_string(DEFAULT_AIONER_PROJECT)}"]
+    if "bent" in answers.annotators:
+        lines += ["", "[annotators.bent]", 'runtime = "local_subprocess"', 'mode = "ner_nel"', f"project = {_toml_string(DEFAULT_BENT_PROJECT)}", "timeout = 900", "", "[annotators.bent.types]"]
+        lines += [f"{entity_type} = {_toml_string(kb)}" for entity_type, kb in DEFAULT_BENT_TYPES.items()]
     if "clinicalbert" in answers.annotators:
         lines += ["", "[annotators.clinicalbert]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_CLINICALBERT_MODEL)}"]
     if "apollo" in answers.annotators:
