@@ -59,7 +59,10 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SCISPACY_ANNOTATORS = frozenset(SCISPACY_MODEL_BY_ANNOTATOR)
+# Ordered tuple (insertion order of SCISPACY_MODEL_BY_ANNOTATOR): flatten_annotations
+# spreads this to define scispaCy output order, so it must be deterministic, not a set.
+SCISPACY_ANNOTATORS = tuple(SCISPACY_MODEL_BY_ANNOTATOR)
+SCISPACY_ANNOTATOR_SET = frozenset(SCISPACY_ANNOTATORS)
 SUPPORTED_ANNOTATORS = {
     "bern2",
     "flair",
@@ -183,7 +186,7 @@ def build_pipeline_output(
             annotator_settings.get(annotator, {}),
         )
         for annotator in enabled_annotators
-        if annotator in SCISPACY_ANNOTATORS
+        if annotator in SCISPACY_ANNOTATOR_SET
     }
     stanza_options = {
         annotator: _read_stanza_options(annotator_settings.get(annotator, {}))
@@ -218,7 +221,7 @@ def build_pipeline_output(
     scispacy_nlps: dict[str, Any] = {}
     if scispacy_responses_by_document is None:
         for annotator in enabled_annotators:
-            if annotator not in SCISPACY_ANNOTATORS:
+            if annotator not in SCISPACY_ANNOTATOR_SET:
                 continue
             try:
                 options = scispacy_options[annotator]
@@ -745,7 +748,7 @@ def run_selected_annotators_with_status(
                     endpoint=medcat_options.get("endpoint") if medcat_options else None,
                     min_acc=medcat_options.get("min_acc") if medcat_options else None,
                 )
-            elif annotator in SCISPACY_ANNOTATORS:
+            elif annotator in SCISPACY_ANNOTATOR_SET:
                 options = scispacy_options.get(annotator, {}) if scispacy_options else {}
                 results[annotator] = annotate_with_scispacy(
                     document,
@@ -1037,7 +1040,7 @@ def _no_annotations_reason(annotator: str) -> str:
             "(set annotators.medcat.endpoint or MEDCAT_API_URL) and returned "
             "entities for this document."
         )
-    if annotator in SCISPACY_ANNOTATORS:
+    if annotator in SCISPACY_ANNOTATOR_SET:
         return (
             "No annotations returned. The scispaCy model may be unavailable/not "
             "installed (uv sync --extra scispacy, then install the model package), "
@@ -1236,7 +1239,7 @@ def validate_optional_annotator_dependencies(
     ):
         raise ValueError(APOLLO_INSTALL_HINT)
     if (
-        any(annotator in SCISPACY_ANNOTATORS for annotator in config.annotators)
+        any(annotator in SCISPACY_ANNOTATOR_SET for annotator in config.annotators)
         and scispacy_responses_by_document is None
         and (find_spec("scispacy") is None or find_spec("spacy") is None)
     ):

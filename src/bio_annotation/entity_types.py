@@ -116,50 +116,50 @@ STANZA_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str], ...] = (
 )
 
 SCISPACY_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "DNA", "dna", ()),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_TYPE", "cell_type", ()),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "CELL_LINE", "cell_line", ()),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "RNA", "rna", ()),
-    ("scispacy_jnlpba", "scispaCy JNLPBA", "PROTEIN", "gene", ()),
-    ("scispacy_bc5cdr", "scispaCy BC5CDR", "DISEASE", "disease", ()),
-    ("scispacy_bc5cdr", "scispaCy BC5CDR", "CHEMICAL", "drug", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "AMINO_ACID", "amino_acid", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ANATOMICAL_SYSTEM", "anatomical_system", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CANCER", "cancer", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELL", "cell", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "CELLULAR_COMPONENT", "cellular_component", ()),
+    ("scispacy_jnlpba", "en_ner_jnlpba_md", "DNA", "dna", ()),
+    ("scispacy_jnlpba", "en_ner_jnlpba_md", "CELL_TYPE", "cell_type", ()),
+    ("scispacy_jnlpba", "en_ner_jnlpba_md", "CELL_LINE", "cell_line", ()),
+    ("scispacy_jnlpba", "en_ner_jnlpba_md", "RNA", "rna", ()),
+    ("scispacy_jnlpba", "en_ner_jnlpba_md", "PROTEIN", "gene", ()),
+    ("scispacy_bc5cdr", "en_ner_bc5cdr_md", "DISEASE", "disease", ()),
+    ("scispacy_bc5cdr", "en_ner_bc5cdr_md", "CHEMICAL", "drug", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "AMINO_ACID", "amino_acid", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "ANATOMICAL_SYSTEM", "anatomical_system", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "CANCER", "cancer", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "CELL", "cell", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "CELLULAR_COMPONENT", "cellular_component", ()),
     (
         "scispacy_bionlp13cg",
-        "scispaCy BioNLP13CG",
+        "en_ner_bionlp13cg_md",
         "DEVELOPING_ANATOMICAL_STRUCTURE",
         "developing_anatomical_structure",
         (),
     ),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "GENE_OR_GENE_PRODUCT", "gene", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "GENE_OR_GENE_PRODUCT", "gene", ()),
     (
         "scispacy_bionlp13cg",
-        "scispaCy BioNLP13CG",
+        "en_ner_bionlp13cg_md",
         "IMMATERIAL_ANATOMICAL_ENTITY",
         "immaterial_anatomical_entity",
         (),
     ),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "MULTI-TISSUE_STRUCTURE", "multi_tissue_structure", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGAN", "organ", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM", "species", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBDIVISION", "organism_subdivision", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "ORGANISM_SUBSTANCE", "organism_substance", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "PATHOLOGICAL_FORMATION", "pathological_formation", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "SIMPLE_CHEMICAL", "drug", ()),
-    ("scispacy_bionlp13cg", "scispaCy BioNLP13CG", "TISSUE", "tissue", ()),
-    # scispaCy CRAFT (en_ner_craft_md) tags the six CRAFT ontology types. GGP /
-    # CHEBI / CL / TAXON map onto the canonical set; GO (Gene Ontology) and SO
-    # (Sequence Ontology) have no canonical equivalent, so they keep their own type.
-    ("scispacy_craft", "scispaCy CRAFT", "GGP", "gene", ()),
-    ("scispacy_craft", "scispaCy CRAFT", "CHEBI", "drug", ()),
-    ("scispacy_craft", "scispaCy CRAFT", "CL", "cell_type", ()),
-    ("scispacy_craft", "scispaCy CRAFT", "TAXON", "species", ()),
-    ("scispacy_craft", "scispaCy CRAFT", "GO", "gene_ontology", ()),
-    ("scispacy_craft", "scispaCy CRAFT", "SO", "sequence_ontology", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "MULTI-TISSUE_STRUCTURE", "multi_tissue_structure", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "ORGAN", "organ", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "ORGANISM", "species", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "ORGANISM_SUBDIVISION", "organism_subdivision", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "ORGANISM_SUBSTANCE", "organism_substance", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "PATHOLOGICAL_FORMATION", "pathological_formation", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "SIMPLE_CHEMICAL", "drug", ()),
+    ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "TISSUE", "tissue", ()),
+    # en_ner_craft_md (CRAFT corpus) tags six ontology types. GGP / CHEBI / CL /
+    # TAXON map onto the canonical set; GO (Gene Ontology) and SO (Sequence
+    # Ontology) have no canonical equivalent, so they keep their own type.
+    ("scispacy_craft", "en_ner_craft_md", "GGP", "gene", ()),
+    ("scispacy_craft", "en_ner_craft_md", "CHEBI", "drug", ()),
+    ("scispacy_craft", "en_ner_craft_md", "CL", "cell_type", ()),
+    ("scispacy_craft", "en_ner_craft_md", "TAXON", "species", ()),
+    ("scispacy_craft", "en_ner_craft_md", "GO", "gene_ontology", ()),
+    ("scispacy_craft", "en_ner_craft_md", "SO", "sequence_ontology", ()),
     # General scispaCy models: same generic ENTITY detection, linked to UMLS.
     # Labeled by exact model id; scibert is the accurate one, md the lighter one.
     ("scispacy_scibert", "en_core_sci_scibert", "ENTITY", "biomedical_entity", ("UMLS",)),
@@ -443,7 +443,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=("cui",),
     ),
     "scispacy_jnlpba": AnnotatorCapability(
-        label="scispaCy JNLPBA",
+        label="en_ner_jnlpba_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
@@ -461,7 +461,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=(),
     ),
     "scispacy_bc5cdr": AnnotatorCapability(
-        label="scispaCy BC5CDR",
+        label="en_ner_bc5cdr_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
@@ -479,7 +479,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=(),
     ),
     "scispacy_bionlp13cg": AnnotatorCapability(
-        label="scispaCy BioNLP13CG",
+        label="en_ner_bionlp13cg_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
@@ -497,7 +497,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=(),
     ),
     "scispacy_craft": AnnotatorCapability(
-        label="scispaCy CRAFT",
+        label="en_ner_craft_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
