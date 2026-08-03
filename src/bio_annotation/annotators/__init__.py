@@ -6,7 +6,9 @@ from typing import Any
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import annotate_with_apollo
+from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
+from bio_annotation.annotators.biobert import annotate_with_biobert
 from bio_annotation.annotators.clinicalbert import annotate_with_clinicalbert
 from bio_annotation.annotators.d4data import annotate_with_d4data
 from bio_annotation.annotators.flair import annotate_with_flair
@@ -35,9 +37,14 @@ def run_all_annotators(
     pubtator3_endpoint: str | None = None,
     aioner_response: Any = None,
     aioner_request_fn: Any = None,
+    bent_response: Any = None,
+    bent_request_fn: Any = None,
     clinicalbert_response: Any = None,
     clinicalbert_request_fn: Any = None,
     clinicalbert_pipeline: Any = None,
+    biobert_response: Any = None,
+    biobert_request_fn: Any = None,
+    biobert_pipelines: Any = None,
     apollo_response: Any = None,
     apollo_request_fn: Any = None,
     apollo_pipeline: Any = None,
@@ -78,6 +85,14 @@ def run_all_annotators(
             response=aioner_response,
             request_fn=aioner_request_fn,
         )
+    # BENT runs in a separate environment, so only invoke it when an explicit
+    # response or request function is supplied.
+    if bent_response is not None or bent_request_fn is not None:
+        results["bent"] = annotate_with_bent(
+            document,
+            response=bent_response,
+            request_fn=bent_request_fn,
+        )
     # ClinicalBERT loads a local HuggingFace model, so only invoke it when an
     # explicit response, request function, or loaded pipeline is supplied.
     if (
@@ -90,6 +105,20 @@ def run_all_annotators(
             response=clinicalbert_response,
             request_fn=clinicalbert_request_fn,
             pipeline=clinicalbert_pipeline,
+        )
+    # BioBERT loads local HuggingFace models (one per entity family), so only
+    # invoke it when an explicit response, request function, or loaded pipelines
+    # are supplied.
+    if (
+        biobert_response is not None
+        or biobert_request_fn is not None
+        or biobert_pipelines is not None
+    ):
+        results["biobert"] = annotate_with_biobert(
+            document,
+            response=biobert_response,
+            request_fn=biobert_request_fn,
+            pipelines=biobert_pipelines,
         )
     # apollo loads a local HuggingFace model, so only invoke it when an explicit
     # response, request function, or loaded pipeline is supplied (avoids loading
@@ -143,14 +172,16 @@ def run_all_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS):
+    for source in ("bern2", "flair", "pubtator3", "aioner", "bent", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS):
         annotations.extend(results.get(source, []))
     return annotations
 
 __all__ = [
     "annotate_with_aioner",
     "annotate_with_apollo",
+    "annotate_with_bent",
     "annotate_with_bern2",
+    "annotate_with_biobert",
     "annotate_with_clinicalbert",
     "annotate_with_d4data",
     "annotate_with_flair",
