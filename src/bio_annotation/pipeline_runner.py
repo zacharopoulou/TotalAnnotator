@@ -34,7 +34,6 @@ from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.annotators.stanza import annotate_with_stanza
 from bio_annotation.entity_proposal.stanza_proposer import (
-    DEFAULT_STANZA_PACKAGE,
     STANZA_ANNOTATORS,
     STANZA_INSTALL_HINT,
     stanza_model_for_annotator,
@@ -1217,10 +1216,13 @@ def _read_aioner_options(settings: dict[str, object]) -> dict[str, Any]:
 
 def _read_stanza_options(settings: dict[str, object]) -> dict[str, Any]:
     package = settings.get("package")
+    # Leave package unset (None) when the config omits it, so annotate_with_stanza
+    # can apply the model-specific default (mimic for i2b2/radiology, craft
+    # otherwise). Defaulting to craft here would override that per-model choice.
     return {
         "package": package.strip()
         if isinstance(package, str) and package.strip()
-        else DEFAULT_STANZA_PACKAGE,
+        else None,
     }
 
 
