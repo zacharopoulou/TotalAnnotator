@@ -24,6 +24,12 @@ clinicalbert = [
     "transformers>=4.30,<5",
     "torch>=2.0",
 ]
+biobert = [
+    # BioBERT NER runs as three HuggingFace transformers token-classification
+    # checkpoints (gene / disease / chemical); needs transformers + a torch backend.
+    "transformers>=4.30,<5",
+    "torch>=2.0",
+]
 apollo = [
     # Clinical-AI-Apollo/Medical-NER is a HuggingFace transformers token-
     # classification model; it needs transformers + a torch backend to run locally.
@@ -47,7 +53,7 @@ benchmarks = [
     "tabulate>=0.9",
 ]
 all = [
-    "totalannotator[flair,clinicalbert,apollo,d4data,stanza,benchmarks]",
+    "totalannotator[flair,clinicalbert,biobert,apollo,d4data,stanza,benchmarks]",
 ]
 
 [project.scripts]

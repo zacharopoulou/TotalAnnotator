@@ -26,6 +26,10 @@ from bio_annotation.annotators.apollo import (
 )
 from bio_annotation.annotators.bent import annotate_with_bent, call_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
+from bio_annotation.annotators.biobert import (
+    DEFAULT_BIOBERT_MODELS,
+    annotate_with_biobert,
+)
 from bio_annotation.annotators.d4data import (
     DEFAULT_D4DATA_MODEL,
     annotate_with_d4data,
@@ -643,6 +647,83 @@ def test_clinicalbert_adapter_trims_leading_articles_and_drops_noise() -> None:
     spans = [annotation.span_text for annotation in annotations]
     assert spans == ["stop codon", "11-base pair insertion", "breast cancer"]
     assert all(annotation.entity_type == "problem" for annotation in annotations)
+
+
+def test_biobert_adapter_merges_per_model_responses() -> None:
+    document = sample_document()
+    # One HuggingFace payload per checkpoint; the producing model sets the type.
+    response = {
+        "gene": [{"entity_group": "GENE", "score": 0.98, "word": "PTEN"}],
+        "disease": [{"entity_group": "DISEASE", "score": 0.95, "word": "glioblastoma"}],
+        "drug": [{"entity_group": "CHEMICAL", "score": 0.90, "word": "miR-21"}],
+    }
+
+    annotations = annotate_with_biobert(document, response=response)
+
+    assert all(annotation.source == "biobert" for annotation in annotations)
+    assert {(a.span_text, a.entity_type) for a in annotations} == {
+        ("PTEN", "gene"),
+        ("glioblastoma", "disease"),
+        ("miR-21", "drug"),
+    }
+
+
+def test_biobert_adapter_loads_one_pipeline_per_model() -> None:
+    document = sample_document()
+    loaded: list[str] = []
+    label_by_model = {
+        "alvaroalon2/biobert_genetic_ner": "GENE",
+        "alvaroalon2/biobert_diseases_ner": "DISEASE",
+        "alvaroalon2/biobert_chemical_ner": "CHEMICAL",
+    }
+
+    def fake_loader(model: str):
+        loaded.append(model)
+        label = label_by_model[model]
+        return lambda text: [{"entity_group": label, "score": 0.9, "word": "PTEN"}]
+
+    annotations = annotate_with_biobert(document, pipeline_loader=fake_loader)
+
+    # One pipeline loaded per configured checkpoint, all merged under "biobert".
+    assert loaded == list(DEFAULT_BIOBERT_MODELS.values())
+    assert all(a.source == "biobert" for a in annotations)
+    assert sorted(a.entity_type for a in annotations) == ["disease", "drug", "gene"]
+
+
+def test_biobert_adapter_uses_request_fn_and_drops_punctuation() -> None:
+    document = sample_document()
+
+    def fake_request(doc: Document) -> dict[str, list[dict[str, object]]]:
+        return {
+            "gene": [
+                {"entity_group": "GENE", "score": 0.9, "word": "PTEN"},
+                {"entity_group": "GENE", "score": 0.4, "word": "-"},
+            ],
+        }
+
+    annotations = annotate_with_biobert(document, request_fn=fake_request)
+
+    assert [a.span_text for a in annotations] == ["PTEN"]
+    assert annotations[0].entity_type == "gene"
+    assert annotations[0].source == "biobert"
+
+
+def test_biobert_adapter_drops_outside_zero_labels() -> None:
+    document = sample_document()
+    # The diseases checkpoint mislabels its "outside" tag as "0" (not "O"), so the
+    # pipeline emits bogus "0" spans over plain text; those must be dropped.
+    response = {
+        "disease": [
+            {"entity_group": "0", "score": 1.0, "word": "PTEN and"},
+            {"entity_group": "DISEASE", "score": 0.99, "word": "glioblastoma"},
+            {"entity_group": "0", "score": 1.0, "word": "are biomarkers in"},
+        ],
+    }
+
+    annotations = annotate_with_biobert(document, response=response)
+
+    assert [a.span_text for a in annotations] == ["glioblastoma"]
+    assert annotations[0].entity_type == "disease"
 
 
 def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:

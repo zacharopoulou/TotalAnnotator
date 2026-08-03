@@ -205,7 +205,7 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         default_values=[
             value
             for value, _ in ANNOTATOR_CHOICES
-            if value not in {"aioner", "bent", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS}
+            if value not in {"aioner", "bent", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS}
         ],
         validate_values=_validate_selected_annotators,
     )
