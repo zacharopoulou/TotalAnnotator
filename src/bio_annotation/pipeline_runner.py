@@ -9,6 +9,8 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable
 
+from rich.console import Console
+
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import (
     APOLLO_INSTALL_HINT,
@@ -45,7 +47,7 @@ from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_INSTALL_HINT,
     stanza_model_for_annotator,
 )
-from bio_annotation.entity_types import normalize_entity_type
+from bio_annotation.entity_types import ANNOTATOR_DISPLAY_NAMES, normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
 from bio_annotation.report import write_html_report
 from bio_annotation.preprocessing.document_loader import (
@@ -64,6 +66,7 @@ FLAIR_INSTALL_HINT = (
     "Install it with: uv sync --extra flair"
 )
 logger = logging.getLogger(__name__)
+_spinner_console = Console()
 
 
 def run_pipeline_from_config(
@@ -216,10 +219,12 @@ def build_pipeline_output(
 
     all_statuses: list[dict[str, Any]] = []
 
-    for document in documents:
+    for document_index, document in enumerate(documents, start=1):
         results, statuses = run_selected_annotators_with_status(
             document,
             enabled_annotators,
+            document_index=document_index,
+            document_total=len(documents),
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
             aioner_request_fn=aioner_request_fn,
@@ -612,11 +617,23 @@ def run_selected_annotators_with_status(
     d4data_pipeline: Any = None,
     d4data_options: dict[str, Any] | None = None,
     stanza_entities: dict[str, list[Any]] | None = None,
+    document_index: int | None = None,
+    document_total: int | None = None,
 ) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
     statuses: list[dict[str, Any]] = []
 
+    if document_index is not None and document_total is not None:
+        document_progress = f" (document {document_index}/{document_total})"
+    else:
+        document_progress = ""
+
     for annotator in annotators:
+        label = ANNOTATOR_DISPLAY_NAMES.get(annotator, annotator)
+        spinner = _spinner_console.status(
+            f"Running {label}...{document_progress}", spinner="dots"
+        )
+        spinner.start()
         try:
             if annotator == "bern2":
                 results[annotator] = annotate_with_bern2(
@@ -768,6 +785,8 @@ def run_selected_annotators_with_status(
                 }
             )
             continue
+        finally:
+            spinner.stop()
 
         annotation_count = len(results[annotator])
         if annotation_count:
