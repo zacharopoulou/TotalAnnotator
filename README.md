@@ -190,7 +190,7 @@ MedCAT entity types are the model pack's semantic types (UMLS TUIs), so they pas
 
 scispaCy runs local spaCy NER model packages. Install the Python dependency and TotalAnnotator-supported model packages with `uv sync --extra scispacy`.
 
-TotalAnnotator exposes the requested scispaCy models as separate annotators (each labeled by its exact model id):
+TotalAnnotator exposes the requested scispaCy models as separate annotators, labeled in the UI as scispaCy implementations with their exact model id:
 
 - `scispacy_jnlpba` -> `en_ner_jnlpba_md`
 - `scispacy_bc5cdr` -> `en_ner_bc5cdr_md`

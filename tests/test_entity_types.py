@@ -131,6 +131,8 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
     } <= ANNOTATOR_ENTITY_TYPES["scispacy_bionlp13cg"]
     assert ANNOTATOR_ENTITY_TYPES["scispacy_scibert"] == {"biomedical_entity"}
     assert ANNOTATOR_CAPABILITIES["scispacy_scibert"].tasks == ("NER", "NEN")
+    assert ANNOTATOR_CAPABILITIES["scispacy_jnlpba"].label == "scispaCy en_ner_jnlpba_md"
+    assert ANNOTATOR_CAPABILITIES["scispacy_scibert"].label == "scispaCy en_core_sci_scibert"
     assert "bioprocess" in ANNOTATOR_ENTITY_TYPES["bent"]
     assert "cell_component" in ANNOTATOR_ENTITY_TYPES["bent"]
 

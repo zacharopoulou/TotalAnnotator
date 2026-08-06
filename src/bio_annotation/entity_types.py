@@ -499,7 +499,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=("cui",),
     ),
     "scispacy_jnlpba": AnnotatorCapability(
-        label="en_ner_jnlpba_md",
+        label="scispaCy en_ner_jnlpba_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
@@ -517,7 +517,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=(),
     ),
     "scispacy_bc5cdr": AnnotatorCapability(
-        label="en_ner_bc5cdr_md",
+        label="scispaCy en_ner_bc5cdr_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
@@ -535,7 +535,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=(),
     ),
     "scispacy_bionlp13cg": AnnotatorCapability(
-        label="en_ner_bionlp13cg_md",
+        label="scispaCy en_ner_bionlp13cg_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
@@ -553,7 +553,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=(),
     ),
     "scispacy_craft": AnnotatorCapability(
-        label="en_ner_craft_md",
+        label="scispaCy en_ner_craft_md",
         tasks=("NER",),
         entity_types=tuple(
             dict.fromkeys(
@@ -571,7 +571,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=(),
     ),
     "scispacy_scibert": AnnotatorCapability(
-        label="en_core_sci_scibert",
+        label="scispaCy en_core_sci_scibert",
         tasks=("NER", "NEN"),
         entity_types=tuple(
             dict.fromkeys(
@@ -589,7 +589,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         normalization_fields=("EntityLinker kb_ents", "UMLS CUI"),
     ),
     "scispacy_md": AnnotatorCapability(
-        label="en_core_sci_md",
+        label="scispaCy en_core_sci_md",
         tasks=("NER", "NEN"),
         entity_types=tuple(
             dict.fromkeys(
