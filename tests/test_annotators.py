@@ -1016,6 +1016,132 @@ def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
     ]
 
 
+def test_stanza_i2b2_maps_clinical_types_and_stamps_source() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("glioblastoma", "PROBLEM", 15, 27),
+        FakeStanzaEntity("MRI", "TEST", 0, 3),
+        FakeStanzaEntity("cisplatin", "TREATMENT", 40, 49),
+    ]
+
+    annotations = annotate_with_stanza(document, "i2b2", entities=entities)
+
+    assert [a.entity_type for a in annotations] == ["problem", "test", "treatment"]
+    assert all(a.source == "stanza_i2b2" for a in annotations)
+
+
+def test_stanza_i2b2_defaults_to_mimic_tokenizer_package() -> None:
+    from bio_annotation.entity_proposal.stanza_proposer import default_package_for_model
+
+    loaded: list[tuple[str, str]] = []
+
+    def fake_loader(package: str, model: str):
+        loaded.append((package, model))
+        return lambda text: FakeStanzaDoc([])
+
+    annotate_with_stanza(sample_document(), "i2b2", pipeline_loader=fake_loader)
+
+    # i2b2 is clinical, so it must default to the MIMIC tokenizer, not CRAFT.
+    assert loaded == [("mimic", "i2b2")]
+    assert default_package_for_model("i2b2") == "mimic"
+    assert default_package_for_model("bc5cdr") == "craft"
+
+
+def test_stanza_i2b2_trims_leading_determiners_and_drops_noise() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("a stop codon", "TREATMENT", 0, 12),
+        FakeStanzaEntity("This protein", "TEST", 13, 25),
+        FakeStanzaEntity("the breast and ovarian cancer", "PROBLEM", 26, 55),
+        FakeStanzaEntity("a", "PROBLEM", 56, 57),
+        FakeStanzaEntity("-", "PROBLEM", 58, 59),
+    ]
+
+    annotations = annotate_with_stanza(document, "i2b2", entities=entities)
+
+    spans = [a.span_text for a in annotations]
+    assert spans == ["stop codon", "protein", "breast and ovarian cancer"]
+
+
+def test_stanza_radiology_maps_clinical_types_and_stamps_source() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("liver", "ANATOMY", 0, 5),
+        FakeStanzaEntity("right", "ANATOMY_MODIFIER", 6, 11),
+        FakeStanzaEntity("mass", "OBSERVATION", 12, 16),
+        FakeStanzaEntity("large", "OBSERVATION_MODIFIER", 17, 22),
+        FakeStanzaEntity("possible", "UNCERTAINTY", 23, 31),
+    ]
+
+    annotations = annotate_with_stanza(document, "radiology", entities=entities)
+
+    assert [a.entity_type for a in annotations] == [
+        "anatomical",
+        "anatomy_modifier",
+        "observation",
+        "observation_modifier",
+        "uncertainty",
+    ]
+    assert all(a.source == "stanza_radiology" for a in annotations)
+
+
+def test_stanza_radiology_defaults_to_mimic_tokenizer_package() -> None:
+    from bio_annotation.entity_proposal.stanza_proposer import default_package_for_model
+
+    loaded: list[tuple[str, str]] = []
+
+    def fake_loader(package: str, model: str):
+        loaded.append((package, model))
+        return lambda text: FakeStanzaDoc([])
+
+    annotate_with_stanza(sample_document(), "radiology", pipeline_loader=fake_loader)
+
+    # radiology is clinical, so it must default to the MIMIC tokenizer, not CRAFT.
+    assert loaded == [("mimic", "radiology")]
+    assert default_package_for_model("radiology") == "mimic"
+    assert default_package_for_model("bc5cdr") == "craft"
+
+
+def test_stanza_radiology_trims_leading_determiners_and_drops_noise() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("the large mass", "OBSERVATION", 0, 14),
+        FakeStanzaEntity("a", "OBSERVATION", 15, 16),
+        FakeStanzaEntity("-", "ANATOMY", 17, 18),
+        FakeStanzaEntity("liver", "ANATOMY", 19, 24),
+    ]
+
+    annotations = annotate_with_stanza(document, "radiology", entities=entities)
+
+    assert [a.span_text for a in annotations] == ["large mass", "liver"]
+
+
+def test_stanza_anatem_maps_anatomy_and_stamps_source() -> None:
+    document = sample_document()
+    entities = [
+        FakeStanzaEntity("liver", "ANATOMY", 0, 5),
+        FakeStanzaEntity("lymph nodes", "ANATOMY", 6, 17),
+    ]
+
+    annotations = annotate_with_stanza(document, "anatem", entities=entities)
+
+    assert [a.entity_type for a in annotations] == ["anatomical", "anatomical"]
+    assert all(a.source == "stanza_anatem" for a in annotations)
+
+
+def test_stanza_anatem_uses_craft_biomedical_tokenizer_package() -> None:
+    loaded: list[tuple[str, str]] = []
+
+    def fake_loader(package: str, model: str):
+        loaded.append((package, model))
+        return lambda text: FakeStanzaDoc([])
+
+    annotate_with_stanza(sample_document(), "anatem", pipeline_loader=fake_loader)
+
+    # AnatEM is biomedical, so it uses the default CRAFT tokenizer (not MIMIC).
+    assert loaded == [("craft", "anatem")]
+
+
 def test_bent_adapter_parses_brat_ner_and_nel_output() -> None:
     document = sample_document()
     response = (

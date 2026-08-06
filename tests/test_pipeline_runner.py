@@ -18,6 +18,7 @@ from bio_annotation.pipeline_runner import (
     _read_bern2_options,
     _read_flair_options,
     _read_pubtator3_options,
+    _read_stanza_options,
     build_keyword_annotations,
     filter_annotations_by_type,
     run_pipeline_from_config,
@@ -681,3 +682,17 @@ def test_filter_annotations_by_type_normalizes_entity_labels() -> None:
     filtered = filter_annotations_by_type(annotations, ["gene"])
 
     assert [annotation.entity_type for annotation in filtered] == ["Gene"]
+
+
+def test_read_stanza_options_omitted_package_defaults_to_none():
+    # When the config omits package, it must stay None so annotate_with_stanza
+    # applies the model-specific default (mimic for i2b2/radiology, craft otherwise).
+    # A stray craft default here would override that per-model choice.
+    assert _read_stanza_options({})["package"] is None
+    assert _read_stanza_options({"package": ""})["package"] is None
+    assert _read_stanza_options({"package": "  "})["package"] is None
+
+
+def test_read_stanza_options_explicit_package_is_kept():
+    assert _read_stanza_options({"package": "mimic"})["package"] == "mimic"
+    assert _read_stanza_options({"package": " craft "})["package"] == "craft"
