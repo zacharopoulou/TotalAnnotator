@@ -1,0 +1,13 @@
+[project]
+name = "bent-env"
+version = "0.0.0"
+description = "Isolated Python environment for running BENT as a subprocess."
+# BENT currently supports Python 3.7 through 3.10.13, while the main project
+# targets newer Python versions.
+requires-python = ">=3.7,<=3.10.13"
+dependencies = [
+    "bent==0.0.80",
+]
+
+[tool.uv]
+package = false

@@ -113,6 +113,22 @@ STANZA_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str], ...] = (
     ("stanza_jnlpba", "Stanza JNLPBA", "RNA", "rna"),
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell line", "cell_line"),
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell type", "cell_type"),
+    # Stanza i2b2 is a clinical model (2010 i2b2/VA) emitting problem / test /
+    # treatment, the same clinical categories ClinicalBERT uses.
+    ("stanza_i2b2", "Stanza i2b2", "Problem", "problem"),
+    ("stanza_i2b2", "Stanza i2b2", "Test", "test"),
+    ("stanza_i2b2", "Stanza i2b2", "Treatment", "treatment"),
+    # Stanza radiology is a clinical model (Stanford radiology reports) emitting
+    # anatomy / observation / their modifiers / uncertainty. These radiology
+    # categories have no biomedical equivalent, so they are kept as their own types.
+    ("stanza_radiology", "Stanza radiology", "Anatomy", "anatomical"),
+    ("stanza_radiology", "Stanza radiology", "Anatomy modifier", "anatomy_modifier"),
+    ("stanza_radiology", "Stanza radiology", "Observation", "observation"),
+    ("stanza_radiology", "Stanza radiology", "Observation modifier", "observation_modifier"),
+    ("stanza_radiology", "Stanza radiology", "Uncertainty", "uncertainty"),
+    # Stanza AnatEM is a biomedical model (Anatomical Entity Mention corpus) with a
+    # single anatomical entity type; it uses the default CRAFT biomedical tokenizer.
+    ("stanza_anatem", "Stanza AnatEM", "Anatomy", "anatomical"),
 )
 
 SCISPACY_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
@@ -200,6 +216,11 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # BioBERT NER is run as three fine-tuned checkpoints (gene / disease /
+    # chemical) merged under one source; span only, no normalization.
+    AnnotatorEntityTypeSpec("biobert", "BioBERT", "Gene / protein", "gene", ()),
+    AnnotatorEntityTypeSpec("biobert", "BioBERT", "Disease", "disease", ()),
+    AnnotatorEntityTypeSpec("biobert", "BioBERT", "Chemical / drug", "drug", ()),
     # ClinicalBERT (i2b2) emits problem / test / treatment. These are clinical
     # categories with no exact match in the canonical biomedical set (problem is
     # broader than disease, treatment broader than drug), so they are kept as their
@@ -239,6 +260,17 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
         AnnotatorEntityTypeSpec(annotator, annotator_label, source_type, canonical_type, database_ids)
         for annotator, annotator_label, source_type, canonical_type, database_ids in SCISPACY_ENTITY_TYPE_SPECS
     ),
+    AnnotatorEntityTypeSpec("bent", "BENT", "disease", "disease", ("MEDIC", "Disease Ontology")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "chemical", "drug", ("ChEBI", "CTD Chemicals")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "gene", "gene", ("NCBI Gene", "CTD Gene")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "organism", "species", ("NCBI Taxonomy",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "bioprocess", "bioprocess", ("Gene Ontology Biological Process",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "anatomical", "anatomical", ("CTD Anatomy", "UBERON", "FMA")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "anatomy", "anatomical", ("CTD Anatomy", "UBERON", "FMA")),
+    AnnotatorEntityTypeSpec("bent", "BENT", "cell_component", "cell_component", ("Gene Ontology Cellular Component",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "cell_type", "cell_type", ("Cell Ontology",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "cell_line", "cell_line", ("Cellosaurus",)),
+    AnnotatorEntityTypeSpec("bent", "BENT", "variant", "variant", ()),
 )
 
 
@@ -266,6 +298,9 @@ ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "organism_substance": "Organism substance",
     "pathological_formation": "Pathological formation",
     "tissue": "Tissue",
+    "bioprocess": "Biological process",
+    "anatomical": "Anatomical entity",
+    "cell_component": "Cellular component",
 }
 ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
     (entity_type, ENTITY_TYPE_DISPLAY_NAMES[entity_type])
@@ -280,6 +315,9 @@ ENTITY_TYPE_CHOICES: tuple[tuple[str, str], ...] = tuple(
         "dna",
         "rna",
         "biomedical_entity",
+        "bioprocess",
+        "anatomical",
+        "cell_component",
     )
 )
 ENTITY_TYPE_ALIASES: dict[str, str] = {
@@ -373,6 +411,24 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "aioner"
+        },
+        normalization_fields=(),
+    ),
+    "biobert": AnnotatorCapability(
+        label="BioBERT",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "biobert"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "biobert"
         },
         normalization_fields=(),
     ),
@@ -550,6 +606,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         },
         normalization_fields=("EntityLinker kb_ents", "UMLS CUI"),
     ),
+    "bent": AnnotatorCapability(
+        label="BENT",
+        tasks=("NER", "NEN"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bent"
+        ),
+        normalization_status="normalized",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bent"
+        },
+        normalization_fields=("BRAT N Reference lines",),
+    ),
     "stanza_bc5cdr": AnnotatorCapability(
         label="Stanza BC5CDR",
         tasks=("NER",),
@@ -601,6 +673,60 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "stanza_jnlpba"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_i2b2": AnnotatorCapability(
+        label="Stanza i2b2",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_i2b2"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_i2b2"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_radiology": AnnotatorCapability(
+        label="Stanza radiology",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_radiology"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_radiology"
+        },
+        normalization_fields=(),
+    ),
+    "stanza_anatem": AnnotatorCapability(
+        label="Stanza AnatEM",
+        tasks=("NER",),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_anatem"
+            )
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_anatem"
         },
         normalization_fields=(),
     ),

@@ -32,6 +32,15 @@ def test_entity_type_specs_are_the_source_of_truth() -> None:
         (spec.annotator, spec.source_entity_type, spec.canonical_entity_type, spec.database_ids)
         for spec in ANNOTATOR_ENTITY_TYPE_SPECS
     }
+    assert (
+        "bent",
+        "chemical",
+        "drug",
+        ("ChEBI", "CTD Chemicals"),
+    ) in {
+        (spec.annotator, spec.source_entity_type, spec.canonical_entity_type, spec.database_ids)
+        for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+    }
     assert all(spec.canonical_entity_type != "mirna" for spec in ANNOTATOR_ENTITY_TYPE_SPECS)
 
 
@@ -62,6 +71,7 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
     assert annotator_supports_nen("pubtator3") is True
     assert annotator_supports_nen("bern2") is True
     assert annotator_supports_nen("flair") is False
+    assert annotator_supports_nen("bent") is True
     assert "variant" in ANNOTATOR_ENTITY_TYPES["bern2"]
     assert {"cell_line", "cell_type", "dna", "rna"} <= ANNOTATOR_ENTITY_TYPES["bern2"]
     assert "cell_type" not in ANNOTATOR_ENTITY_TYPES["pubtator3"]
@@ -121,6 +131,8 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
     } <= ANNOTATOR_ENTITY_TYPES["scispacy_bionlp13cg"]
     assert ANNOTATOR_ENTITY_TYPES["scispacy_scibert"] == {"biomedical_entity"}
     assert ANNOTATOR_CAPABILITIES["scispacy_scibert"].tasks == ("NER", "NEN")
+    assert "bioprocess" in ANNOTATOR_ENTITY_TYPES["bent"]
+    assert "cell_component" in ANNOTATOR_ENTITY_TYPES["bent"]
 
 
 def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior() -> None:
@@ -136,6 +148,8 @@ def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior(
     assert "BioC infons.identifier" in annotator_normalization_fields("pubtator3")
     assert "id" in annotator_normalization_fields("bern2")
     assert annotator_normalization_fields("flair") == ()
+    assert annotator_normalization_status("bent") == "normalized"
+    assert annotator_normalization_fields("bent") == ("BRAT N Reference lines",)
 
 
 def test_normalization_databases_are_source_backed() -> None:
@@ -147,3 +161,4 @@ def test_normalization_databases_are_source_backed() -> None:
     assert normalization_databases("cell_line", "bern2") == ("Cellosaurus",)
     assert normalization_databases("species", "bern2") == ("NCBI Taxonomy",)
     assert normalization_databases("gene", "flair") == ()
+    assert normalization_databases("chemical", "bent") == ("ChEBI", "CTD Chemicals")

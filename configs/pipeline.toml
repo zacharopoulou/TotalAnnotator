@@ -6,7 +6,7 @@ pmids = ["36403686"]
 sources = []
 
 [annotators]
-enabled = ["bern2", "flair", "pubtator3"]  # add "aioner" after running tools/aioner/setup.sh
+enabled = ["bern2", "flair", "pubtator3"]  # add "aioner" or "bent" after running the matching tools/*/setup.sh
 
 [annotators.bern2]
 runtime = "remote_api"
@@ -53,9 +53,35 @@ model = "en_ner_bc5cdr_md"
 [annotators.scispacy_bionlp13cg]
 model = "en_ner_bionlp13cg_md"
 
+[annotators.scispacy_craft]
+model = "en_ner_craft_md"
+
 [annotators.scispacy_scibert]
 model = "en_core_sci_scibert"
 linker_name = "umls"
+
+[annotators.scispacy_md]
+model = "en_core_sci_md"
+linker_name = "umls"
+
+# BENT runs in its own Python <=3.10.13 environment; run tools/bent/setup.sh first.
+[annotators.bent]
+runtime = "local_subprocess"
+mode = "ner_nel"
+# project = BENT tool dir (uv env + run_bent.py). Set `script` to override the wrapper.
+project = "tools/bent"
+timeout = 900
+
+[annotators.bent.types]
+disease = "medic"
+chemical = "chebi"
+gene = "ncbi_gene"
+organism = "ncbi_taxon"
+anatomical = "uberon"
+cell_line = "cellosaurus"
+bioprocess = "go_bp"
+cell_component = "go_cc"
+cell_type = "cell_ontology"
 
 [filters]
 entity_types = []

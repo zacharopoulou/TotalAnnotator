@@ -3230,6 +3230,10 @@ benchmarks = [
     { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "tabulate" },
 ]
+biobert = [
+    { name = "torch" },
+    { name = "transformers" },
+]
 clinicalbert = [
     { name = "torch" },
     { name = "transformers" },
@@ -3278,14 +3282,16 @@ requires-dist = [
     { name = "stanza", marker = "extra == 'stanza'", specifier = ">=1.8" },
     { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
     { name = "torch", marker = "extra == 'apollo'", specifier = ">=2.0" },
+    { name = "torch", marker = "extra == 'biobert'", specifier = ">=2.0" },
     { name = "torch", marker = "extra == 'clinicalbert'", specifier = ">=2.0" },
     { name = "torch", marker = "extra == 'd4data'", specifier = ">=2.0" },
-    { name = "totalannotator", extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy", "benchmarks"], marker = "extra == 'all'" },
+    { name = "totalannotator", extras = ["flair", "clinicalbert", "biobert", "apollo", "d4data", "stanza", "scispacy", "benchmarks"], marker = "extra == 'all'" },
     { name = "transformers", marker = "extra == 'apollo'", specifier = ">=4.30,<5" },
+    { name = "transformers", marker = "extra == 'biobert'", specifier = ">=4.30,<5" },
     { name = "transformers", marker = "extra == 'clinicalbert'", specifier = ">=4.30,<5" },
     { name = "transformers", marker = "extra == 'd4data'", specifier = ">=4.30,<5" },
 ]
-provides-extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy", "benchmarks", "all"]
+provides-extras = ["flair", "clinicalbert", "biobert", "apollo", "d4data", "stanza", "scispacy", "benchmarks", "all"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
