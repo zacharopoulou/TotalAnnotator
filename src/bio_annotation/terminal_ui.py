@@ -20,7 +20,6 @@ from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICA
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
 from bio_annotation.entity_proposal.stanza_proposer import (
-    DEFAULT_STANZA_PACKAGE,
     STANZA_ANNOTATORS,
 )
 from bio_annotation.entity_types import (
@@ -344,7 +343,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         lines += ["", "[annotators.medcat]", 'runtime = "remote_api"', f"endpoint = {_toml_string(medcat_config_endpoint())}", "min_acc = 0.3"]
     for stanza_annotator in STANZA_ANNOTATORS:
         if stanza_annotator in answers.annotators:
-            lines += ["", f"[annotators.{stanza_annotator}]", 'runtime = "local"', f"package = {_toml_string(DEFAULT_STANZA_PACKAGE)}"]
+            lines += ["", f"[annotators.{stanza_annotator}]", 'runtime = "local"']
     lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
     return "\n".join(lines)
 
