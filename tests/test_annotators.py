@@ -36,6 +36,16 @@ from bio_annotation.annotators.d4data import (
 )
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3, call_pubtator3
+from bio_annotation.annotators.scispacy import (
+    SCISPACY_MODEL_BY_ANNOTATOR,
+    annotate_with_scispacy,
+    annotate_with_scispacy_bc5cdr,
+    annotate_with_scispacy_bionlp13cg,
+    annotate_with_scispacy_craft,
+    annotate_with_scispacy_jnlpba,
+    annotate_with_scispacy_md,
+    annotate_with_scispacy_scibert,
+)
 from bio_annotation.annotators.stanza import annotate_with_stanza
 from bio_annotation.schemas.document import Document
 
@@ -910,6 +920,182 @@ def test_d4data_adapter_loads_configured_model() -> None:
     assert annotations[0].entity_type == "drug"
 
 
+def test_scispacy_jnlpba_adapter_parses_spacy_entities_and_normalizes_types() -> None:
+    document = sample_document()
+    response = [
+        FakeScispacyEntity("PTEN", "PROTEIN", 0, 4),
+        FakeScispacyEntity("miR-21", "RNA", 9, 15),
+    ]
+
+    annotations = annotate_with_scispacy_jnlpba(document, response=response)
+
+    assert [annotation.source for annotation in annotations] == [
+        "scispacy_jnlpba",
+        "scispacy_jnlpba",
+    ]
+    assert [annotation.entity_type for annotation in annotations] == ["gene", "rna"]
+    assert all(annotation.canonical_id is None for annotation in annotations)
+
+
+def test_scispacy_bc5cdr_adapter_maps_chemical_to_drug() -> None:
+    document = sample_document()
+    response = [
+        FakeScispacyEntity("glioblastoma", "DISEASE", 36, 48),
+        FakeScispacyEntity("cisplatin", "CHEMICAL", 0, 9),
+    ]
+
+    annotations = annotate_with_scispacy_bc5cdr(document, response=response)
+
+    assert [annotation.source for annotation in annotations] == [
+        "scispacy_bc5cdr",
+        "scispacy_bc5cdr",
+    ]
+    assert [annotation.entity_type for annotation in annotations] == ["disease", "drug"]
+
+
+def test_scispacy_bionlp13cg_adapter_maps_complete_requested_labels() -> None:
+    document = sample_document()
+    labels = [
+        ("AMINO_ACID", "amino_acid"),
+        ("ANATOMICAL_SYSTEM", "anatomical_system"),
+        ("CANCER", "cancer"),
+        ("CELL", "cell"),
+        ("CELLULAR_COMPONENT", "cellular_component"),
+        ("DEVELOPING_ANATOMICAL_STRUCTURE", "developing_anatomical_structure"),
+        ("GENE_OR_GENE_PRODUCT", "gene"),
+        ("IMMATERIAL_ANATOMICAL_ENTITY", "immaterial_anatomical_entity"),
+        ("MULTI-TISSUE_STRUCTURE", "multi_tissue_structure"),
+        ("ORGAN", "organ"),
+        ("ORGANISM", "species"),
+        ("ORGANISM_SUBDIVISION", "organism_subdivision"),
+        ("ORGANISM_SUBSTANCE", "organism_substance"),
+        ("PATHOLOGICAL_FORMATION", "pathological_formation"),
+        ("SIMPLE_CHEMICAL", "drug"),
+        ("TISSUE", "tissue"),
+    ]
+    response = [
+        FakeScispacyEntity(label, label, index, index + len(label))
+        for index, (label, _) in enumerate(labels)
+    ]
+
+    annotations = annotate_with_scispacy_bionlp13cg(document, response=response)
+
+    assert [annotation.source for annotation in annotations] == [
+        "scispacy_bionlp13cg"
+    ] * len(labels)
+    assert [annotation.entity_type for annotation in annotations] == [
+        expected for _, expected in labels
+    ]
+
+
+def test_scispacy_craft_adapter_maps_ontology_labels() -> None:
+    document = sample_document()
+    labels = [
+        ("GGP", "gene"),
+        ("CHEBI", "drug"),
+        ("CL", "cell_type"),
+        ("TAXON", "species"),
+        ("GO", "gene_ontology"),
+        ("SO", "sequence_ontology"),
+    ]
+    response = [
+        FakeScispacyEntity(label, label, index, index + len(label))
+        for index, (label, _) in enumerate(labels)
+    ]
+
+    annotations = annotate_with_scispacy_craft(document, response=response)
+
+    assert [annotation.source for annotation in annotations] == [
+        "scispacy_craft"
+    ] * len(labels)
+    assert [annotation.entity_type for annotation in annotations] == [
+        expected for _, expected in labels
+    ]
+
+
+def test_scispacy_scibert_adapter_keeps_top_linker_candidate() -> None:
+    document = sample_document()
+    response = [
+        FakeScispacyEntity(
+            "glioblastoma",
+            "ENTITY",
+            36,
+            48,
+            [("C0017636", 0.91), ("C0278878", 0.42)],
+        )
+    ]
+
+    annotations = annotate_with_scispacy_scibert(
+        document,
+        response=response,
+        nlp=type(
+            "FakeNlp",
+            (),
+            {"get_pipe": lambda self, name: FakeScispacyLinker()},
+        )(),
+    )
+
+    assert len(annotations) == 1
+    assert annotations[0].source == "scispacy_scibert"
+    assert annotations[0].entity_type == "biomedical_entity"
+    assert annotations[0].canonical_id == "C0017636"
+    assert annotations[0].canonical_name == "Glioblastoma"
+    assert annotations[0].confidence == 0.91
+
+
+def test_scispacy_md_links_entities_to_umls_like_scibert() -> None:
+    from bio_annotation.annotators.scispacy import (
+        SCISPACY_LINKER_NAME_BY_ANNOTATOR,
+        SCISPACY_MODEL_BY_ANNOTATOR,
+    )
+
+    # Both general models are linkers defaulting to UMLS; md uses the lighter model.
+    assert SCISPACY_LINKER_NAME_BY_ANNOTATOR == {
+        "scispacy_scibert": "umls",
+        "scispacy_md": "umls",
+    }
+    assert SCISPACY_MODEL_BY_ANNOTATOR["scispacy_md"] == "en_core_sci_md"
+
+    document = sample_document()
+    response = [FakeScispacyEntity("glioblastoma", "ENTITY", 36, 48, [("C0017636", 0.9)])]
+    annotations = annotate_with_scispacy_md(
+        document,
+        response=response,
+        nlp=type("FakeNlp", (), {"get_pipe": lambda self, name: FakeScispacyLinker()})(),
+    )
+
+    assert len(annotations) == 1
+    assert annotations[0].source == "scispacy_md"
+    assert annotations[0].entity_type == "biomedical_entity"
+    assert annotations[0].canonical_id == "C0017636"
+    assert annotations[0].canonical_name == "Glioblastoma"
+
+
+def test_scispacy_adapter_loads_configured_model() -> None:
+    document = sample_document()
+    loaded_models: list[str] = []
+
+    class FakeNlp:
+        def __call__(self, text: str) -> FakeScispacyDoc:
+            assert text == document.text
+            return FakeScispacyDoc([FakeScispacyEntity("PTEN", "PROTEIN", 0, 4)])
+
+    def fake_loader(model: str) -> FakeNlp:
+        loaded_models.append(model)
+        return FakeNlp()
+
+    annotations = annotate_with_scispacy(
+        document,
+        source="scispacy_jnlpba",
+        model=SCISPACY_MODEL_BY_ANNOTATOR["scispacy_jnlpba"],
+        model_loader=fake_loader,
+    )
+
+    assert loaded_models == [SCISPACY_MODEL_BY_ANNOTATOR["scispacy_jnlpba"]]
+    assert annotations[0].source == "scispacy_jnlpba"
+    assert annotations[0].entity_type == "gene"
+
+
 @dataclass
 class FakeStanzaEntity:
     text: str
@@ -921,6 +1107,42 @@ class FakeStanzaEntity:
 class FakeStanzaDoc:
     def __init__(self, ents: list[FakeStanzaEntity]) -> None:
         self.ents = ents
+
+
+class FakeScispacyExtension:
+    def __init__(self, kb_ents: list[tuple[str, float]] | None = None) -> None:
+        self.kb_ents = kb_ents or []
+
+
+@dataclass
+class FakeScispacyEntity:
+    text: str
+    label_: str
+    start_char: int
+    end_char: int
+    kb_ents: list[tuple[str, float]] | None = None
+
+    def __post_init__(self) -> None:
+        self._ = FakeScispacyExtension(self.kb_ents)
+
+
+class FakeScispacyDoc:
+    def __init__(self, ents: list[FakeScispacyEntity]) -> None:
+        self.ents = ents
+
+
+class FakeScispacyLinkedEntity:
+    def __init__(self, canonical_name: str) -> None:
+        self.canonical_name = canonical_name
+
+
+class FakeScispacyLinker:
+    def __init__(self) -> None:
+        self.kb = type(
+            "FakeKb",
+            (),
+            {"cui_to_entity": {"C0017636": FakeScispacyLinkedEntity("Glioblastoma")}},
+        )()
 
 
 def test_stanza_bc5cdr_normalizes_and_stamps_source() -> None:

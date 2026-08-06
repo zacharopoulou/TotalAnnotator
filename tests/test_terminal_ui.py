@@ -128,6 +128,34 @@ def test_build_terminal_ui_config_includes_bern2_endpoint(tmp_path) -> None:
     assert 'endpoint = "http://bern2.korea.ac.kr/plain"' in config_text
 
 
+def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
+    paths = create_run_paths(tmp_path / "out")
+    answers = TerminalUIAnswers(
+        input_mode="pmids",
+        pmids=["12345678"],
+        pmid_file=None,
+        annotators=[
+            "scispacy_jnlpba",
+            "scispacy_bc5cdr",
+            "scispacy_bionlp13cg",
+            "scispacy_scibert",
+        ],
+        entity_types=[],
+    )
+
+    config_text = build_terminal_ui_config_text(answers, paths)
+
+    assert "[annotators.scispacy_jnlpba]" in config_text
+    assert 'model = "en_ner_jnlpba_md"' in config_text
+    assert "[annotators.scispacy_bc5cdr]" in config_text
+    assert 'model = "en_ner_bc5cdr_md"' in config_text
+    assert "[annotators.scispacy_bionlp13cg]" in config_text
+    assert 'model = "en_ner_bionlp13cg_md"' in config_text
+    assert "[annotators.scispacy_scibert]" in config_text
+    assert 'model = "en_core_sci_scibert"' in config_text
+    assert 'linker_name = "umls"' in config_text
+
+
 def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path) -> None:
     source_text = tmp_path / "doc1.txt"
     source_text.write_text("PTEN is important in glioblastoma.\nEGFR is also relevant.\n", encoding="utf-8")

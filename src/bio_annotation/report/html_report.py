@@ -12,11 +12,12 @@ _TEMPLATE_PATH = Path(__file__).resolve().parent / "template.html"
 # When annotators overlap on the same span, this is the order they appear in.
 _SOURCE_PRIORITY: dict[str, int] = {"pubtator3": 0, "bern2": 1, "flair": 2}
 
-_ANNOTATOR_LABELS: dict[str, str] = {
-    "pubtator3": "PubTator3",
-    "bern2": "BERN2",
-    "flair": "Flair / HunFlair",
-}
+# Show each annotator by its canonical display name (the same label used in the
+# terminal menu), not its internal id. Falls back to the raw id for anything not
+# in the capability registry.
+from bio_annotation.entity_types import ANNOTATOR_DISPLAY_NAMES
+
+_ANNOTATOR_LABELS: dict[str, str] = dict(ANNOTATOR_DISPLAY_NAMES)
 
 _ENTITY_TYPE_LABELS: dict[str, str] = {
     "gene": "Gene / protein",

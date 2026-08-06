@@ -19,6 +19,10 @@ from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
+from bio_annotation.entity_proposal.scispacy_proposer import (
+    SCISPACY_LINKER_NAME_BY_ANNOTATOR,
+    SCISPACY_MODEL_BY_ANNOTATOR,
+)
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
 )
@@ -198,13 +202,14 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators, or press Enter for default annotators",
         choices=ANNOTATOR_CHOICES,
-        # AIONER and BENT need separate environments + models, apollo/d4data
-        # download local models, MedCAT needs a running MedCATservice, and Stanza
-        # fetches models on first use, so none are pre-selected.
+        # AIONER and BENT need separate environments + models, BioBERT/apollo/d4data
+        # download local models, MedCAT needs a running MedCATservice, and
+        # Stanza/scispaCy require separate local model resources, so none are
+        # pre-selected.
         default_values=[
             value
             for value, _ in ANNOTATOR_CHOICES
-            if value not in {"aioner", "bent", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS}
+            if value not in {"aioner", "bent", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
         ],
         validate_values=_validate_selected_annotators,
     )
@@ -341,6 +346,18 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         lines += ["", "[annotators.d4data]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_D4DATA_MODEL)}"]
     if "medcat" in answers.annotators:
         lines += ["", "[annotators.medcat]", 'runtime = "remote_api"', f"endpoint = {_toml_string(medcat_config_endpoint())}", "min_acc = 0.3"]
+    for annotator in SCISPACY_MODEL_BY_ANNOTATOR:
+        if annotator in answers.annotators:
+            lines += [
+                "",
+                f"[annotators.{annotator}]",
+                'runtime = "local_model"',
+                f"model = {_toml_string(SCISPACY_MODEL_BY_ANNOTATOR[annotator])}",
+            ]
+            if annotator in SCISPACY_LINKER_NAME_BY_ANNOTATOR:
+                lines += [
+                    f"linker_name = {_toml_string(SCISPACY_LINKER_NAME_BY_ANNOTATOR[annotator])}"
+                ]
     for stanza_annotator in STANZA_ANNOTATORS:
         if stanza_annotator in answers.annotators:
             lines += ["", f"[annotators.{stanza_annotator}]", 'runtime = "local"']
@@ -412,18 +429,6 @@ def find_unsupported_entity_types(annotators: list[str], entity_types: list[str]
         for a in annotators
         if (missing := [e for e in entity_types if e not in ANNOTATOR_ENTITY_TYPES.get(a, set())])
     }
-
-
-def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ...]:
-    available: set[str] = set()
-    for annotator in annotators:
-        available |= ANNOTATOR_ENTITY_TYPES.get(annotator, set())
-    if not available:
-        return ENTITY_TYPE_CHOICES
-    canonical_order = [value for value, _ in ENTITY_TYPE_CHOICES]
-    ordered = [value for value in canonical_order if value in available]
-    ordered.extend(sorted(available - set(canonical_order)))
-    return tuple((value, _entity_type_label(value)) for value in ordered)
 
 
 def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ...]:

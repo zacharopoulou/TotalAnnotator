@@ -9,4 +9,3 @@ __all__ = [
     "call_bent",
     "parse_bent_response",
 ]
-

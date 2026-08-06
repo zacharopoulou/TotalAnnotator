@@ -103,6 +103,36 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
         "drug",
         "tissue",
     } <= ANNOTATOR_ENTITY_TYPES["stanza_bionlp13cg"]
+    assert ANNOTATOR_ENTITY_TYPES["scispacy_jnlpba"] == {
+        "gene",
+        "dna",
+        "rna",
+        "cell_line",
+        "cell_type",
+    }
+    assert ANNOTATOR_ENTITY_TYPES["scispacy_bc5cdr"] == {"disease", "drug"}
+    assert {
+        "amino_acid",
+        "anatomical_system",
+        "cancer",
+        "cell",
+        "cellular_component",
+        "developing_anatomical_structure",
+        "gene",
+        "immaterial_anatomical_entity",
+        "multi_tissue_structure",
+        "organ",
+        "species",
+        "organism_subdivision",
+        "organism_substance",
+        "pathological_formation",
+        "drug",
+        "tissue",
+    } <= ANNOTATOR_ENTITY_TYPES["scispacy_bionlp13cg"]
+    assert ANNOTATOR_ENTITY_TYPES["scispacy_scibert"] == {"biomedical_entity"}
+    assert ANNOTATOR_CAPABILITIES["scispacy_scibert"].tasks == ("NER", "NEN")
+    assert ANNOTATOR_CAPABILITIES["scispacy_jnlpba"].label == "scispaCy en_ner_jnlpba_md"
+    assert ANNOTATOR_CAPABILITIES["scispacy_scibert"].label == "scispaCy en_core_sci_scibert"
     assert "bioprocess" in ANNOTATOR_ENTITY_TYPES["bent"]
     assert "cell_component" in ANNOTATOR_ENTITY_TYPES["bent"]
 
@@ -110,6 +140,7 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
 def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior() -> None:
     assert ENTITY_TYPE_DISPLAY_NAMES["gene"] == "Gene / protein"
     assert ENTITY_TYPE_DISPLAY_NAMES["drug"] == "Chemical / drug"
+    assert ENTITY_TYPE_DISPLAY_NAMES["biomedical_entity"] == "Biomedical entity"
     assert ENTITY_TYPE_DISPLAY_NAMES["cell"] == "Cell"
     assert ENTITY_TYPE_DISPLAY_NAMES["cancer"] == "Cancer"
     assert ENTITY_TYPE_DISPLAY_NAMES["pathological_formation"] == "Pathological formation"

@@ -214,4 +214,3 @@ def _parse_normalization_line(line: str) -> dict[str, str] | None:
 
 def _serialize_types(types: dict[str, str]) -> str:
     return ",".join(f"{entity_type}:{kb}" for entity_type, kb in sorted(types.items()) if entity_type)
-

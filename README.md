@@ -186,6 +186,21 @@ To start the service: clone [CogStack/MedCATservice](https://github.com/CogStack
 
 MedCAT entity types are the model pack's semantic types (UMLS TUIs), so they pass through as returned rather than mapping to the canonical types below.
 
+### scispaCy
+
+scispaCy runs local spaCy NER model packages. Install the Python dependency and TotalAnnotator-supported model packages with `uv sync --extra scispacy`.
+
+TotalAnnotator exposes the requested scispaCy models as separate annotators, labeled in the UI as scispaCy implementations with their exact model id:
+
+- `scispacy_jnlpba` -> `en_ner_jnlpba_md`
+- `scispacy_bc5cdr` -> `en_ner_bc5cdr_md`
+- `scispacy_bionlp13cg` -> `en_ner_bionlp13cg_md`
+- `scispacy_craft` -> `en_ner_craft_md`
+- `scispacy_scibert` -> `en_core_sci_scibert` with the UMLS `EntityLinker`
+- `scispacy_md` -> `en_core_sci_md` with the UMLS `EntityLinker`
+
+`CHEMICAL` and `SIMPLE_CHEMICAL` normalize to the existing `drug` canonical type. The general models (`scispacy_scibert`, `scispacy_md`) detect generic entities and link them to UMLS, storing the top UMLS candidate in `canonical_id` and its canonical name when the linker returns one; the knowledge base defaults to UMLS and is configurable via `linker_name`. The corpus NER models above do not link.
+
 ## Entity Types
 
 TotalAnnotator normalizes annotator labels into canonical entity types:

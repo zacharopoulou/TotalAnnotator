@@ -62,4 +62,3 @@ def parse_types(raw: str) -> dict[str, str]:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

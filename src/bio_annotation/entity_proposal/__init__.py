@@ -14,6 +14,14 @@ from bio_annotation.entity_proposal.d4data_proposer import annotate_with_d4data
 from bio_annotation.entity_proposal.flair_proposer import annotate_with_flair
 from bio_annotation.entity_proposal.medcat_proposer import annotate_with_medcat
 from bio_annotation.entity_proposal.pubtator3_proposer import annotate_with_pubtator3
+from bio_annotation.entity_proposal.scispacy_proposer import (
+    annotate_with_scispacy_bc5cdr,
+    annotate_with_scispacy_bionlp13cg,
+    annotate_with_scispacy_craft,
+    annotate_with_scispacy_jnlpba,
+    annotate_with_scispacy_md,
+    annotate_with_scispacy_scibert,
+)
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
     annotate_with_stanza,
@@ -62,6 +70,24 @@ def run_all_annotators(
     medcat_response: Any = None,
     medcat_request_fn: Any = None,
     medcat_endpoint: str | None = None,
+    scispacy_jnlpba_response: Any = None,
+    scispacy_jnlpba_request_fn: Any = None,
+    scispacy_jnlpba_nlp: Any = None,
+    scispacy_bc5cdr_response: Any = None,
+    scispacy_bc5cdr_request_fn: Any = None,
+    scispacy_bc5cdr_nlp: Any = None,
+    scispacy_bionlp13cg_response: Any = None,
+    scispacy_bionlp13cg_request_fn: Any = None,
+    scispacy_bionlp13cg_nlp: Any = None,
+    scispacy_craft_response: Any = None,
+    scispacy_craft_request_fn: Any = None,
+    scispacy_craft_nlp: Any = None,
+    scispacy_scibert_response: Any = None,
+    scispacy_scibert_request_fn: Any = None,
+    scispacy_scibert_nlp: Any = None,
+    scispacy_md_response: Any = None,
+    scispacy_md_request_fn: Any = None,
+    scispacy_md_nlp: Any = None,
     stanza_entities: dict[str, Any] | None = None,  # model name -> entities
 ) -> dict[str, list[Annotation]]:
     """Run all configured annotator adapters and return normalized outputs."""
@@ -160,6 +186,72 @@ def run_all_annotators(
             request_fn=medcat_request_fn,
             endpoint=medcat_endpoint,
         )
+    if (
+        scispacy_jnlpba_response is not None
+        or scispacy_jnlpba_request_fn is not None
+        or scispacy_jnlpba_nlp is not None
+    ):
+        results["scispacy_jnlpba"] = annotate_with_scispacy_jnlpba(
+            document,
+            response=scispacy_jnlpba_response,
+            request_fn=scispacy_jnlpba_request_fn,
+            nlp=scispacy_jnlpba_nlp,
+        )
+    if (
+        scispacy_bc5cdr_response is not None
+        or scispacy_bc5cdr_request_fn is not None
+        or scispacy_bc5cdr_nlp is not None
+    ):
+        results["scispacy_bc5cdr"] = annotate_with_scispacy_bc5cdr(
+            document,
+            response=scispacy_bc5cdr_response,
+            request_fn=scispacy_bc5cdr_request_fn,
+            nlp=scispacy_bc5cdr_nlp,
+        )
+    if (
+        scispacy_bionlp13cg_response is not None
+        or scispacy_bionlp13cg_request_fn is not None
+        or scispacy_bionlp13cg_nlp is not None
+    ):
+        results["scispacy_bionlp13cg"] = annotate_with_scispacy_bionlp13cg(
+            document,
+            response=scispacy_bionlp13cg_response,
+            request_fn=scispacy_bionlp13cg_request_fn,
+            nlp=scispacy_bionlp13cg_nlp,
+        )
+    if (
+        scispacy_craft_response is not None
+        or scispacy_craft_request_fn is not None
+        or scispacy_craft_nlp is not None
+    ):
+        results["scispacy_craft"] = annotate_with_scispacy_craft(
+            document,
+            response=scispacy_craft_response,
+            request_fn=scispacy_craft_request_fn,
+            nlp=scispacy_craft_nlp,
+        )
+    if (
+        scispacy_scibert_response is not None
+        or scispacy_scibert_request_fn is not None
+        or scispacy_scibert_nlp is not None
+    ):
+        results["scispacy_scibert"] = annotate_with_scispacy_scibert(
+            document,
+            response=scispacy_scibert_response,
+            request_fn=scispacy_scibert_request_fn,
+            nlp=scispacy_scibert_nlp,
+        )
+    if (
+        scispacy_md_response is not None
+        or scispacy_md_request_fn is not None
+        or scispacy_md_nlp is not None
+    ):
+        results["scispacy_md"] = annotate_with_scispacy_md(
+            document,
+            response=scispacy_md_response,
+            request_fn=scispacy_md_request_fn,
+            nlp=scispacy_md_nlp,
+        )
     for model, ents in (stanza_entities or {}).items():
         results[stanza_source(model)] = annotate_with_stanza(
             document, model, entities=ents
@@ -169,7 +261,25 @@ def run_all_annotators(
 
 def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation]:
     annotations: list[Annotation] = []
-    for source in ("bern2", "flair", "pubtator3", "aioner", "bent", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS):
+    for source in (
+        "bern2",
+        "flair",
+        "pubtator3",
+        "aioner",
+        "bent",
+        "clinicalbert",
+        "biobert",
+        "apollo",
+        "d4data",
+        "medcat",
+        "scispacy_jnlpba",
+        "scispacy_bc5cdr",
+        "scispacy_bionlp13cg",
+        "scispacy_craft",
+        "scispacy_scibert",
+        "scispacy_md",
+        *STANZA_ANNOTATORS,
+    ):
         annotations.extend(results.get(source, []))
     return annotations
 
@@ -185,6 +295,12 @@ __all__ = [
     "annotate_with_flair",
     "annotate_with_medcat",
     "annotate_with_pubtator3",
+    "annotate_with_scispacy_bc5cdr",
+    "annotate_with_scispacy_bionlp13cg",
+    "annotate_with_scispacy_craft",
+    "annotate_with_scispacy_jnlpba",
+    "annotate_with_scispacy_md",
+    "annotate_with_scispacy_scibert",
     "annotate_with_stanza",
     "flatten_annotations",
     "run_all_annotators",
