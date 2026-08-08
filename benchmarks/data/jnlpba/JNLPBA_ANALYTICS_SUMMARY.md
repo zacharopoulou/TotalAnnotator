@@ -3,309 +3,177 @@
 ## TRAIN
 
 - Documents: **18546**
-- Entity mentions: **492551** across **1** documents
+- Entity mentions: **51301** across **16664** documents
 
 ### Entity counts by type
 
-|   type |   n_mentions |
-|-------:|-------------:|
-|      0 |       382963 |
-|      1 |         9533 |
-|     10 |        24848 |
-|      2 |        15774 |
-|      3 |          951 |
-|      4 |         1530 |
-|      5 |         3830 |
-|      6 |         7387 |
-|      7 |         6718 |
-|      8 |         8748 |
-|      9 |        30269 |
+| type      |   n_mentions |
+|:----------|-------------:|
+| DNA       |         9533 |
+| RNA       |          951 |
+| cell_line |         3830 |
+| cell_type |         6718 |
+| protein   |        30269 |
 
 ### Entities per document
 
-|       |      0 |
-|:------|-------:|
-| count |      1 |
-| mean  | 492551 |
-| min   | 492551 |
-| 50%   | 492551 |
-| max   | 492551 |
+|       |       0 |
+|:------|--------:|
+| count | 16664   |
+| mean  |     3.1 |
+| min   |     1   |
+| 50%   |     3   |
+| max   |    23   |
 
 ### Span length (chars)
 
 |       |   span_length |
 |:------|--------------:|
-| count |      492551   |
-| mean  |           5.2 |
+| count |       51301   |
+| mean  |          14.3 |
 | min   |           1   |
-| 50%   |           4   |
-| max   |          48   |
+| 50%   |          11   |
+| max   |         125   |
 
-### Normalization: 0 / 492551 (0.0%)
+### Normalization: 0 / 51301 (0.0%)
 
 ### Top 5 mentions per entity type (case-insensitive)
 
-#### 0
-
-| text_joined   |     n |
-|:--------------|------:|
-| the           | 22410 |
-| of            | 21136 |
-| .             | 18412 |
-| ,             | 17648 |
-| in            | 14272 |
-
-#### 1
+#### DNA
 
 | text_joined   |   n |
 |:--------------|----:|
-| human         | 354 |
-| il-2          | 172 |
-| promoter      | 120 |
-| hiv-1         | 106 |
-| c-fos         | 103 |
+| ltr           |  88 |
+| il-2 promoter |  81 |
+| c-fos         |  81 |
+| c-jun         |  74 |
+| promoter      |  62 |
 
-#### 10
-
-| text_joined   |    n |
-|:--------------|-----:|
-| b             | 1568 |
-| factor        | 1391 |
-| protein       | 1091 |
-| receptor      |  859 |
-| )             |  715 |
-
-#### 2
-
-| text_joined   |    n |
-|:--------------|-----:|
-| gene          | 1381 |
-| promoter      |  978 |
-| site          |  560 |
-| genes         |  546 |
-| )             |  429 |
-
-#### 3
+#### RNA
 
 | text_joined   |   n |
 |:--------------|----:|
-| mrna          |  86 |
-| c-jun         |  33 |
-| c-fos         |  30 |
-| gr            |  22 |
+| mrna          |  78 |
+| gr mrna       |  21 |
+| c-jun mrna    |  21 |
 | mrnas         |  19 |
+| il-2 mrna     |  18 |
 
-#### 4
+#### cell_line
 
-| text_joined   |   n |
-|:--------------|----:|
-| mrna          | 579 |
-| transcripts   |  72 |
-| rna           |  66 |
-| (             |  51 |
-| )             |  51 |
+| text_joined    |   n |
+|:---------------|----:|
+| jurkat cells   |  86 |
+| jurkat t cells |  81 |
+| u937 cells     |  78 |
+| hela cells     |  62 |
+| cell lines     |  50 |
 
-#### 5
-
-| text_joined   |   n |
-|:--------------|----:|
-| human         | 262 |
-| jurkat        | 245 |
-| u937          | 126 |
-| thp-1         |  94 |
-| t             |  75 |
-
-#### 6
-
-| text_joined   |    n |
-|:--------------|-----:|
-| cells         | 1680 |
-| cell          |  835 |
-| lines         |  504 |
-| line          |  431 |
-| t             |  326 |
-
-#### 7
+#### cell_type
 
 | text_joined   |   n |
 |:--------------|----:|
-| t             | 788 |
-| human         | 657 |
-| b             | 279 |
+| t cells       | 545 |
 | monocytes     | 277 |
-| peripheral    | 195 |
+| b cells       | 177 |
+| lymphocytes   | 151 |
+| t lymphocytes | 146 |
 
-#### 8
+#### protein
 
-| text_joined   |    n |
-|:--------------|-----:|
-| cells         | 3005 |
-| t             |  682 |
-| lymphocytes   |  572 |
-| blood         |  285 |
-| monocytes     |  236 |
-
-#### 9
-
-| text_joined   |    n |
-|:--------------|-----:|
-| nf-kappa      | 1021 |
-| transcription |  718 |
-| nf-kappab     |  585 |
-| il-2          |  562 |
-| nuclear       |  499 |
+| text_joined           |   n |
+|:----------------------|----:|
+| nf-kappa b            | 862 |
+| nf-kappab             | 540 |
+| il-2                  | 534 |
+| transcription factors | 343 |
+| ap-1                  | 317 |
 
 ## VALIDATION
 
 - Documents: **3856**
-- Entity mentions: **101039** across **1** documents
+- Entity mentions: **8662** across **3202** documents
 
 ### Entity counts by type
 
-|   type |   n_mentions |
-|-------:|-------------:|
-|      0 |        81647 |
-|      1 |         1056 |
-|     10 |         4774 |
-|      2 |         1789 |
-|      3 |          118 |
-|      4 |          187 |
-|      5 |          500 |
-|      6 |          989 |
-|      7 |         1921 |
-|      8 |         2991 |
-|      9 |         5067 |
+| type      |   n_mentions |
+|:----------|-------------:|
+| DNA       |         1056 |
+| RNA       |          118 |
+| cell_line |          500 |
+| cell_type |         1921 |
+| protein   |         5067 |
 
 ### Entities per document
 
 |       |      0 |
 |:------|-------:|
-| count |      1 |
-| mean  | 101039 |
-| min   | 101039 |
-| 50%   | 101039 |
-| max   | 101039 |
+| count | 3202   |
+| mean  |    2.7 |
+| min   |    1   |
+| 50%   |    2   |
+| max   |   15   |
 
 ### Span length (chars)
 
 |       |   span_length |
 |:------|--------------:|
-| count |      101039   |
-| mean  |           5.2 |
+| count |        8662   |
+| mean  |          15.2 |
 | min   |           1   |
-| 50%   |           4   |
-| max   |          39   |
+| 50%   |          12   |
+| max   |          94   |
 
-### Normalization: 0 / 101039 (0.0%)
+### Normalization: 0 / 8662 (0.0%)
 
 ### Top 5 mentions per entity type (case-insensitive)
 
-#### 0
+#### DNA
 
-| text_joined   |    n |
-|:--------------|-----:|
-| of            | 4216 |
-| the           | 4131 |
-| .             | 3789 |
-| ,             | 3625 |
-| in            | 2865 |
+| text_joined   |   n |
+|:--------------|----:|
+| il-2 promoter |  28 |
+| ap-1 site     |  15 |
+| il-2 gene     |  12 |
+| gadd45gamma   |  12 |
+| ltr           |  11 |
 
-#### 1
+#### RNA
 
 | text_joined    |   n |
 |:---------------|----:|
-| il-2           |  48 |
-| human          |  40 |
-| immunoglobulin |  25 |
-| ap-1           |  23 |
-| ig             |  14 |
+| tnf-alpha mrna |   5 |
+| cytokine mrna  |   4 |
+| mcp-1 mrna     |   4 |
+| er mrna        |   3 |
+| rxralpha mrna  |   3 |
 
-#### 10
+#### cell_line
 
-| text_joined   |   n |
-|:--------------|----:|
-| factor        | 210 |
-| receptor      | 209 |
-| protein       | 203 |
-| receptors     | 171 |
-| (             | 159 |
+| text_joined    |   n |
+|:---------------|----:|
+| jurkat t cells |  14 |
+| hl-60 cells    |  14 |
+| jurkat cells   |  10 |
+| thp-1 cells    |   6 |
+| cell lines     |   6 |
 
-#### 2
-
-| text_joined   |   n |
-|:--------------|----:|
-| gene          | 155 |
-| promoter      | 143 |
-| genes         |  97 |
-| site          |  77 |
-| and           |  60 |
-
-#### 3
+#### cell_type
 
 | text_joined   |   n |
 |:--------------|----:|
-| tnf-alpha     |   5 |
-| cytokine      |   5 |
-| er            |   4 |
-| mcp-1         |   4 |
-| human         |   3 |
-
-#### 4
-
-| text_joined   |   n |
-|:--------------|----:|
-| mrna          |  74 |
-| transcripts   |  13 |
-| and           |   8 |
-| (             |   7 |
-| )             |   7 |
-
-#### 5
-
-| text_joined   |   n |
-|:--------------|----:|
-| human         |  41 |
-| jurkat        |  29 |
-| hl-60         |  16 |
-| cultured      |   9 |
-| t             |   9 |
-
-#### 6
-
-| text_joined   |   n |
-|:--------------|----:|
-| cells         | 188 |
-| cell          | 133 |
-| lines         |  75 |
-| line          |  65 |
-| t             |  42 |
-
-#### 7
-
-| text_joined   |   n |
-|:--------------|----:|
-| t             | 168 |
-| human         | 149 |
-| b             |  85 |
+| t cells       |  95 |
 | lymphocytes   |  63 |
+| b cells       |  54 |
 | monocytes     |  47 |
+| t cell        |  30 |
 
-#### 8
+#### protein
 
-| text_joined   |   n |
-|:--------------|----:|
-| cells         | 881 |
-| t             | 184 |
-| lymphocytes   | 136 |
-| (             | 130 |
-| )             | 129 |
-
-#### 9
-
-| text_joined    |   n |
-|:---------------|----:|
-| glucocorticoid | 140 |
-| nf-kappab      | 101 |
-| transcription  |  93 |
-| nf-kappa       |  89 |
-| nuclear        |  73 |
+| text_joined              |   n |
+|:-------------------------|----:|
+| nf-kappab                |  92 |
+| glucocorticoid receptor  |  71 |
+| nf-kappa b               |  70 |
+| glucocorticoid receptors |  65 |
+| il-2                     |  62 |

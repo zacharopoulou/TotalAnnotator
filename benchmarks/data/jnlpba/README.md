@@ -10,8 +10,12 @@ uv sync --extra benchmarks
 uv run python benchmarks/scripts/jnlpba.py
 ```
 
-That downloads all splits from Hugging Face (`bigbio/jnlpba`,
-config `jnlpba_bigbio_kb`) into this directory.
+That reads the source config from Hugging Face (`bigbio/jnlpba`,
+config `jnlpba_source`, sentence-level tokens + BIO tags) and converts it into
+proper documents: each row is one sentence with its text in `passages`, and the
+B-/I- tags are merged into one entity per mention with real character offsets.
+The `jnlpba_bigbio_kb` config is not used because it is a broken conversion
+(empty passages, one entity per token, tag indices as types).
 
 JNLPBA annotates five molecular-biology types (protein, DNA, RNA, cell line, cell type); no normalization.
 
