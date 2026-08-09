@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.theme import Theme
 from rich.text import Text
+
+from bio_annotation.progress import ProgressEvent, ProgressReporter, describe
 
 
 THEME_WIDTH = 100
@@ -30,6 +33,25 @@ TOTALANNOTATOR_THEME = Theme(
         "path": "bright_blue",
     }
 )
+
+
+@contextmanager
+def annotator_spinner(console: Console | None = None) -> Iterator[ProgressReporter]:
+    console = console or Console(theme=TOTALANNOTATOR_THEME)
+    status = console.status("Running annotation...", spinner="dots")
+    status.start()
+    try:
+
+        def report(event: ProgressEvent) -> None:
+            if event.event == "start":
+                status.update(Text(describe(event), style="muted"))
+            elif event.event == "error":
+                # Printed above the spinner so failures survive the run.
+                console.print(Text(describe(event), style="warning"))
+
+        yield report
+    finally:
+        status.stop()
 
 
 def render_lines(renderable: Any) -> list[str]:
