@@ -7,6 +7,11 @@ from bio_annotation.entity_proposal._shared import make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
+FLAIR_INSTALL_HINT = (
+    "The Flair annotator requires the optional Flair dependency. "
+    "Install it with: uv sync --extra flair"
+)
+
 
 def _extract_flair_label(span: Any) -> tuple[Any, Any]:
     if hasattr(span, "get_label"):
