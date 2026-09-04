@@ -1,6 +1,6 @@
-# TotalAnnotator
+# BioAnnoHUb
 
-TotalAnnotator is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
+BioAnnoHUb is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
 
 The main workflow is:
 
@@ -12,7 +12,7 @@ Each interactive run writes a stable run folder containing the generated config,
 
 ## What It Does
 
-TotalAnnotator supports:
+BioAnnoHUb supports:
 
 - PubMed articles from inline PMIDs or a PMID file
 - local plain text from a CSV/TSV table, raw text file, or manual terminal input
@@ -79,7 +79,7 @@ uv run totalannotator annotate --runs-dir outputs/my-run
 
 ## Benchmark Review
 
-TotalAnnotator also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
+BioAnnoHUb also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
 
 The first supported benchmark is NCBI Disease, focused on disease spans from `bern2`, `pubtator3`, and `flair`.
 
