@@ -34,3 +34,33 @@ benchmarks/data/bc2gm/validation.jsonl
 
 # AIONER repository and downloaded models
 AIONER/
+
+# --- benchmark corpora (regenerate via benchmarks/scripts/*.py) ---
+# Can be regenerated locally with benchmarks/scripts/jnlpba.py
+benchmarks/data/jnlpba/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/bionlp13cg.py
+benchmarks/data/bionlp13cg/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/bionlp13cg.py
+benchmarks/data/bionlp13cg/validation.jsonl
+# Can be regenerated locally with benchmarks/scripts/craft.py
+benchmarks/data/craft/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/craft.py
+benchmarks/data/craft/validation.jsonl
+# Can be regenerated locally with benchmarks/scripts/anatem.py
+benchmarks/data/anatem/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/anatem.py
+benchmarks/data/anatem/validation.jsonl
+# Can be regenerated locally with benchmarks/scripts/nlmgene.py
+benchmarks/data/nlmgene/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/biored.py
+benchmarks/data/biored/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/biored.py
+benchmarks/data/biored/validation.jsonl
+# Can be regenerated locally with benchmarks/scripts/nlmchem.py
+benchmarks/data/nlmchem/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/nlmchem.py
+benchmarks/data/nlmchem/validation.jsonl
+# Can be regenerated locally with benchmarks/scripts/bc4chemd.py
+benchmarks/data/bc4chemd/train.jsonl
+# Can be regenerated locally with benchmarks/scripts/bc4chemd.py
+benchmarks/data/bc4chemd/validation.jsonl
