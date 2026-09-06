@@ -17,6 +17,7 @@ from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, DEFAULT_BENT_TYPES
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
+from bio_annotation.deps import aioner_config_paths
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
 from bio_annotation.entity_proposal.scispacy_proposer import (
@@ -111,20 +112,6 @@ def run_terminal_annotation_ui(
     prepare_input_files(answers, paths)
     write_terminal_ui_config(answers, paths.config_path, paths)
     load_pipeline_config(paths.config_path)
-    if "aioner" in answers.annotators:
-        _, aioner_model = aioner_config_paths()
-        if not Path(aioner_model).exists():
-            emit(
-                output_fn,
-                warning_lines(
-                    "AIONER model not found",
-                    [
-                        f"Expected model path: {aioner_model}",
-                        "Run tools/aioner/setup.sh first, or set AIONER_REPO / AIONER_MODEL.",
-                        "Otherwise the AIONER step will be skipped this run.",
-                    ],
-                ),
-            )
     if "medcat" in answers.annotators:
         medcat_endpoint = medcat_config_endpoint()
         if not _medcat_service_reachable(medcat_endpoint):
@@ -255,18 +242,6 @@ def prepare_input_files(answers: TerminalUIAnswers, paths: RunPaths) -> None:
 def write_terminal_ui_config(answers: TerminalUIAnswers, config_path: Path, paths: RunPaths) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(build_terminal_ui_config_text(answers, paths), encoding="utf-8")
-
-
-AIONER_DEFAULT_MODEL_RELPATH = "pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
-
-
-def aioner_config_paths() -> tuple[str, str]:
-    """Resolve AIONER repo/model paths for the generated config."""
-
-    repo_root = Path(__file__).resolve().parents[2]
-    repo = os.environ.get("AIONER_REPO") or str(repo_root / "AIONER")
-    model = os.environ.get("AIONER_MODEL") or str(Path(repo) / AIONER_DEFAULT_MODEL_RELPATH)
-    return repo, model
 
 
 def medcat_config_endpoint() -> str:

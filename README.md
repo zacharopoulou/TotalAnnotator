@@ -43,7 +43,21 @@ Install every optional feature:
 uv sync --extra all
 ```
 
-If a config enables `flair` but Flair is not installed, TotalAnnotator stops before the run starts and prints the install command.
+When a run selects an annotator whose dependencies are missing, TotalAnnotator asks
+before the run starts:
+
+```text
+The selected annotators need optional dependencies: scispacy.
+Installing downloads several GB (PyTorch and model packages) and can take a few minutes.
+Install them now with uv? [Y/n]
+```
+
+Accepting runs `uv sync` for you and the run continues. Declining stops the run and prints the manual install command, as does a
+non-interactive session or an environment uv does not manage. Set `TOTALANNOTATOR_NO_AUTO_INSTALL=1` to always skip the prompt.
+
+AIONER and BENT are not pip extras: they need their own interpreter and downloaded resources, so TotalAnnotator offers to run
+`tools/aioner/setup.sh` or `tools/bent/setup.sh` instead. Those two never stop the run — declining leaves the annotator
+unavailable and the remaining annotators still run.
 
 ## Run The Terminal UI
 

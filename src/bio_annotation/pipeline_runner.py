@@ -5,13 +5,11 @@ import csv
 import json
 import logging
 from datetime import datetime
-from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import (
-    APOLLO_INSTALL_HINT,
     DEFAULT_APOLLO_MODEL,
     _load_apollo_pipeline,
     annotate_with_apollo,
@@ -19,36 +17,38 @@ from bio_annotation.annotators.apollo import (
 from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.biobert import (
-    BIOBERT_INSTALL_HINT,
     annotate_with_biobert,
     load_biobert_pipelines,
 )
 from bio_annotation.annotators.clinicalbert import (
-    CLINICALBERT_INSTALL_HINT,
     DEFAULT_CLINICALBERT_MODEL,
     _load_clinicalbert_pipeline,
     annotate_with_clinicalbert,
 )
 from bio_annotation.annotators.d4data import (
-    D4DATA_INSTALL_HINT,
     DEFAULT_D4DATA_MODEL,
     _load_d4data_pipeline,
     annotate_with_d4data,
 )
-from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.flair import FLAIR_INSTALL_HINT, annotate_with_flair
 from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.annotators.scispacy import (
-    SCISPACY_INSTALL_HINT,
     SCISPACY_LINKER_NAME_BY_ANNOTATOR,
     SCISPACY_MODEL_BY_ANNOTATOR,
     _load_scispacy_model,
     annotate_with_scispacy,
 )
 from bio_annotation.annotators.stanza import annotate_with_stanza
+from bio_annotation.deps import (
+    ANNOTATOR_EXTRAS,
+    EXTRA_INSTALL_HINTS,
+    ensure_extras,
+    ensure_tool_environments,
+    extra_installed,
+)
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
-    STANZA_INSTALL_HINT,
     stanza_model_for_annotator,
 )
 from bio_annotation.entity_types import normalize_entity_type
@@ -82,10 +82,6 @@ SUPPORTED_ANNOTATORS = {
     *SCISPACY_ANNOTATORS,
     *STANZA_ANNOTATORS,
 }
-FLAIR_INSTALL_HINT = (
-    "The Flair annotator requires the optional Flair dependency. "
-    "Install it with: uv sync --extra flair"
-)
 logger = logging.getLogger(__name__)
 
 
@@ -1284,48 +1280,28 @@ def validate_optional_annotator_dependencies(
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> None:
-    if (
-        "d4data" in config.annotators
-        and d4data_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(D4DATA_INSTALL_HINT)
-    if (
-        "flair" in config.annotators
-        and flair_spans_by_document is None
-        and find_spec("flair") is None
-    ):
-        raise ValueError(FLAIR_INSTALL_HINT)
-    if (
-        "clinicalbert" in config.annotators
-        and clinicalbert_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(CLINICALBERT_INSTALL_HINT)
-    if (
-        "biobert" in config.annotators
-        and biobert_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(BIOBERT_INSTALL_HINT)
-    if (
-        "apollo" in config.annotators
-        and apollo_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(APOLLO_INSTALL_HINT)
-    if (
-        any(annotator in SCISPACY_ANNOTATOR_SET for annotator in config.annotators)
-        and scispacy_responses_by_document is None
-        and (find_spec("scispacy") is None or find_spec("spacy") is None)
-    ):
-        raise ValueError(SCISPACY_INSTALL_HINT)
-    if (
-        any(annotator in STANZA_ANNOTATORS for annotator in config.annotators)
-        and stanza_entities_by_document is None
-        and find_spec("stanza") is None
-    ):
-        raise ValueError(STANZA_INSTALL_HINT)
+    injected = {
+        "flair": flair_spans_by_document,
+        "clinicalbert": clinicalbert_responses_by_document,
+        "biobert": biobert_responses_by_document,
+        "apollo": apollo_responses_by_document,
+        "d4data": d4data_responses_by_document,
+        "scispacy": scispacy_responses_by_document,
+        "stanza": stanza_entities_by_document,
+    }
+    required = [
+        annotator
+        for annotator in config.annotators
+        if (extra := ANNOTATOR_EXTRAS.get(annotator)) is not None and injected[extra] is None
+    ]
+    ensure_extras(required)
+    # Setup-script annotators never block the run: a missing environment leaves
+    # them unavailable and the remaining annotators still run.
+    ensure_tool_environments(config.annotators, config.annotator_settings)
+    for annotator in required:
+        extra = ANNOTATOR_EXTRAS[annotator]
+        if not extra_installed(extra):
+            raise ValueError(EXTRA_INSTALL_HINTS[extra])
 
 
 def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:
